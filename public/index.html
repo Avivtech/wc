@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>World Cup 2026 Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="bg-orb bg-orb-one"></div>
+    <div class="bg-orb bg-orb-two"></div>
+    <div class="page-shell">
+      <header class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">World Cup 2026 Predictor</p>
+          <h1>Build your own playoff field from the groups.</h1>
+          <p class="hero-text">
+            Drag teams inside each group, rank the third-place finishers, and save your projected
+            bracket as JSON tied to an email address.
+          </p>
+          <div class="hero-actions">
+            <button id="refresh-button" class="button secondary" type="button">Reload data</button>
+            <span id="source-badge" class="source-badge">Loading</span>
+          </div>
+        </div>
+        <form id="save-form" class="save-panel">
+          <label class="field-label" for="email-input">Email</label>
+          <input
+            id="email-input"
+            class="field-input"
+            type="email"
+            autocomplete="email"
+            placeholder="name@example.com"
+            required
+          />
+          <div class="save-actions">
+            <button id="save-button" class="button primary" type="submit">Save picks</button>
+            <button id="load-button" class="button secondary" type="button">Load by email</button>
+          </div>
+          <a id="download-link" class="download-link hidden" href="#">Download saved JSON</a>
+          <p id="save-status" class="panel-note">The saved file includes your group order and playoff projection.</p>
+        </form>
+      </header>
+
+      <section id="warning-strip" class="warning-strip hidden"></section>
+
+      <section class="summary-section">
+        <div class="section-heading">
+          <p class="eyebrow">Overview</p>
+          <h2>Tournament snapshot</h2>
+        </div>
+        <div id="summary-grid" class="summary-grid"></div>
+      </section>
+
+      <main class="page-grid">
+        <section class="section-block">
+          <div class="section-heading">
+            <p class="eyebrow">Groups</p>
+            <h2>Drag the finish order</h2>
+            <p class="section-copy">
+              Drag on desktop or use the Up and Down buttons on mobile. The top two teams qualify
+              automatically.
+            </p>
+          </div>
+          <div id="groups-grid" class="groups-grid"></div>
+        </section>
+
+        <section class="section-block">
+          <div class="section-heading">
+            <p class="eyebrow">Third Place</p>
+            <h2>Rank the bubble teams</h2>
+            <p class="section-copy">The top eight third-place teams advance into the round of 32.</p>
+          </div>
+          <div id="third-place-card" class="panel-card"></div>
+        </section>
+
+        <section class="section-block">
+          <div class="section-heading">
+            <p class="eyebrow">Playoffs</p>
+            <h2>Projected knockout board</h2>
+            <p class="section-copy">
+              First-round pairings use FIFA's published 2026 knockout slot template.
+            </p>
+          </div>
+          <div id="playoff-board" class="playoff-board"></div>
+        </section>
+
+        <section class="section-block two-column">
+          <div>
+            <div class="section-heading compact">
+              <p class="eyebrow">Fixtures</p>
+              <h2>Match calendar</h2>
+            </div>
+            <div id="fixtures-feed" class="fixtures-feed"></div>
+          </div>
+          <div>
+            <div class="section-heading compact">
+              <p class="eyebrow">Rounds</p>
+              <h2>Stage timeline</h2>
+            </div>
+            <div id="rounds-feed" class="rounds-feed"></div>
+          </div>
+        </section>
+
+        <section class="section-block two-column">
+          <div>
+            <div class="section-heading compact">
+              <p class="eyebrow">Locations</p>
+              <h2>Host venues</h2>
+            </div>
+            <div id="venues-grid" class="venues-grid"></div>
+          </div>
+          <div>
+            <div class="section-heading compact">
+              <p class="eyebrow">Stats</p>
+              <h2>Featured match data</h2>
+            </div>
+            <div id="stats-grid" class="stats-grid"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

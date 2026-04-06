@@ -1,0 +1,8 @@
+node_modules
+.env
+
+data/cache/*.json
+data/picks/*.json
+
+!data/cache/.gitkeep
+!data/picks/.gitkeep
