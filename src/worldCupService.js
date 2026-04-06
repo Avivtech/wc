@@ -91,6 +91,7 @@ async function fetchLiveWorldCupBase({ apiKey, timezone }) {
   const normalizedFixtures = rawFixtures.map((fixture) =>
     normalizeFixture(fixture, teamLookup, venueLookup)
   );
+  const normalizedVenues = collectVenues(normalizedFixtures, venueLookup);
 
   const groups = buildGroups({
     standingsResponse: standingsResult.response,
@@ -126,9 +127,7 @@ async function fetchLiveWorldCupBase({ apiKey, timezone }) {
     groups,
     fixtures: normalizedFixtures,
     rounds: normalizedRounds,
-    venues: Array.from(venueLookup.values()).sort((left, right) =>
-      `${left.city ?? ""}${left.name}`.localeCompare(`${right.city ?? ""}${right.name}`)
-    ),
+    venues: normalizedVenues,
     featuredStats
   };
 }
@@ -198,9 +197,7 @@ async function findWorldCupLeague(apiKey) {
   const data = await apiRequest(
     "leagues",
     {
-      search: "world cup",
-      type: "cup",
-      season: WORLD_CUP_SEASON
+      search: "world cup"
     },
     apiKey
   );
@@ -300,6 +297,37 @@ async function fetchVenueLookup(rawFixtures, apiKey) {
   return new Map(venueEntries.filter(Boolean));
 }
 
+function collectVenues(fixtures, venueLookup) {
+  const venues = new Map();
+
+  for (const fixture of fixtures) {
+    const fixtureVenue = fixture.venue ?? {};
+    const key =
+      fixtureVenue.id != null
+        ? `id:${fixtureVenue.id}`
+        : `name:${fixtureVenue.name ?? ""}|city:${fixtureVenue.city ?? ""}`;
+
+    if (!fixtureVenue.name) {
+      continue;
+    }
+
+    venues.set(key, {
+      id: fixtureVenue.id ?? null,
+      name: fixtureVenue.name,
+      city: fixtureVenue.city ?? null,
+      country: fixtureVenue.country ?? null,
+      capacity: fixtureVenue.capacity ?? null,
+      image: fixtureVenue.image ?? null,
+      address: fixtureVenue.address ?? venueLookup.get(fixtureVenue.id)?.address ?? null,
+      surface: fixtureVenue.surface ?? venueLookup.get(fixtureVenue.id)?.surface ?? null
+    });
+  }
+
+  return [...venues.values()].sort((left, right) =>
+    `${left.city ?? ""}${left.name}`.localeCompare(`${right.city ?? ""}${right.name}`)
+  );
+}
+
 function normalizeFixture(fixture, teamLookup, venueLookup) {
   const venueId = fixture?.fixture?.venue?.id ?? null;
   const venue = venueLookup.get(venueId);
@@ -353,6 +381,7 @@ function normalizeFixtureTeam(team, teamLookup) {
 function buildGroups({ standingsResponse = [], teamLookup, fixtures }) {
   const standingsGroups = (standingsResponse?.[0]?.league?.standings ?? [])
     .filter((group) => Array.isArray(group) && group.length)
+    .filter((groupRows) => Boolean(extractGroupLetter(groupRows[0]?.group)))
     .map((groupRows, index) => normalizeStandingGroup(groupRows, index, teamLookup, fixtures));
 
   if (standingsGroups.length) {
