@@ -59,28 +59,6 @@ app.get("/api/picks/me", requireSupabaseAuth, async (req, res) => {
   }
 });
 
-app.get("/api/picks/me/download", requireSupabaseAuth, async (req, res) => {
-  try {
-    const email = getAuthenticatedEmail(req);
-
-    const saved = await loadPicksByEmail(email);
-
-    if (!saved) {
-      return res.status(404).json({ error: "No saved picks found for that email." });
-    }
-
-    const fileName = `${email.toLowerCase().replace(/[^a-z0-9]+/g, "_") || "wc2026"}-world-cup-2026.json`;
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
-    return res.send(JSON.stringify(saved, null, 2));
-  } catch (error) {
-    return res.status(500).json({
-      error: "Failed to download saved picks.",
-      detail: error instanceof Error ? error.message : "Unknown error"
-    });
-  }
-});
-
 app.get("/api/picks/:email", requireSupabaseAuth, requireMatchingEmailParam, async (req, res) => {
   try {
     const email = getAuthenticatedEmail(req);
@@ -94,27 +72,6 @@ app.get("/api/picks/:email", requireSupabaseAuth, requireMatchingEmailParam, asy
   } catch (error) {
     return res.status(500).json({
       error: "Failed to load saved picks.",
-      detail: error instanceof Error ? error.message : "Unknown error"
-    });
-  }
-});
-
-app.get("/api/picks/:email/download", requireSupabaseAuth, requireMatchingEmailParam, async (req, res) => {
-  try {
-    const email = getAuthenticatedEmail(req);
-    const saved = await loadPicksByEmail(email);
-
-    if (!saved) {
-      return res.status(404).json({ error: "No saved picks found for that email." });
-    }
-
-    const fileName = `${email.toLowerCase().replace(/[^a-z0-9]+/g, "_") || "wc2026"}-world-cup-2026.json`;
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
-    return res.send(JSON.stringify(saved, null, 2));
-  } catch (error) {
-    return res.status(500).json({
-      error: "Failed to download saved picks.",
       detail: error instanceof Error ? error.message : "Unknown error"
     });
   }
@@ -138,12 +95,18 @@ app.post("/api/picks", requireSupabaseAuth, async (req, res) => {
       return res.status(400).json({ error: "Group rankings are required." });
     }
 
+    const existing = await loadPicksByEmail(email);
+
+    if (existing?.submittedAt) {
+      return res.status(409).json({ error: "Submitted picks can no longer be changed." });
+    }
+
     const saved = await savePicksForEmail(email, payload);
 
     return res.status(201).json({
       ok: true,
       savedAt: saved.savedAt,
-      downloadUrl: "/api/picks/me/download"
+      submittedAt: saved.submittedAt
     });
   } catch (error) {
     return res.status(500).json({

@@ -6,6 +6,8 @@ const state = {
 	bracketWinnerSelections: {},
 	calendarMonthIndex: null,
 	playoffMatches: [],
+	submittedAt: "",
+	submissionPending: false,
 	auth: {
 		enabled: false,
 		ready: false,
@@ -13,18 +15,39 @@ const state = {
 		client: null,
 		session: null,
 		user: null,
+		displayNameDraft: "",
 		status: "",
 	},
 	saveStatus: "",
-	downloadUrl: "",
 	loading: true,
 };
 
 let dragPayload = null;
+const syncState = {
+	autoSaveTimer: 0,
+	autoSaveInFlight: false,
+	autoSaveQueued: false,
+	lastSavedSnapshot: "",
+	loadedEmail: "",
+	loadingSavedPicks: false,
+};
 const tooltipState = {
 	element: null,
 	target: null,
 	rafId: 0,
+};
+const playoffPanState = {
+	active: false,
+	pointerId: null,
+	scroller: null,
+	startX: 0,
+	startY: 0,
+	startScrollLeft: 0,
+	startScrollTop: 0,
+	canPanHorizontally: false,
+	canPanVertically: false,
+	moved: false,
+	suppressClickUntil: 0,
 };
 
 const elements = {
@@ -33,17 +56,18 @@ const elements = {
 	playoffBoard: document.getElementById("playoff-board"),
 	fixturesFeed: document.getElementById("fixtures-feed"),
 	warningStrip: document.getElementById("warning-strip"),
-	sourceBadge: document.getElementById("source-badge"),
+	emailLabel: document.getElementById("email-label"),
 	emailInput: document.getElementById("email-input"),
+	welcomeMessage: document.getElementById("welcome-message"),
 	authButton: document.getElementById("auth-button"),
+	submitButtons: Array.from(document.querySelectorAll("[data-submit-picks]")),
+	clearAllButton: document.getElementById("clear-all-button"),
+	clearAllDialog: document.getElementById("clear-all-dialog"),
+	clearAllCancelButton: document.getElementById("clear-all-cancel"),
+	clearAllConfirmButton: document.getElementById("clear-all-confirm"),
 	signOutButton: document.getElementById("signout-button"),
 	authStatus: document.getElementById("auth-status"),
-	saveForm: document.getElementById("save-form"),
-	saveButton: document.getElementById("save-button"),
-	loadButton: document.getElementById("load-button"),
 	saveStatus: document.getElementById("save-status"),
-	downloadLink: document.getElementById("download-link"),
-	refreshButton: document.getElementById("refresh-button"),
 };
 
 const CALENDAR_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -58,17 +82,22 @@ async function boot() {
 }
 
 function bindEvents() {
-	elements.saveForm.addEventListener("submit", handleSave);
 	elements.authButton.addEventListener("click", handleAuthRequest);
+	elements.clearAllButton.addEventListener("click", openClearAllDialog);
+	elements.clearAllCancelButton.addEventListener("click", closeClearAllDialog);
+	elements.clearAllConfirmButton.addEventListener("click", handleClearAll);
 	elements.signOutButton.addEventListener("click", handleSignOut);
-	elements.loadButton.addEventListener("click", handleLoad);
-	elements.downloadLink.addEventListener("click", handleDownload);
-	elements.refreshButton.addEventListener("click", () => loadWorldCup(true));
 
+	document.addEventListener("click", handlePlayoffPanClickCapture, true);
 	document.addEventListener("click", handleMoveClick);
 	document.addEventListener("mouseover", handleTooltipMouseOver);
 	document.addEventListener("mouseout", handleTooltipMouseOut);
+	document.addEventListener("keydown", handleGlobalKeyDown);
 	document.addEventListener("scroll", handleTooltipViewportChange, true);
+	document.addEventListener("pointerdown", handlePlayoffPanStart);
+	document.addEventListener("pointermove", handlePlayoffPanMove);
+	document.addEventListener("pointerup", handlePlayoffPanEnd);
+	document.addEventListener("pointercancel", handlePlayoffPanEnd);
 	document.addEventListener("dragstart", handleDragStart);
 	document.addEventListener("dragover", handleDragOver);
 	document.addEventListener("drop", handleDrop);
@@ -78,6 +107,7 @@ function bindEvents() {
 	});
 	window.addEventListener("resize", scheduleBracketLineDraw);
 	window.addEventListener("resize", handleTooltipViewportChange);
+	elements.clearAllDialog.addEventListener("click", handleClearAllDialogBackdrop);
 }
 
 async function initializeAuth() {
@@ -120,8 +150,8 @@ async function initializeAuth() {
 		state.auth.client = null;
 		state.auth.session = null;
 		state.auth.user = null;
+		state.auth.displayNameDraft = "";
 		state.auth.status = error instanceof Error ? error.message : "Failed to initialize auth.";
-		state.downloadUrl = "";
 	} finally {
 		state.auth.ready = true;
 	}
@@ -133,7 +163,8 @@ async function syncAuthSession(session, event = "SESSION") {
 
 	if (!session?.access_token || !state.auth.client) {
 		state.auth.user = null;
-		state.downloadUrl = "";
+		state.auth.displayNameDraft = "";
+		resetPickSyncState();
 		if (event === "SIGNED_OUT") {
 			state.saveStatus = "";
 		}
@@ -147,14 +178,20 @@ async function syncAuthSession(session, event = "SESSION") {
 	if (error || !data.user?.email) {
 		state.auth.session = null;
 		state.auth.user = null;
-		state.downloadUrl = "";
+		state.auth.displayNameDraft = "";
+		resetPickSyncState();
 		state.auth.status = error?.message || "Your Supabase session could not be verified.";
 		render();
 		return;
 	}
 
+	if (syncState.loadedEmail && syncState.loadedEmail !== data.user.email.toLowerCase()) {
+		resetPickSyncState();
+	}
+
 	state.auth.user = data.user;
-	state.auth.status = `Signed in as ${data.user.email}.`;
+	state.auth.displayNameDraft = getUserDisplayName(data.user);
+	state.auth.status = "Signed in.";
 	clearAuthRedirectState();
 
 	if (event === "SIGNED_OUT") {
@@ -162,6 +199,7 @@ async function syncAuthSession(session, event = "SESSION") {
 	}
 
 	render();
+	void ensureSavedPicksLoadedForCurrentUser();
 }
 
 function renderAuthState() {
@@ -175,14 +213,28 @@ function renderAuthState() {
 	}
 
 	elements.emailInput.readOnly = isSignedIn;
+	elements.emailLabel.classList.toggle("hidden", isSignedIn);
+	elements.emailInput.classList.toggle("hidden", isSignedIn);
+	elements.welcomeMessage.classList.toggle("hidden", !isSignedIn);
+	elements.welcomeMessage.textContent = getWelcomeMessage();
 	elements.authButton.textContent = state.auth.pending ? "Sending link..." : "Email magic link";
 	elements.authButton.disabled = !authReady || !authAvailable || state.auth.pending || isSignedIn;
+	elements.clearAllButton.disabled = state.loading || !state.worldCup || isPicksLocked() || state.submissionPending;
 	elements.signOutButton.disabled = !authReady || state.auth.pending;
 	elements.authButton.classList.toggle("hidden", isSignedIn);
 	elements.signOutButton.classList.toggle("hidden", !isSignedIn);
-	elements.saveButton.disabled = !isSignedIn || state.loading || state.auth.pending;
-	elements.loadButton.disabled = !isSignedIn || state.auth.pending;
 	elements.authStatus.textContent = state.auth.status || (!authReady ? "Checking auth..." : getSignedOutAuthMessage());
+}
+
+function renderSubmitButtons() {
+	const isReadyToSubmit = Boolean(getAuthenticatedEmail()) && !state.loading && Boolean(state.worldCup);
+	const label = state.submissionPending ? "Submitting..." : isPicksLocked() ? "Submitted" : "Submit";
+	const disabled = !isReadyToSubmit || state.submissionPending || isPicksLocked();
+
+	elements.submitButtons.forEach((button) => {
+		button.textContent = label;
+		button.disabled = disabled;
+	});
 }
 
 function getSignedOutAuthMessage() {
@@ -190,11 +242,47 @@ function getSignedOutAuthMessage() {
 		return state.auth.status || "Supabase Auth is not configured yet. Saving and loading are disabled.";
 	}
 
-	return "Sign in with a Supabase magic link to save and load your picks.";
+	return "Sign in with a magic link to save and load your picks.";
 }
 
 function getAuthenticatedEmail() {
-	return String(state.auth.user?.email || "").trim().toLowerCase();
+	return String(state.auth.user?.email || "")
+		.trim()
+		.toLowerCase();
+}
+
+function getUserDisplayName(user) {
+	const value = user?.user_metadata?.display_name;
+	return typeof value === "string" ? value.trim() : "";
+}
+
+function sanitizeDisplayName(value) {
+	return String(value || "")
+		.trim()
+		.replace(/\s+/g, " ")
+		.slice(0, 60);
+}
+
+function getWelcomeMessage() {
+	const displayName = sanitizeDisplayName(state.auth.displayNameDraft);
+
+	if (displayName) {
+		return `Hi ${displayName}, Welcome back!`;
+	}
+
+	return "Hi, Welcome back!";
+}
+
+function isPicksLocked() {
+	return Boolean(state.submittedAt);
+}
+
+function isPicksReadOnly() {
+	return state.submissionPending || isPicksLocked();
+}
+
+function getSubmittedSaveMessage() {
+	return state.submittedAt ? `Submitted on ${formatDateTime(state.submittedAt)}. Picks are locked.` : "Picks are locked.";
 }
 
 async function handleAuthRequest() {
@@ -218,10 +306,12 @@ async function handleAuthRequest() {
 
 	try {
 		const redirectTo = new URL(window.location.pathname, window.location.origin).toString();
+		const displayName = sanitizeDisplayName(state.auth.displayNameDraft);
 		const { error } = await state.auth.client.auth.signInWithOtp({
 			email,
 			options: {
 				emailRedirectTo: redirectTo,
+				...(displayName ? { data: { display_name: displayName } } : {}),
 			},
 		});
 
@@ -256,13 +346,64 @@ async function handleSignOut() {
 
 		state.auth.session = null;
 		state.auth.user = null;
-		state.downloadUrl = "";
+		state.auth.displayNameDraft = "";
+		resetPickSyncState();
 		state.auth.status = getSignedOutAuthMessage();
 	} catch (error) {
 		state.auth.status = error instanceof Error ? error.message : "Failed to sign out.";
 	} finally {
 		state.auth.pending = false;
 		render();
+	}
+}
+
+function handleClearAll() {
+	if (!state.worldCup || isPicksReadOnly()) {
+		return;
+	}
+
+	closeClearAllDialog();
+	state.groups = cloneGroups(state.worldCup.groups || []);
+	state.thirdPlaceRanking = deriveThirdPlaceRanking(state.groups);
+	state.selectedThirdTeamIds = [];
+	state.bracketWinnerSelections = {};
+
+	if (getAuthenticatedEmail()) {
+		state.saveStatus = "All picks cleared. Saving changes...";
+	} else {
+		state.saveStatus = "All picks cleared locally.";
+	}
+
+	renderInteractiveViews();
+	renderAuthState();
+	renderSaveState();
+	scheduleAutoSave();
+}
+
+function openClearAllDialog() {
+	if (!state.worldCup || state.loading || isPicksReadOnly()) {
+		return;
+	}
+
+	elements.clearAllDialog.classList.remove("hidden");
+	document.body.classList.add("dialog-open");
+	elements.clearAllConfirmButton.focus();
+}
+
+function closeClearAllDialog() {
+	elements.clearAllDialog.classList.add("hidden");
+	document.body.classList.remove("dialog-open");
+}
+
+function handleClearAllDialogBackdrop(event) {
+	if (event.target === elements.clearAllDialog) {
+		closeClearAllDialog();
+	}
+}
+
+function handleGlobalKeyDown(event) {
+	if (event.key === "Escape" && !elements.clearAllDialog.classList.contains("hidden")) {
+		closeClearAllDialog();
 	}
 }
 
@@ -315,8 +456,11 @@ async function loadWorldCup(refresh = false) {
 		state.selectedThirdTeamIds = [];
 		state.bracketWinnerSelections = {};
 		state.calendarMonthIndex = null;
+		state.submittedAt = "";
+		state.submissionPending = false;
 		state.saveStatus = "";
-		state.downloadUrl = "";
+		syncState.lastSavedSnapshot = "";
+		syncState.loadedEmail = "";
 	} catch (error) {
 		state.worldCup = null;
 		state.groups = [];
@@ -324,20 +468,24 @@ async function loadWorldCup(refresh = false) {
 		state.selectedThirdTeamIds = [];
 		state.bracketWinnerSelections = {};
 		state.calendarMonthIndex = null;
+		state.submittedAt = "";
+		state.submissionPending = false;
 		state.saveStatus = error instanceof Error ? error.message : "Failed to load data.";
-		state.downloadUrl = "";
+		syncState.lastSavedSnapshot = "";
+		syncState.loadedEmail = "";
 	} finally {
 		state.loading = false;
 		render();
+		void ensureSavedPicksLoadedForCurrentUser();
 	}
 }
 
 function render() {
 	hideFloatingTooltip();
-	renderSource();
 	renderWarnings();
 	renderInteractiveViews();
 	renderAuthState();
+	renderSubmitButtons();
 	renderSaveState();
 }
 
@@ -346,20 +494,6 @@ function renderInteractiveViews() {
 	renderThirdPlace();
 	renderPlayoffBoard();
 	renderFixtures();
-}
-
-function renderSource() {
-	if (state.loading) {
-		elements.sourceBadge.textContent = "Loading";
-		return;
-	}
-
-	if (!state.worldCup) {
-		elements.sourceBadge.textContent = "Unavailable";
-		return;
-	}
-
-	elements.sourceBadge.textContent = state.worldCup.source?.mode === "live" ? "Live API-Football data" : "Demo field";
 }
 
 function renderWarnings() {
@@ -434,11 +568,13 @@ function renderPlayoffBoard() {
 		return;
 	}
 
+	clearPlayoffPanState();
+
 	const { projectedMatches } = getProjectedPlayoffData();
 	const bracket = buildPlayoffBracketLayout(projectedMatches);
 
 	elements.playoffBoard.innerHTML = `
-    <div class="playoff-bracket-scroll">
+    <div class="playoff-bracket-scroll ${isTouchPlayoffPanEnabled() ? "is-touch-pan-enabled" : ""}">
       <div class="playoff-bracket-shell">
         <svg class="bracket-lines" aria-hidden="true"></svg>
         <div class="playoff-bracket">
@@ -758,7 +894,7 @@ function renderCalendarSide(side) {
 		return `
       <span class="calendar-team-mark">
         ${renderTeamLogo(side.team)}
-        ${renderTeamCode(side.team, "calendar-team-code")}
+        ${renderTeamCode(side.team, "team-code calendar-team-code")}
       </span>
     `;
 	}
@@ -796,15 +932,23 @@ function getUserTimeZoneLabel() {
 }
 
 function renderSaveState() {
-	elements.saveStatus.textContent = state.saveStatus || "The saved file includes your group order and playoff projection.";
+	elements.saveStatus.textContent = state.saveStatus || getDefaultSaveStatus();
+}
 
-	if (state.downloadUrl) {
-		elements.downloadLink.classList.remove("hidden");
-		elements.downloadLink.href = state.downloadUrl;
-	} else {
-		elements.downloadLink.classList.add("hidden");
-		elements.downloadLink.href = "#";
+function getDefaultSaveStatus() {
+	if (isPicksLocked()) {
+		return getSubmittedSaveMessage();
 	}
+
+	if (!state.auth.enabled) {
+		return "Sign-in must be configured before picks can sync.";
+	}
+
+	if (!getAuthenticatedEmail()) {
+		return "Sign in to load your saved picks automatically.";
+	}
+
+	return "Changes save automatically as you edit your picks.";
 }
 
 async function fetchWithAuth(input, init = {}) {
@@ -831,102 +975,240 @@ async function fetchWithAuth(input, init = {}) {
 	});
 }
 
-async function handleSave(event) {
-	event.preventDefault();
-
-	if (!state.worldCup) {
-		state.saveStatus = "Load the World Cup data before saving.";
-		renderSaveState();
-		return;
-	}
-
+function buildCurrentSaveState() {
 	const email = getAuthenticatedEmail();
 
-	if (!email) {
-		state.saveStatus = "Sign in first to save picks.";
-		renderSaveState();
-		return;
+	if (!state.worldCup || !email) {
+		return null;
 	}
 
 	const payload = buildSavePayload(email);
-
-	try {
-		const response = await fetchWithAuth("/api/picks", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(payload),
-		});
-		const data = await response.json();
-
-		if (!response.ok) {
-			throw new Error(data.detail || data.error || "Failed to save picks.");
-		}
-
-		state.saveStatus = `Saved on ${formatDateTime(data.savedAt)}.`;
-		state.downloadUrl = data.downloadUrl;
-	} catch (error) {
-		state.saveStatus = error instanceof Error ? error.message : "Failed to save picks.";
-	}
-
-	renderSaveState();
+	return {
+		email,
+		payload,
+		snapshot: JSON.stringify(payload),
+	};
 }
 
-async function handleLoad() {
-	if (!getAuthenticatedEmail()) {
-		state.saveStatus = "Sign in first to load your saved picks.";
-		renderSaveState();
-		return;
+async function saveCurrentPicks(preparedState = null) {
+	const current = preparedState || buildCurrentSaveState();
+
+	if (!current) {
+		return false;
 	}
+
+	if (current.snapshot === syncState.lastSavedSnapshot) {
+		return true;
+	}
+
+	const response = await fetchWithAuth("/api/picks", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(current.payload),
+	});
+	const data = await response.json();
+
+	if (!response.ok) {
+		throw new Error(data.detail || data.error || "Failed to save picks.");
+	}
+
+	state.submittedAt = typeof data.submittedAt === "string" && data.submittedAt ? data.submittedAt : state.submittedAt;
+	syncState.lastSavedSnapshot = current.snapshot;
+	syncState.loadedEmail = current.email;
+	state.saveStatus = state.submittedAt ? getSubmittedSaveMessage() : `Saved on ${formatDateTime(data.savedAt)}.`;
+	renderSaveState();
+	return true;
+}
+
+async function loadSavedPicks({ silentMissing = false, silentSuccess = false } = {}) {
+	const email = getAuthenticatedEmail();
+
+	if (!email || !state.worldCup || syncState.loadingSavedPicks) {
+		return false;
+	}
+
+	syncState.loadingSavedPicks = true;
 
 	try {
 		const response = await fetchWithAuth("/api/picks/me");
-		const data = await response.json();
+		const data = await response.json().catch(() => ({}));
+
+		if (response.status === 404) {
+			state.submittedAt = "";
+			state.submissionPending = false;
+			syncState.loadedEmail = email;
+			syncState.lastSavedSnapshot = buildCurrentSaveState()?.snapshot || "";
+			if (!silentMissing) {
+				state.saveStatus = "No saved picks yet. Changes will save automatically.";
+				renderSaveState();
+			}
+			return false;
+		}
 
 		if (!response.ok) {
 			throw new Error(data.detail || data.error || "Failed to load saved picks.");
 		}
 
 		applySavedPicks(data);
-		state.saveStatus = `Loaded saved picks from ${formatDateTime(data.savedAt)}.`;
-		state.downloadUrl = "/api/picks/me/download";
+		syncState.loadedEmail = email;
+		syncState.lastSavedSnapshot = buildCurrentSaveState()?.snapshot || "";
+		if (!silentSuccess) {
+			state.saveStatus = isPicksLocked() ? getSubmittedSaveMessage() : `Loaded saved picks from ${formatDateTime(data.savedAt)}.`;
+		}
+		render();
+		return true;
 	} catch (error) {
 		state.saveStatus = error instanceof Error ? error.message : "Failed to load saved picks.";
+		renderSaveState();
+		return false;
+	} finally {
+		syncState.loadingSavedPicks = false;
 	}
-
-	render();
 }
 
-async function handleDownload(event) {
-	if (!state.downloadUrl) {
+function ensureSavedPicksLoadedForCurrentUser() {
+	const email = getAuthenticatedEmail();
+
+	if (!email || !state.worldCup || syncState.loadingSavedPicks || syncState.loadedEmail === email) {
+		return Promise.resolve(false);
+	}
+
+	return loadSavedPicks({ silentMissing: true, silentSuccess: true });
+}
+
+function scheduleAutoSave() {
+	if (!getAuthenticatedEmail() || !state.worldCup || syncState.loadingSavedPicks || isPicksReadOnly()) {
 		return;
 	}
 
-	event.preventDefault();
+	if (syncState.autoSaveTimer) {
+		clearTimeout(syncState.autoSaveTimer);
+	}
+
+	syncState.autoSaveQueued = true;
+	syncState.autoSaveTimer = window.setTimeout(() => {
+		syncState.autoSaveTimer = 0;
+		void flushAutoSave();
+	}, 700);
+}
+
+async function flushAutoSave() {
+	if (syncState.autoSaveInFlight) {
+		syncState.autoSaveQueued = true;
+		return;
+	}
+
+	const current = buildCurrentSaveState();
+
+	if (!current || current.snapshot === syncState.lastSavedSnapshot || syncState.loadingSavedPicks || isPicksReadOnly()) {
+		syncState.autoSaveQueued = false;
+		return;
+	}
+
+	syncState.autoSaveInFlight = true;
+	syncState.autoSaveQueued = false;
+	state.saveStatus = "Saving changes...";
+	renderSaveState();
 
 	try {
-		const response = await fetchWithAuth(state.downloadUrl);
+		await saveCurrentPicks(current);
+	} catch (error) {
+		state.saveStatus = error instanceof Error ? error.message : "Failed to save picks.";
+		renderSaveState();
+	} finally {
+		syncState.autoSaveInFlight = false;
+		if (syncState.autoSaveQueued) {
+			scheduleAutoSave();
+		}
+	}
+}
 
-		if (!response.ok) {
-			const data = await response.json().catch(() => ({}));
-			throw new Error(data.detail || data.error || "Failed to download saved picks.");
+async function handleSubmitPicks() {
+	if (!state.worldCup || state.submissionPending || isPicksLocked()) {
+		return;
+	}
+
+	if (!getAuthenticatedEmail()) {
+		state.saveStatus = "Sign in to submit your picks.";
+		renderSaveState();
+		return;
+	}
+
+	if (syncState.autoSaveTimer) {
+		clearTimeout(syncState.autoSaveTimer);
+		syncState.autoSaveTimer = 0;
+	}
+
+	const previousSubmittedAt = state.submittedAt;
+	state.submissionPending = true;
+	state.submittedAt = new Date().toISOString();
+	state.saveStatus = "Submitting picks...";
+	render();
+
+	try {
+		await waitForAutoSaveToSettle();
+		await saveCurrentPicks(buildCurrentSaveState());
+		state.saveStatus = getSubmittedSaveMessage();
+		render();
+	} catch (error) {
+		state.submittedAt = previousSubmittedAt;
+		const message = error instanceof Error ? error.message : "Failed to submit picks.";
+
+		if (/submitted/i.test(message)) {
+			await loadSavedPicks({ silentMissing: true, silentSuccess: true });
+			state.saveStatus = getSubmittedSaveMessage();
+			render();
+			return;
 		}
 
-		const blob = await response.blob();
-		const fileUrl = URL.createObjectURL(blob);
-		const tempLink = document.createElement("a");
-		tempLink.href = fileUrl;
-		tempLink.download = `${getAuthenticatedEmail().replace(/[^a-z0-9]+/g, "_") || "wc2026"}-world-cup-2026.json`;
-		document.body.appendChild(tempLink);
-		tempLink.click();
-		tempLink.remove();
-		URL.revokeObjectURL(fileUrl);
-	} catch (error) {
-		state.saveStatus = error instanceof Error ? error.message : "Failed to download saved picks.";
+		state.saveStatus = message;
+		render();
+	} finally {
+		state.submissionPending = false;
+		renderSubmitButtons();
+		renderAuthState();
 		renderSaveState();
 	}
 }
 
+async function waitForAutoSaveToSettle() {
+	if (syncState.autoSaveInFlight) {
+		await new Promise((resolve) => {
+			const poll = () => {
+				if (!syncState.autoSaveInFlight) {
+					resolve();
+					return;
+				}
+
+				window.setTimeout(poll, 40);
+			};
+
+			poll();
+		});
+	}
+}
+
+function resetPickSyncState() {
+	if (syncState.autoSaveTimer) {
+		clearTimeout(syncState.autoSaveTimer);
+		syncState.autoSaveTimer = 0;
+	}
+
+	syncState.autoSaveInFlight = false;
+	syncState.autoSaveQueued = false;
+	syncState.lastSavedSnapshot = "";
+	syncState.loadedEmail = "";
+	syncState.loadingSavedPicks = false;
+}
+
 function handleMoveClick(event) {
+	const submitButton = event.target.closest("[data-submit-picks]");
+
+	if (submitButton) {
+		void handleSubmitPicks();
+		return;
+	}
+
 	const calendarButton = event.target.closest("[data-calendar-step]");
 
 	if (calendarButton) {
@@ -937,6 +1219,10 @@ function handleMoveClick(event) {
 	const thirdCard = event.target.closest("[data-select-third]");
 
 	if (thirdCard) {
+		if (isPicksReadOnly()) {
+			return;
+		}
+
 		toggleThirdPlaceSelection(thirdCard.dataset.teamId);
 		return;
 	}
@@ -944,6 +1230,10 @@ function handleMoveClick(event) {
 	const clearBracketSideButton = event.target.closest("[data-clear-bracket-source]");
 
 	if (clearBracketSideButton) {
+		if (isPicksReadOnly()) {
+			return;
+		}
+
 		clearBracketSourceSelection(clearBracketSideButton.dataset.sourceMatch);
 		return;
 	}
@@ -951,6 +1241,10 @@ function handleMoveClick(event) {
 	const bracketPick = event.target.closest("[data-pick-winner]");
 
 	if (bracketPick) {
+		if (isPicksReadOnly()) {
+			return;
+		}
+
 		toggleBracketWinnerSelection(bracketPick.dataset.match, bracketPick.dataset.teamId);
 		return;
 	}
@@ -971,7 +1265,136 @@ function handleMoveClick(event) {
 	}
 }
 
+function handlePlayoffPanClickCapture(event) {
+	if (!shouldSuppressPlayoffPanClick(event)) {
+		return;
+	}
+
+	event.preventDefault();
+	event.stopPropagation();
+}
+
+function handlePlayoffPanStart(event) {
+	const scroller = event.target.closest(".playoff-bracket-scroll");
+
+	if (!scroller || event.pointerType !== "touch" || event.isPrimary === false) {
+		return;
+	}
+
+	const canPanHorizontally = scroller.scrollWidth > scroller.clientWidth + 1;
+	const canPanVertically = scroller.scrollHeight > scroller.clientHeight + 1;
+
+	if (!canPanHorizontally && !canPanVertically) {
+		return;
+	}
+
+	playoffPanState.active = true;
+	playoffPanState.pointerId = event.pointerId;
+	playoffPanState.scroller = scroller;
+	playoffPanState.startX = event.clientX;
+	playoffPanState.startY = event.clientY;
+	playoffPanState.startScrollLeft = scroller.scrollLeft;
+	playoffPanState.startScrollTop = scroller.scrollTop;
+	playoffPanState.canPanHorizontally = canPanHorizontally;
+	playoffPanState.canPanVertically = canPanVertically;
+	playoffPanState.moved = false;
+
+	if (typeof scroller.setPointerCapture === "function") {
+		try {
+			scroller.setPointerCapture(event.pointerId);
+		} catch (_error) {
+			// Ignore browsers that reject pointer capture for this event.
+		}
+	}
+}
+
+function handlePlayoffPanMove(event) {
+	if (!playoffPanState.active || event.pointerId !== playoffPanState.pointerId || !playoffPanState.scroller) {
+		return;
+	}
+
+	const deltaX = event.clientX - playoffPanState.startX;
+	const deltaY = event.clientY - playoffPanState.startY;
+
+	if (!playoffPanState.moved) {
+		if (Math.abs(deltaX) < 8 && Math.abs(deltaY) < 8) {
+			return;
+		}
+
+		playoffPanState.moved = true;
+		playoffPanState.scroller.classList.add("is-touch-panning");
+	}
+
+	event.preventDefault();
+	hideFloatingTooltip();
+
+	if (playoffPanState.canPanHorizontally) {
+		playoffPanState.scroller.scrollLeft = playoffPanState.startScrollLeft - deltaX;
+	}
+
+	if (playoffPanState.canPanVertically) {
+		playoffPanState.scroller.scrollTop = playoffPanState.startScrollTop - deltaY;
+	}
+}
+
+function handlePlayoffPanEnd(event) {
+	if (!playoffPanState.active || event.pointerId !== playoffPanState.pointerId) {
+		return;
+	}
+
+	clearPlayoffPanState(playoffPanState.moved);
+}
+
+function shouldSuppressPlayoffPanClick(event) {
+	if (Date.now() > playoffPanState.suppressClickUntil) {
+		return false;
+	}
+
+	return Boolean(event.target.closest(".playoff-bracket-scroll"));
+}
+
+function clearPlayoffPanState(suppressClick = false) {
+	if (playoffPanState.scroller) {
+		if (typeof playoffPanState.scroller.releasePointerCapture === "function" && playoffPanState.pointerId != null) {
+			try {
+				playoffPanState.scroller.releasePointerCapture(playoffPanState.pointerId);
+			} catch (_error) {
+				// Ignore browsers that reject pointer release for this event.
+			}
+		}
+
+		playoffPanState.scroller.classList.remove("is-touch-panning");
+	}
+
+	playoffPanState.active = false;
+	playoffPanState.pointerId = null;
+	playoffPanState.scroller = null;
+	playoffPanState.startX = 0;
+	playoffPanState.startY = 0;
+	playoffPanState.startScrollLeft = 0;
+	playoffPanState.startScrollTop = 0;
+	playoffPanState.canPanHorizontally = false;
+	playoffPanState.canPanVertically = false;
+	playoffPanState.moved = false;
+
+	if (suppressClick) {
+		playoffPanState.suppressClickUntil = Date.now() + 300;
+	}
+}
+
+function isTouchPlayoffPanEnabled() {
+	if (typeof window === "undefined") {
+		return false;
+	}
+
+	return Boolean((window.matchMedia && window.matchMedia("(pointer: coarse)").matches) || Number(navigator.maxTouchPoints || 0) > 0);
+}
+
 function handleDragStart(event) {
+	if (isPicksReadOnly()) {
+		return;
+	}
+
 	const row = event.target.closest("[data-drag-kind]");
 
 	if (!row) {
@@ -988,6 +1411,10 @@ function handleDragStart(event) {
 }
 
 function handleDragOver(event) {
+	if (isPicksReadOnly()) {
+		return;
+	}
+
 	const dropZone = event.target.closest("[data-drop-zone]");
 
 	if (!dropZone || !dragPayload) {
@@ -1019,6 +1446,10 @@ function handleDragOver(event) {
 }
 
 function handleDrop(event) {
+	if (isPicksReadOnly()) {
+		return;
+	}
+
 	const dropZone = event.target.closest("[data-drop-zone]");
 
 	if (!dropZone || !dragPayload) {
@@ -1041,6 +1472,10 @@ function handleDrop(event) {
 }
 
 function reorderGroup(groupLetter, fromIndex, toIndex) {
+	if (isPicksReadOnly()) {
+		return;
+	}
+
 	const group = state.groups.find((entry) => entry.letter === groupLetter);
 
 	if (!group || fromIndex === toIndex || toIndex < 0 || toIndex >= group.teams.length) {
@@ -1060,6 +1495,7 @@ function reorderGroup(groupLetter, fromIndex, toIndex) {
 	state.selectedThirdTeamIds = chooseThirdPlaceSelections(state.selectedThirdTeamIds);
 	renderInteractiveViews();
 	animateMovedRows(previousRects, ".group-table-row[data-team-id]");
+	scheduleAutoSave();
 }
 
 function deriveThirdPlaceRanking(groups, preferredOrder = []) {
@@ -1106,8 +1542,14 @@ function getCurrentQualifiers() {
 }
 
 function getSelectedBestThirdTeams() {
-	const selectedTeamIds = new Set(state.selectedThirdTeamIds);
-	return state.thirdPlaceRanking.filter((team) => selectedTeamIds.has(getTeamIdKey(team.id)));
+	const teamMap = new Map(state.thirdPlaceRanking.map((team) => [getTeamIdKey(team.id), team]));
+
+	return state.selectedThirdTeamIds.map((teamId) => teamMap.get(getTeamIdKey(teamId))).filter(Boolean);
+}
+
+function getSelectedThirdTeamRank(teamId) {
+	const selectedIndex = state.selectedThirdTeamIds.indexOf(getTeamIdKey(teamId));
+	return selectedIndex >= 0 ? selectedIndex + 1 : 0;
 }
 
 function chooseThirdPlaceSelections(preferredIds) {
@@ -1118,6 +1560,10 @@ function chooseThirdPlaceSelections(preferredIds) {
 }
 
 function toggleThirdPlaceSelection(teamId) {
+	if (isPicksReadOnly()) {
+		return;
+	}
+
 	const teamKey = getTeamIdKey(teamId);
 
 	if (!teamKey) {
@@ -1137,9 +1583,14 @@ function toggleThirdPlaceSelection(teamId) {
 	renderThirdPlace();
 	renderPlayoffBoard();
 	renderFixtures();
+	scheduleAutoSave();
 }
 
 function toggleBracketWinnerSelection(matchId, teamId) {
+	if (isPicksReadOnly()) {
+		return;
+	}
+
 	const matchKey = String(matchId || "").trim();
 	const teamKey = getTeamIdKey(teamId);
 
@@ -1160,9 +1611,14 @@ function toggleBracketWinnerSelection(matchId, teamId) {
 
 	renderPlayoffBoard();
 	renderFixtures();
+	scheduleAutoSave();
 }
 
 function clearBracketSourceSelection(sourceMatchId) {
+	if (isPicksReadOnly()) {
+		return;
+	}
+
 	const matchKey = String(sourceMatchId || "").trim();
 
 	if (!matchKey || !state.bracketWinnerSelections[matchKey]) {
@@ -1174,6 +1630,7 @@ function clearBracketSourceSelection(sourceMatchId) {
 	state.bracketWinnerSelections = nextSelections;
 	renderPlayoffBoard();
 	renderFixtures();
+	scheduleAutoSave();
 }
 
 function getProjectedPlayoffData() {
@@ -1504,6 +1961,7 @@ function renderBracketSide(match, side, source) {
 		const teamId = getTeamIdKey(side.team.id);
 		const isSelected = match.selectedWinnerTeamId === teamId;
 		const canClear = canClearBracketSide(match, source);
+		const isDisabled = isPicksReadOnly();
 
 		return `
       <div class="bracket-side-shell">
@@ -1515,6 +1973,7 @@ function renderBracketSide(match, side, source) {
           data-team-id="${escapeHtml(teamId)}"
           aria-pressed="${isSelected ? "true" : "false"}"
           aria-label="Pick ${escapeHtml(getTeamDisplayName(side.team))} to win ${escapeHtml(match.stage)}"
+          ${isDisabled ? "disabled" : ""}
         >
           ${renderBracketTeamRow(side.team, side.groupSlot)}
         </button>
@@ -1527,6 +1986,7 @@ function renderBracketSide(match, side, source) {
             data-clear-bracket-source="true"
             data-source-match="${escapeHtml(String(source.match))}"
             aria-label="Remove ${escapeHtml(getTeamDisplayName(side.team))} from this bracket slot"
+            ${isDisabled ? "disabled" : ""}
           >
             <span aria-hidden="true">&times;</span>
           </button>
@@ -1569,7 +2029,7 @@ function renderBracketTeamRow(team, groupSlot) {
       <span class="bracket-team-flag-cell">
         ${renderTeamLogo(team)}
       </span>
-      <strong>${renderTeamCode(team, "bracket-team-code")}</strong>
+      <strong>${renderTeamCode(team, "team-code bracket-team-code")}</strong>
       <span class="bracket-team-group">${escapeHtml(groupSlot || team?.groupLetter || "TBD")}</span>
     </div>
   `;
@@ -1616,9 +2076,12 @@ function renderStatsCard(entry) {
 
 function renderThirdPlaceSelectionCard(team) {
 	const isSelected = state.selectedThirdTeamIds.includes(getTeamIdKey(team.id));
+	const selectedRank = getSelectedThirdTeamRank(team.id);
 	const points = team.standing?.points != null ? String(team.standing.points) : "-";
 	const goalDifference = team.standing?.goalDifference != null ? formatSignedValue(team.standing.goalDifference) : "-";
 	const lockedOut = !isSelected && state.selectedThirdTeamIds.length >= 8;
+	const isDisabled = isPicksReadOnly() || lockedOut;
+	const groupLabel = selectedRank ? `#${selectedRank} • ${team.groupLetter}` : team.groupLetter;
 
 	return `
     <button
@@ -1627,13 +2090,14 @@ function renderThirdPlaceSelectionCard(team) {
       data-select-third="true"
       data-team-id="${escapeHtml(String(team.id))}"
       aria-pressed="${isSelected ? "true" : "false"}"
+      ${isDisabled ? "disabled" : ""}
     >
       <div class="third-choice-head">
         <div class="team-name">
           ${renderTeamLogo(team)}
           ${renderTeamCode(team)}
         </div>
-        <span class="third-choice-group">${escapeHtml(team.groupLetter)}</span>
+        <span class="third-choice-group">${escapeHtml(groupLabel)}</span>
       </div>
       <p class="third-choice-name">${escapeHtml(team.name)}</p>
       <div class="third-choice-stats">
@@ -1646,8 +2110,8 @@ function renderThirdPlaceSelectionCard(team) {
 
 function renderTeamRow(team, index, groupLetter, listType) {
 	const isGroupList = listType === "group";
-	const positionClass = index < 2 ? "qualify" : index === 2 ? "bubble" : "out";
-	const badge = listType === "third" ? (index < 8 ? "Advances" : "Out") : index < 2 ? "Qualifies" : index === 2 ? "Bubble" : "Out";
+	const positionClass = index < 2 ? "qualify" : index === 2 ? "third-place" : "out";
+	const badge = listType === "third" ? (index < 8 ? "Advances" : "Out") : index < 2 ? "Qualifies" : index === 2 ? "Third-place race" : "Out";
 
 	return `
     <div
@@ -1699,13 +2163,14 @@ function renderTeamRow(team, index, groupLetter, listType) {
 }
 
 function renderGroupTableRow(team, index, groupLetter) {
-	const positionClass = index < 2 ? "qualify" : index === 2 ? "bubble" : "out";
-	const badge = index < 2 ? "Qualifies" : index === 2 ? "Bubble" : "Out";
+	const positionClass = index < 2 ? "qualify" : index === 2 ? "third-place" : "out";
+	const badge = index < 2 ? "Qualifies" : index === 2 ? "Third-place race" : "Out";
+	const canDrag = !isPicksReadOnly();
 
 	return `
     <tr
       class="group-table-row ${positionClass}"
-      draggable="true"
+      draggable="${canDrag ? "true" : "false"}"
       data-drag-kind="group"
       data-group="${escapeHtml(groupLetter)}"
       data-index="${index}"
@@ -2134,6 +2599,7 @@ function buildSavePayload(email) {
 	return {
 		email,
 		userId: state.auth.user?.id || null,
+		submittedAt: state.submittedAt || null,
 		source: state.worldCup.source,
 		competition: state.worldCup.competition,
 		summary: state.worldCup.summary,
@@ -2241,6 +2707,8 @@ function applySavedPicks(saved) {
 	);
 	state.selectedThirdTeamIds = chooseThirdPlaceSelections(Array.isArray(saved.bestThirdAdvancers) ? saved.bestThirdAdvancers.map((entry) => entry.teamId) : []);
 	state.bracketWinnerSelections = Object.fromEntries((Array.isArray(saved.knockoutWinners) ? saved.knockoutWinners : []).map((entry) => [String(entry.match || ""), getTeamIdKey(entry.teamId)]).filter(([matchId, teamId]) => matchId && teamId));
+	state.submittedAt = typeof saved.submittedAt === "string" && saved.submittedAt ? saved.submittedAt : "";
+	state.submissionPending = false;
 }
 
 function cloneGroups(groups) {

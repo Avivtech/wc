@@ -34,6 +34,7 @@ export async function savePicksForEmail(email, payload) {
     email: email.trim().toLowerCase(),
     userId: typeof payload.userId === "string" ? payload.userId : null,
     savedAt: new Date().toISOString(),
+    submittedAt: typeof payload.submittedAt === "string" && payload.submittedAt.trim() ? payload.submittedAt.trim() : null,
     season: 2026,
     competition: payload.competition ?? null,
     source: payload.source ?? null,
@@ -41,6 +42,7 @@ export async function savePicksForEmail(email, payload) {
     groupRankings: payload.groupRankings,
     thirdPlaceRanking: Array.isArray(payload.thirdPlaceRanking) ? payload.thirdPlaceRanking : [],
     bestThirdAdvancers: Array.isArray(payload.bestThirdAdvancers) ? payload.bestThirdAdvancers : [],
+    knockoutWinners: Array.isArray(payload.knockoutWinners) ? payload.knockoutWinners : [],
     projectedRoundOf32: Array.isArray(payload.projectedRoundOf32) ? payload.projectedRoundOf32 : []
   };
 

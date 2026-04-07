@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>World Cup 2026 Game</title>
+  <link rel="icon" type="image/png" href="/assets/favicon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
@@ -19,28 +20,23 @@
       <div class="hero-copy">
         <p class="eyebrow">World Cup 2026 Predictor</p>
         <h1>Build your own playoff field from the groups.</h1>
-        <div class="hero-actions">
-          <button id="refresh-button" class="button secondary" type="button">Reload data</button>
-          <span id="source-badge" class="source-badge">Loading</span>
-        </div>
+        <p id="save-status" class="panel-note">Changes save automatically once you sign in.</p>
       </div>
-      <form id="save-form" class="save-panel">
+      <div id="save-panel" class="save-panel">
+        <div class="save-panel-top-actions">
+          <button id="clear-all-button" class="button secondary save-panel-action" type="button">Clear All</button>
+          <button id="signout-button" class="button secondary save-panel-action hidden" type="button">Sign out</button>
+        </div>
         <div class="save-panel-section">
-          <label class="field-label" for="email-input">Sign in Email</label>
+          <label id="email-label" class="field-label" for="email-input">Sign in Email</label>
           <input id="email-input" class="field-input" type="email" autocomplete="email" placeholder="name@example.com" required />
+          <p id="welcome-message" class="panel-note hidden">Hi, Welcome back!</p>
           <div class="save-actions">
             <button id="auth-button" class="button secondary" type="button">Email magic link</button>
-            <button id="signout-button" class="button secondary hidden" type="button">Sign out</button>
           </div>
           <p id="auth-status" class="panel-note">Sign in with a Supabase magic link to save and load your picks.</p>
         </div>
-        <div class="save-actions">
-          <button id="save-button" class="button primary" type="submit">Save picks</button>
-          <button id="load-button" class="button secondary" type="button">Load my picks</button>
-        </div>
-        <a id="download-link" class="download-link hidden" href="#">Download saved JSON</a>
-        <p id="save-status" class="panel-note">The saved file includes your group order and playoff projection.</p>
-      </form>
+      </div>
     </header>
 
     <section id="warning-strip" class="warning-strip hidden"></section>
@@ -56,9 +52,26 @@
           </p>
         </div>
         <div id="groups-grid" class="groups-grid"></div>
+        <div class="section-actions">
+          <button class="button primary" type="button" data-submit-picks="true">Submit</button>
+        </div>
       </section>
 
       <section class="section-block">
+        <div class="section-heading">
+          <p class="eyebrow">Third Place</p>
+          <h2>Best third-place race</h2>
+          <p class="section-copy">Choose eight third-place teams to send them into the round of 32.</br>
+            Order of choice determins the placement in the playoff bracket (1st choice gets the best matchup).
+          </p>
+        </div>
+        <div id="third-place-card"></div>
+        <div class="section-actions">
+          <button class="button primary" type="button" data-submit-picks="true">Submit</button>
+        </div>
+      </section>
+
+      <section class="section-block playoff-section">
         <div class="section-heading">
           <p class="eyebrow">Playoffs</p>
           <h2>Playoff bracket</h2>
@@ -67,15 +80,9 @@
           </p>
         </div>
         <div id="playoff-board" class="playoff-board"></div>
-      </section>
-
-      <section class="section-block">
-        <div class="section-heading">
-          <p class="eyebrow">Third Place</p>
-          <h2>Best third-place race</h2>
-          <p class="section-copy">Click eight third-place teams to send them into the round of 32.</p>
+        <div class="section-actions">
+          <button class="button primary" type="button" data-submit-picks="true">Submit</button>
         </div>
-        <div id="third-place-card"></div>
       </section>
 
       <section class="section-block">
@@ -87,6 +94,18 @@
         <div id="fixtures-feed" class="fixtures-feed"></div>
       </section>
     </main>
+  </div>
+
+  <div id="clear-all-dialog" class="confirm-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="clear-all-dialog-title">
+    <div class="confirm-dialog-card">
+      <p class="eyebrow">Reset Picks</p>
+      <h2 id="clear-all-dialog-title">Are you sure?</h2>
+      <p class="panel-note">This clears group rankings, best third-place picks, and playoff winners.</p>
+      <div class="confirm-dialog-actions">
+        <button id="clear-all-cancel" class="button secondary" type="button">Cancel</button>
+        <button id="clear-all-confirm" class="button secondary" type="button">Clear All</button>
+      </div>
+    </div>
   </div>
 
   <script src="/vendor/supabase/supabase.js"></script>
