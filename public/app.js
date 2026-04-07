@@ -7,7 +7,8 @@ const state = {
 	calendarMonthIndex: null,
 	playoffMatches: [],
 	submittedAt: "",
-	submissionPending: false,
+	sectionSubmittedAt: createEmptySectionSubmissionState(),
+	submissionPendingSection: "",
 	auth: {
 		enabled: false,
 		ready: false,
@@ -71,6 +72,17 @@ const elements = {
 };
 
 const CALENDAR_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const SUBMISSION_SECTIONS = ["groups", "thirdPlace", "playoffs"];
+const SECTION_LABELS = {
+	groups: "Groups",
+	thirdPlace: "Third Place",
+	playoffs: "Playoffs",
+};
+const SECTION_LOCKS = {
+	groups: ["groups", "thirdPlace", "playoffs"],
+	thirdPlace: ["thirdPlace", "playoffs"],
+	playoffs: ["playoffs"],
+};
 
 boot();
 
@@ -219,7 +231,7 @@ function renderAuthState() {
 	elements.welcomeMessage.textContent = getWelcomeMessage();
 	elements.authButton.textContent = state.auth.pending ? "Sending link..." : "Email magic link";
 	elements.authButton.disabled = !authReady || !authAvailable || state.auth.pending || isSignedIn;
-	elements.clearAllButton.disabled = state.loading || !state.worldCup || isPicksLocked() || state.submissionPending;
+	elements.clearAllButton.disabled = state.loading || !state.worldCup || hasSubmittedSections() || isSubmissionPending();
 	elements.signOutButton.disabled = !authReady || state.auth.pending;
 	elements.authButton.classList.toggle("hidden", isSignedIn);
 	elements.signOutButton.classList.toggle("hidden", !isSignedIn);
@@ -228,10 +240,11 @@ function renderAuthState() {
 
 function renderSubmitButtons() {
 	const isReadyToSubmit = Boolean(getAuthenticatedEmail()) && !state.loading && Boolean(state.worldCup);
-	const label = state.submissionPending ? "Submitting..." : isPicksLocked() ? "Submitted" : "Submit";
-	const disabled = !isReadyToSubmit || state.submissionPending || isPicksLocked();
 
 	elements.submitButtons.forEach((button) => {
+		const section = button.dataset.submitPicks || "";
+		const label = isSectionPending(section) ? "Submitting..." : isSectionSubmitted(section) ? "Submitted" : isSectionLockedByDependency(section) ? "Locked" : "Submit";
+		const disabled = !isReadyToSubmit || isSubmissionPending() || isSectionReadOnly(section);
 		button.textContent = label;
 		button.disabled = disabled;
 	});
@@ -273,16 +286,99 @@ function getWelcomeMessage() {
 	return "Hi, Welcome back!";
 }
 
+function createEmptySectionSubmissionState() {
+	return {
+		groups: "",
+		thirdPlace: "",
+		playoffs: "",
+	};
+}
+
+function normalizeSectionSubmissionState(value, fallbackSubmittedAt = "") {
+	const normalized = createEmptySectionSubmissionState();
+
+	if (value && typeof value === "object") {
+		for (const section of SUBMISSION_SECTIONS) {
+			const submittedAt = value[section];
+			normalized[section] = typeof submittedAt === "string" ? submittedAt.trim() : "";
+		}
+
+		return normalized;
+	}
+
+	const legacySubmittedAt = typeof fallbackSubmittedAt === "string" ? fallbackSubmittedAt.trim() : "";
+
+	if (legacySubmittedAt) {
+		for (const section of SUBMISSION_SECTIONS) {
+			normalized[section] = legacySubmittedAt;
+		}
+	}
+
+	return normalized;
+}
+
+function getSubmissionSectionLabel(section) {
+	return SECTION_LABELS[section] || "Section";
+}
+
+function getLatestSubmittedAt() {
+	return SUBMISSION_SECTIONS.map((section) => state.sectionSubmittedAt[section]).filter(Boolean).sort().at(-1) || "";
+}
+
+function isSubmissionPending() {
+	return Boolean(state.submissionPendingSection);
+}
+
+function isSectionPending(section) {
+	return state.submissionPendingSection === section;
+}
+
+function isSectionSubmitted(section) {
+	return Boolean(state.sectionSubmittedAt[section]);
+}
+
+function hasSubmittedSections() {
+	return SUBMISSION_SECTIONS.some((section) => isSectionSubmitted(section));
+}
+
+function isSectionLockedByDependency(section) {
+	return (SECTION_LOCKS[section] || []).some((lockedSection) => lockedSection !== section && isSectionSubmitted(lockedSection));
+}
+
+function isSectionReadOnly(section) {
+	return isSubmissionPending() || (SECTION_LOCKS[section] || [section]).some((lockedSection) => isSectionSubmitted(lockedSection));
+}
+
+function hasEditableSections() {
+	return SUBMISSION_SECTIONS.some((section) => !isSectionReadOnly(section));
+}
+
 function isPicksLocked() {
-	return Boolean(state.submittedAt);
+	return !hasEditableSections();
 }
 
 function isPicksReadOnly() {
-	return state.submissionPending || isPicksLocked();
+	return isSubmissionPending() || isPicksLocked();
 }
 
 function getSubmittedSaveMessage() {
-	return state.submittedAt ? `Submitted on ${formatDateTime(state.submittedAt)}. Picks are locked.` : "Picks are locked.";
+	const submittedSections = SUBMISSION_SECTIONS.filter((section) => isSectionSubmitted(section)).map((section) => getSubmissionSectionLabel(section));
+
+	if (!submittedSections.length) {
+		return "No sections submitted yet.";
+	}
+
+	if (submittedSections.length === SUBMISSION_SECTIONS.length) {
+		return "All sections submitted.";
+	}
+
+	return `Submitted sections: ${submittedSections.join(", ")}.`;
+}
+
+function getSectionSubmittedSaveMessage(section) {
+	const submittedAt = state.sectionSubmittedAt[section];
+
+	return submittedAt ? `${getSubmissionSectionLabel(section)} submitted on ${formatDateTime(submittedAt)}.` : `${getSubmissionSectionLabel(section)} submitted.`;
 }
 
 async function handleAuthRequest() {
@@ -358,7 +454,7 @@ async function handleSignOut() {
 }
 
 function handleClearAll() {
-	if (!state.worldCup || isPicksReadOnly()) {
+	if (!state.worldCup || isSubmissionPending() || hasSubmittedSections()) {
 		return;
 	}
 
@@ -381,7 +477,7 @@ function handleClearAll() {
 }
 
 function openClearAllDialog() {
-	if (!state.worldCup || state.loading || isPicksReadOnly()) {
+	if (!state.worldCup || state.loading || isSubmissionPending() || hasSubmittedSections()) {
 		return;
 	}
 
@@ -457,7 +553,8 @@ async function loadWorldCup(refresh = false) {
 		state.bracketWinnerSelections = {};
 		state.calendarMonthIndex = null;
 		state.submittedAt = "";
-		state.submissionPending = false;
+		state.sectionSubmittedAt = createEmptySectionSubmissionState();
+		state.submissionPendingSection = "";
 		state.saveStatus = "";
 		syncState.lastSavedSnapshot = "";
 		syncState.loadedEmail = "";
@@ -469,7 +566,8 @@ async function loadWorldCup(refresh = false) {
 		state.bracketWinnerSelections = {};
 		state.calendarMonthIndex = null;
 		state.submittedAt = "";
-		state.submissionPending = false;
+		state.sectionSubmittedAt = createEmptySectionSubmissionState();
+		state.submissionPendingSection = "";
 		state.saveStatus = error instanceof Error ? error.message : "Failed to load data.";
 		syncState.lastSavedSnapshot = "";
 		syncState.loadedEmail = "";
@@ -960,8 +1058,12 @@ function renderSaveState() {
 }
 
 function getDefaultSaveStatus() {
-	if (isPicksLocked()) {
+	if (!hasEditableSections() && hasSubmittedSections()) {
 		return getSubmittedSaveMessage();
+	}
+
+	if (hasSubmittedSections()) {
+		return `${getSubmittedSaveMessage()} Changes save automatically for unsubmitted sections.`;
 	}
 
 	if (!state.auth.enabled) {
@@ -1036,10 +1138,11 @@ async function saveCurrentPicks(preparedState = null) {
 		throw new Error(data.detail || data.error || "Failed to save picks.");
 	}
 
-	state.submittedAt = typeof data.submittedAt === "string" && data.submittedAt ? data.submittedAt : state.submittedAt;
+	state.sectionSubmittedAt = normalizeSectionSubmissionState(data.sectionSubmittedAt, data.submittedAt);
+	state.submittedAt = getLatestSubmittedAt();
 	syncState.lastSavedSnapshot = current.snapshot;
 	syncState.loadedEmail = current.email;
-	state.saveStatus = state.submittedAt ? getSubmittedSaveMessage() : `Saved on ${formatDateTime(data.savedAt)}.`;
+	state.saveStatus = `Saved on ${formatDateTime(data.savedAt)}.`;
 	renderSaveState();
 	return true;
 }
@@ -1059,7 +1162,8 @@ async function loadSavedPicks({ silentMissing = false, silentSuccess = false } =
 
 		if (response.status === 404) {
 			state.submittedAt = "";
-			state.submissionPending = false;
+			state.sectionSubmittedAt = createEmptySectionSubmissionState();
+			state.submissionPendingSection = "";
 			syncState.loadedEmail = email;
 			syncState.lastSavedSnapshot = buildCurrentSaveState()?.snapshot || "";
 			if (!silentMissing) {
@@ -1077,7 +1181,7 @@ async function loadSavedPicks({ silentMissing = false, silentSuccess = false } =
 		syncState.loadedEmail = email;
 		syncState.lastSavedSnapshot = buildCurrentSaveState()?.snapshot || "";
 		if (!silentSuccess) {
-			state.saveStatus = isPicksLocked() ? getSubmittedSaveMessage() : `Loaded saved picks from ${formatDateTime(data.savedAt)}.`;
+			state.saveStatus = `Loaded saved picks from ${formatDateTime(data.savedAt)}.`;
 		}
 		render();
 		return true;
@@ -1101,7 +1205,7 @@ function ensureSavedPicksLoadedForCurrentUser() {
 }
 
 function scheduleAutoSave() {
-	if (!getAuthenticatedEmail() || !state.worldCup || syncState.loadingSavedPicks || isPicksReadOnly()) {
+	if (!getAuthenticatedEmail() || !state.worldCup || syncState.loadingSavedPicks || isSubmissionPending() || !hasEditableSections()) {
 		return;
 	}
 
@@ -1124,7 +1228,7 @@ async function flushAutoSave() {
 
 	const current = buildCurrentSaveState();
 
-	if (!current || current.snapshot === syncState.lastSavedSnapshot || syncState.loadingSavedPicks || isPicksReadOnly()) {
+	if (!current || current.snapshot === syncState.lastSavedSnapshot || syncState.loadingSavedPicks || isSubmissionPending() || !hasEditableSections()) {
 		syncState.autoSaveQueued = false;
 		return;
 	}
@@ -1147,8 +1251,8 @@ async function flushAutoSave() {
 	}
 }
 
-async function handleSubmitPicks() {
-	if (!state.worldCup || state.submissionPending || isPicksLocked()) {
+async function handleSubmitPicks(section) {
+	if (!state.worldCup || !SUBMISSION_SECTIONS.includes(section) || isSubmissionPending() || isSectionReadOnly(section)) {
 		return;
 	}
 
@@ -1163,19 +1267,24 @@ async function handleSubmitPicks() {
 		syncState.autoSaveTimer = 0;
 	}
 
-	const previousSubmittedAt = state.submittedAt;
-	state.submissionPending = true;
-	state.submittedAt = new Date().toISOString();
-	state.saveStatus = "Submitting picks...";
+	const previousSectionSubmittedAt = { ...state.sectionSubmittedAt };
+	state.submissionPendingSection = section;
+	state.sectionSubmittedAt = {
+		...state.sectionSubmittedAt,
+		[section]: new Date().toISOString(),
+	};
+	state.submittedAt = getLatestSubmittedAt();
+	state.saveStatus = `Submitting ${getSubmissionSectionLabel(section).toLowerCase()}...`;
 	render();
 
 	try {
 		await waitForAutoSaveToSettle();
 		await saveCurrentPicks(buildCurrentSaveState());
-		state.saveStatus = getSubmittedSaveMessage();
+		state.saveStatus = getSectionSubmittedSaveMessage(section);
 		render();
 	} catch (error) {
-		state.submittedAt = previousSubmittedAt;
+		state.sectionSubmittedAt = previousSectionSubmittedAt;
+		state.submittedAt = getLatestSubmittedAt();
 		const message = error instanceof Error ? error.message : "Failed to submit picks.";
 
 		if (/submitted/i.test(message)) {
@@ -1188,7 +1297,7 @@ async function handleSubmitPicks() {
 		state.saveStatus = message;
 		render();
 	} finally {
-		state.submissionPending = false;
+		state.submissionPendingSection = "";
 		renderSubmitButtons();
 		renderAuthState();
 		renderSaveState();
@@ -1229,7 +1338,7 @@ function handleMoveClick(event) {
 	const submitButton = event.target.closest("[data-submit-picks]");
 
 	if (submitButton) {
-		void handleSubmitPicks();
+		void handleSubmitPicks(submitButton.dataset.submitPicks || "");
 		return;
 	}
 
@@ -1243,7 +1352,7 @@ function handleMoveClick(event) {
 	const thirdCard = event.target.closest("[data-select-third]");
 
 	if (thirdCard) {
-		if (isPicksReadOnly()) {
+		if (isSectionReadOnly("thirdPlace")) {
 			return;
 		}
 
@@ -1254,7 +1363,7 @@ function handleMoveClick(event) {
 	const clearBracketSideButton = event.target.closest("[data-clear-bracket-source]");
 
 	if (clearBracketSideButton) {
-		if (isPicksReadOnly()) {
+		if (isSectionReadOnly("playoffs")) {
 			return;
 		}
 
@@ -1265,7 +1374,7 @@ function handleMoveClick(event) {
 	const bracketPick = event.target.closest("[data-pick-winner]");
 
 	if (bracketPick) {
-		if (isPicksReadOnly()) {
+		if (isSectionReadOnly("playoffs")) {
 			return;
 		}
 
@@ -1411,7 +1520,7 @@ function clearPlayoffPanState(suppressClick = false) {
 }
 
 function handleDragStart(event) {
-	if (isPicksReadOnly()) {
+	if (isSectionReadOnly("groups")) {
 		return;
 	}
 
@@ -1431,7 +1540,7 @@ function handleDragStart(event) {
 }
 
 function handleDragOver(event) {
-	if (isPicksReadOnly()) {
+	if (isSectionReadOnly("groups")) {
 		return;
 	}
 
@@ -1466,7 +1575,7 @@ function handleDragOver(event) {
 }
 
 function handleDrop(event) {
-	if (isPicksReadOnly()) {
+	if (isSectionReadOnly("groups")) {
 		return;
 	}
 
@@ -1492,7 +1601,7 @@ function handleDrop(event) {
 }
 
 function reorderGroup(groupLetter, fromIndex, toIndex) {
-	if (isPicksReadOnly()) {
+	if (isSectionReadOnly("groups")) {
 		return;
 	}
 
@@ -1580,7 +1689,7 @@ function chooseThirdPlaceSelections(preferredIds) {
 }
 
 function toggleThirdPlaceSelection(teamId) {
-	if (isPicksReadOnly()) {
+	if (isSectionReadOnly("thirdPlace")) {
 		return;
 	}
 
@@ -1607,7 +1716,7 @@ function toggleThirdPlaceSelection(teamId) {
 }
 
 function toggleBracketWinnerSelection(matchId, teamId) {
-	if (isPicksReadOnly()) {
+	if (isSectionReadOnly("playoffs")) {
 		return;
 	}
 
@@ -1635,7 +1744,7 @@ function toggleBracketWinnerSelection(matchId, teamId) {
 }
 
 function clearBracketSourceSelection(sourceMatchId) {
-	if (isPicksReadOnly()) {
+	if (isSectionReadOnly("playoffs")) {
 		return;
 	}
 
@@ -1981,7 +2090,7 @@ function renderBracketSide(match, side, source) {
 		const teamId = getTeamIdKey(side.team.id);
 		const isSelected = match.selectedWinnerTeamId === teamId;
 		const canClear = canClearBracketSide(match, source);
-		const isDisabled = isPicksReadOnly();
+		const isDisabled = isSectionReadOnly("playoffs");
 
 		return `
       <div class="bracket-side-shell">
@@ -2100,7 +2209,7 @@ function renderThirdPlaceSelectionCard(team) {
 	const points = team.standing?.points != null ? String(team.standing.points) : "-";
 	const goalDifference = team.standing?.goalDifference != null ? formatSignedValue(team.standing.goalDifference) : "-";
 	const lockedOut = !isSelected && state.selectedThirdTeamIds.length >= 8;
-	const isDisabled = isPicksReadOnly() || lockedOut;
+	const isDisabled = isSectionReadOnly("thirdPlace") || lockedOut;
 	const groupLabel = selectedRank ? `#${selectedRank} • ${team.groupLetter}` : team.groupLetter;
 
 	return `
@@ -2185,7 +2294,7 @@ function renderTeamRow(team, index, groupLetter, listType) {
 function renderGroupTableRow(team, index, groupLetter) {
 	const positionClass = index < 2 ? "qualify" : index === 2 ? "third-place" : "out";
 	const badge = index < 2 ? "Qualifies" : index === 2 ? "Third-place race" : "Out";
-	const canDrag = !isPicksReadOnly();
+	const canDrag = !isSectionReadOnly("groups");
 
 	return `
     <tr
@@ -2631,7 +2740,8 @@ function buildSavePayload(email) {
 	return {
 		email,
 		userId: state.auth.user?.id || null,
-		submittedAt: state.submittedAt || null,
+		submittedAt: getLatestSubmittedAt() || null,
+		sectionSubmittedAt: state.sectionSubmittedAt,
 		source: state.worldCup.source,
 		competition: state.worldCup.competition,
 		summary: state.worldCup.summary,
@@ -2739,8 +2849,9 @@ function applySavedPicks(saved) {
 	);
 	state.selectedThirdTeamIds = chooseThirdPlaceSelections(Array.isArray(saved.bestThirdAdvancers) ? saved.bestThirdAdvancers.map((entry) => entry.teamId) : []);
 	state.bracketWinnerSelections = Object.fromEntries((Array.isArray(saved.knockoutWinners) ? saved.knockoutWinners : []).map((entry) => [String(entry.match || ""), getTeamIdKey(entry.teamId)]).filter(([matchId, teamId]) => matchId && teamId));
-	state.submittedAt = typeof saved.submittedAt === "string" && saved.submittedAt ? saved.submittedAt : "";
-	state.submissionPending = false;
+	state.sectionSubmittedAt = normalizeSectionSubmissionState(saved.sectionSubmittedAt, saved.submittedAt);
+	state.submittedAt = getLatestSubmittedAt();
+	state.submissionPendingSection = "";
 }
 
 function cloneGroups(groups) {

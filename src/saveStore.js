@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
 const PICKS_DIR = new URL("../data/picks/", import.meta.url);
+const SUBMISSION_SECTIONS = ["groups", "thirdPlace", "playoffs"];
 
 export function validateEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
@@ -29,12 +30,30 @@ export async function loadPicksByEmail(email) {
 
 export async function savePicksForEmail(email, payload) {
   await mkdir(PICKS_DIR, { recursive: true });
+  const legacySubmittedAt = typeof payload.submittedAt === "string" && payload.submittedAt.trim() ? payload.submittedAt.trim() : null;
+  const hasExplicitSectionSubmission = payload?.sectionSubmittedAt && typeof payload.sectionSubmittedAt === "object";
+
+  const sectionSubmittedAt = Object.fromEntries(
+    SUBMISSION_SECTIONS.map((section) => [
+      section,
+      typeof payload?.sectionSubmittedAt?.[section] === "string" && payload.sectionSubmittedAt[section].trim()
+        ? payload.sectionSubmittedAt[section].trim()
+        : !hasExplicitSectionSubmission && legacySubmittedAt
+          ? legacySubmittedAt
+          : null
+    ])
+  );
+  const latestSubmittedAt = [...Object.values(sectionSubmittedAt), legacySubmittedAt]
+    .filter(Boolean)
+    .sort()
+    .at(-1) ?? null;
 
   const normalized = {
     email: email.trim().toLowerCase(),
     userId: typeof payload.userId === "string" ? payload.userId : null,
     savedAt: new Date().toISOString(),
-    submittedAt: typeof payload.submittedAt === "string" && payload.submittedAt.trim() ? payload.submittedAt.trim() : null,
+    submittedAt: latestSubmittedAt,
+    sectionSubmittedAt,
     season: 2026,
     competition: payload.competition ?? null,
     source: payload.source ?? null,
