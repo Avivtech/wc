@@ -115,7 +115,7 @@ p {
 }
 
 .section-block.playoff-section {
-	max-height: 100vh;
+	overflow: hidden;
 }
 
 .hero-copy {
@@ -308,6 +308,7 @@ body.dialog-open {
 .section-block {
 	margin-top: 1.4rem;
 	border-radius: 1.75rem;
+	min-width: 0;
 	padding: 1.5rem;
 }
 .groups-grid,
@@ -315,7 +316,7 @@ body.dialog-open {
 .stats-grid {
 	display: grid;
 	gap: 1rem;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
+	grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .warning-strip {
@@ -421,6 +422,12 @@ body.dialog-open {
 	text-align: left;
 	vertical-align: middle;
 	padding: 0.25rem 0.5rem;
+}
+
+.group-table th:first-child,
+.group-table td.group-rank-cell {
+	width: 1%;
+	white-space: nowrap;
 }
 
 .group-table th {
@@ -932,7 +939,9 @@ body.dialog-open {
 .playoff-board {
 	display: grid;
 	gap: 1rem;
-	margin: 0 -1rem -1rem -1rem;
+	margin: 0;
+	min-width: 0;
+	overflow: hidden;
 }
 
 .bracket-meta {
@@ -942,34 +951,31 @@ body.dialog-open {
 }
 
 .playoff-bracket-scroll {
-	overflow-x: auto;
-	overflow-y: hidden;
-	overscroll-behavior-x: contain;
+	max-height: min(82vh, 52rem);
+	width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+	overflow: auto;
+	overscroll-behavior: contain;
 	padding-bottom: 0.25rem;
+	padding-right: 0.2rem;
 	-webkit-overflow-scrolling: touch;
 }
 
-.playoff-bracket-scroll.is-touch-pan-enabled {
-	max-height: min(82vh, 52rem);
-	overflow-y: auto;
-	overscroll-behavior: contain;
-	padding-right: 0.2rem;
+.playoff-bracket-scroll.is-drag-scrollable {
+	cursor: grab;
 	touch-action: none;
-	scrollbar-width: none;
 }
 
-.playoff-bracket-scroll.is-touch-pan-enabled::-webkit-scrollbar {
-	width: 0;
-	height: 0;
-}
-
-.playoff-bracket-scroll.is-touch-panning {
+.playoff-bracket-scroll.is-panning {
+	cursor: grabbing;
 	user-select: none;
 }
 
 .playoff-bracket-shell {
 	position: relative;
 	width: 100%;
+	box-sizing: border-box;
 	padding: 1rem;
 	min-width: 72rem;
 }
@@ -1286,7 +1292,7 @@ body.dialog-open {
 	.groups-grid,
 	.venues-grid,
 	.stats-grid {
-		grid-template-columns: repeat(4, minmax(0, 1fr));
+		grid-template-columns: repeat(5, minmax(0, 1fr));
 	}
 }
 
@@ -1294,7 +1300,7 @@ body.dialog-open {
 	.groups-grid,
 	.venues-grid,
 	.stats-grid {
-		grid-template-columns: repeat(3, minmax(0, 1fr));
+		grid-template-columns: repeat(4, minmax(0, 1fr));
 	}
 }
 
@@ -1324,7 +1330,7 @@ body.dialog-open {
 	.groups-grid,
 	.venues-grid,
 	.stats-grid {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
+		grid-template-columns: repeat(3, minmax(0, 1fr));
 	}
 
 	.calendar-match-teams {
@@ -1388,7 +1394,7 @@ body.dialog-open {
 	.groups-grid,
 	.venues-grid,
 	.stats-grid {
-		grid-template-columns: 1fr;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 
 	.group-table th,

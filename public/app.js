@@ -526,9 +526,8 @@ function renderGroups() {
 			<table class="group-table">
               <thead>
                 <tr>
+                  <th>#</th>
                   <th>Country</th>
-                  <th>Pts</th>
-                  <th>GD</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -568,13 +567,14 @@ function renderPlayoffBoard() {
 		return;
 	}
 
+	const scrollSnapshot = getPlayoffScrollSnapshot();
 	clearPlayoffPanState();
 
 	const { projectedMatches } = getProjectedPlayoffData();
 	const bracket = buildPlayoffBracketLayout(projectedMatches);
 
 	elements.playoffBoard.innerHTML = `
-    <div class="playoff-bracket-scroll ${isTouchPlayoffPanEnabled() ? "is-touch-pan-enabled" : ""}">
+    <div class="playoff-bracket-scroll">
       <div class="playoff-bracket-shell">
         <svg class="bracket-lines" aria-hidden="true"></svg>
         <div class="playoff-bracket">
@@ -594,7 +594,31 @@ function renderPlayoffBoard() {
     </div>
   `;
 
+	restorePlayoffScrollSnapshot(scrollSnapshot);
 	scheduleBracketLineDraw();
+	requestAnimationFrame(() => {
+		restorePlayoffScrollSnapshot(scrollSnapshot);
+	});
+}
+
+function getPlayoffScrollSnapshot() {
+	const scroller = elements.playoffBoard.querySelector(".playoff-bracket-scroll");
+
+	return {
+		left: scroller ? scroller.scrollLeft : 0,
+		top: scroller ? scroller.scrollTop : 0,
+	};
+}
+
+function restorePlayoffScrollSnapshot(snapshot) {
+	const scroller = elements.playoffBoard.querySelector(".playoff-bracket-scroll");
+
+	if (!scroller || !snapshot) {
+		return;
+	}
+
+	scroller.scrollLeft = snapshot.left;
+	scroller.scrollTop = snapshot.top;
 }
 
 function renderFixtures() {
@@ -1277,7 +1301,11 @@ function handlePlayoffPanClickCapture(event) {
 function handlePlayoffPanStart(event) {
 	const scroller = event.target.closest(".playoff-bracket-scroll");
 
-	if (!scroller || event.pointerType !== "touch" || event.isPrimary === false) {
+	if (!scroller || event.isPrimary === false) {
+		return;
+	}
+
+	if (event.pointerType === "mouse" && event.button !== 0) {
 		return;
 	}
 
@@ -1298,14 +1326,6 @@ function handlePlayoffPanStart(event) {
 	playoffPanState.canPanHorizontally = canPanHorizontally;
 	playoffPanState.canPanVertically = canPanVertically;
 	playoffPanState.moved = false;
-
-	if (typeof scroller.setPointerCapture === "function") {
-		try {
-			scroller.setPointerCapture(event.pointerId);
-		} catch (_error) {
-			// Ignore browsers that reject pointer capture for this event.
-		}
-	}
 }
 
 function handlePlayoffPanMove(event) {
@@ -1322,7 +1342,15 @@ function handlePlayoffPanMove(event) {
 		}
 
 		playoffPanState.moved = true;
-		playoffPanState.scroller.classList.add("is-touch-panning");
+		playoffPanState.scroller.classList.add("is-panning");
+
+		if (typeof playoffPanState.scroller.setPointerCapture === "function") {
+			try {
+				playoffPanState.scroller.setPointerCapture(event.pointerId);
+			} catch (_error) {
+				// Ignore browsers that reject pointer capture for this event.
+			}
+		}
 	}
 
 	event.preventDefault();
@@ -1363,7 +1391,7 @@ function clearPlayoffPanState(suppressClick = false) {
 			}
 		}
 
-		playoffPanState.scroller.classList.remove("is-touch-panning");
+		playoffPanState.scroller.classList.remove("is-panning");
 	}
 
 	playoffPanState.active = false;
@@ -1380,14 +1408,6 @@ function clearPlayoffPanState(suppressClick = false) {
 	if (suppressClick) {
 		playoffPanState.suppressClickUntil = Date.now() + 300;
 	}
-}
-
-function isTouchPlayoffPanEnabled() {
-	if (typeof window === "undefined") {
-		return false;
-	}
-
-	return Boolean((window.matchMedia && window.matchMedia("(pointer: coarse)").matches) || Number(navigator.maxTouchPoints || 0) > 0);
 }
 
 function handleDragStart(event) {
@@ -2176,6 +2196,7 @@ function renderGroupTableRow(team, index, groupLetter) {
       data-index="${index}"
       data-team-id="${escapeHtml(String(team.id))}"
     >
+      <td class="group-rank-cell">${index + 1}</td>
       <td>
         <div class="team-cell">
           ${renderTeamLogo(team)}
@@ -2184,8 +2205,6 @@ function renderGroupTableRow(team, index, groupLetter) {
           </div>
         </div>
       </td>
-      <td>${escapeHtml(team.standing?.points != null ? String(team.standing.points) : "-")}</td>
-      <td>${escapeHtml(team.standing?.goalDifference != null ? formatSignedValue(team.standing.goalDifference) : "-")}</td>
       <td>
         <span class="muted">${escapeHtml(badge)}</span>
       </td>
@@ -2430,7 +2449,20 @@ function scheduleBracketLineDraw() {
 
 function layoutBracketBoard() {
 	layoutBracketMatches();
+	syncPlayoffPanAvailability();
 	drawBracketLines();
+}
+
+function syncPlayoffPanAvailability() {
+	const scroller = elements.playoffBoard.querySelector(".playoff-bracket-scroll");
+
+	if (!scroller) {
+		return;
+	}
+
+	const canPanHorizontally = scroller.scrollWidth > scroller.clientWidth + 1;
+	const canPanVertically = scroller.scrollHeight > scroller.clientHeight + 1;
+	scroller.classList.toggle("is-drag-scrollable", canPanHorizontally || canPanVertically);
 }
 
 function layoutBracketMatches() {
