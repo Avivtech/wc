@@ -25,11 +25,18 @@
         </div>
       </div>
       <form id="save-form" class="save-panel">
-        <label class="field-label" for="email-input">Email</label>
-        <input id="email-input" class="field-input" type="email" autocomplete="email" placeholder="name@example.com" required />
+        <div class="save-panel-section">
+          <label class="field-label" for="email-input">Sign in Email</label>
+          <input id="email-input" class="field-input" type="email" autocomplete="email" placeholder="name@example.com" required />
+          <div class="save-actions">
+            <button id="auth-button" class="button secondary" type="button">Email magic link</button>
+            <button id="signout-button" class="button secondary hidden" type="button">Sign out</button>
+          </div>
+          <p id="auth-status" class="panel-note">Sign in with a Supabase magic link to save and load your picks.</p>
+        </div>
         <div class="save-actions">
           <button id="save-button" class="button primary" type="submit">Save picks</button>
-          <button id="load-button" class="button secondary" type="button">Load by email</button>
+          <button id="load-button" class="button secondary" type="button">Load my picks</button>
         </div>
         <a id="download-link" class="download-link hidden" href="#">Download saved JSON</a>
         <p id="save-status" class="panel-note">The saved file includes your group order and playoff projection.</p>
@@ -82,6 +89,7 @@
     </main>
   </div>
 
+  <script src="/vendor/supabase/supabase.js"></script>
   <script type="module" src="/app.js"></script>
 </body>
 

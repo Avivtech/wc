@@ -32,6 +32,7 @@ export async function savePicksForEmail(email, payload) {
 
   const normalized = {
     email: email.trim().toLowerCase(),
+    userId: typeof payload.userId === "string" ? payload.userId : null,
     savedAt: new Date().toISOString(),
     season: 2026,
     competition: payload.competition ?? null,

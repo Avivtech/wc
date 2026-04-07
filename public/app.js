@@ -6,6 +6,15 @@ const state = {
 	bracketWinnerSelections: {},
 	calendarMonthIndex: null,
 	playoffMatches: [],
+	auth: {
+		enabled: false,
+		ready: false,
+		pending: false,
+		client: null,
+		session: null,
+		user: null,
+		status: "",
+	},
 	saveStatus: "",
 	downloadUrl: "",
 	loading: true,
@@ -26,7 +35,11 @@ const elements = {
 	warningStrip: document.getElementById("warning-strip"),
 	sourceBadge: document.getElementById("source-badge"),
 	emailInput: document.getElementById("email-input"),
+	authButton: document.getElementById("auth-button"),
+	signOutButton: document.getElementById("signout-button"),
+	authStatus: document.getElementById("auth-status"),
 	saveForm: document.getElementById("save-form"),
+	saveButton: document.getElementById("save-button"),
 	loadButton: document.getElementById("load-button"),
 	saveStatus: document.getElementById("save-status"),
 	downloadLink: document.getElementById("download-link"),
@@ -38,13 +51,18 @@ const CALENDAR_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 boot();
 
 async function boot() {
+	await initializeAuth();
 	bindEvents();
+	render();
 	await loadWorldCup();
 }
 
 function bindEvents() {
 	elements.saveForm.addEventListener("submit", handleSave);
+	elements.authButton.addEventListener("click", handleAuthRequest);
+	elements.signOutButton.addEventListener("click", handleSignOut);
 	elements.loadButton.addEventListener("click", handleLoad);
+	elements.downloadLink.addEventListener("click", handleDownload);
 	elements.refreshButton.addEventListener("click", () => loadWorldCup(true));
 
 	document.addEventListener("click", handleMoveClick);
@@ -60,6 +78,216 @@ function bindEvents() {
 	});
 	window.addEventListener("resize", scheduleBracketLineDraw);
 	window.addEventListener("resize", handleTooltipViewportChange);
+}
+
+async function initializeAuth() {
+	state.auth.ready = false;
+	state.auth.status = "Checking auth...";
+
+	try {
+		const response = await fetch("/api/auth/config");
+		const config = await response.json();
+
+		if (!response.ok) {
+			throw new Error(config.detail || config.error || "Failed to load auth config.");
+		}
+
+		if (!config.enabled) {
+			state.auth.enabled = false;
+			state.auth.status = "Supabase Auth is not configured yet. Saving and loading are disabled.";
+			return;
+		}
+
+		if (!window.supabase?.createClient) {
+			throw new Error("Supabase browser client failed to load.");
+		}
+
+		state.auth.enabled = true;
+		state.auth.client = window.supabase.createClient(config.url, config.publishableKey);
+		state.auth.client.auth.onAuthStateChange((event, session) => {
+			void syncAuthSession(session, event);
+		});
+
+		const { data, error } = await state.auth.client.auth.getSession();
+
+		if (error) {
+			throw error;
+		}
+
+		await syncAuthSession(data.session, "INITIAL_SESSION");
+	} catch (error) {
+		state.auth.enabled = false;
+		state.auth.client = null;
+		state.auth.session = null;
+		state.auth.user = null;
+		state.auth.status = error instanceof Error ? error.message : "Failed to initialize auth.";
+		state.downloadUrl = "";
+	} finally {
+		state.auth.ready = true;
+	}
+}
+
+async function syncAuthSession(session, event = "SESSION") {
+	state.auth.pending = false;
+	state.auth.session = session || null;
+
+	if (!session?.access_token || !state.auth.client) {
+		state.auth.user = null;
+		state.downloadUrl = "";
+		if (event === "SIGNED_OUT") {
+			state.saveStatus = "";
+		}
+		state.auth.status = getSignedOutAuthMessage();
+		render();
+		return;
+	}
+
+	const { data, error } = await state.auth.client.auth.getUser(session.access_token);
+
+	if (error || !data.user?.email) {
+		state.auth.session = null;
+		state.auth.user = null;
+		state.downloadUrl = "";
+		state.auth.status = error?.message || "Your Supabase session could not be verified.";
+		render();
+		return;
+	}
+
+	state.auth.user = data.user;
+	state.auth.status = `Signed in as ${data.user.email}.`;
+	clearAuthRedirectState();
+
+	if (event === "SIGNED_OUT") {
+		state.saveStatus = "";
+	}
+
+	render();
+}
+
+function renderAuthState() {
+	const email = getAuthenticatedEmail();
+	const authReady = state.auth.ready;
+	const authAvailable = state.auth.enabled && Boolean(state.auth.client);
+	const isSignedIn = Boolean(email);
+
+	if (isSignedIn) {
+		elements.emailInput.value = email;
+	}
+
+	elements.emailInput.readOnly = isSignedIn;
+	elements.authButton.textContent = state.auth.pending ? "Sending link..." : "Email magic link";
+	elements.authButton.disabled = !authReady || !authAvailable || state.auth.pending || isSignedIn;
+	elements.signOutButton.disabled = !authReady || state.auth.pending;
+	elements.authButton.classList.toggle("hidden", isSignedIn);
+	elements.signOutButton.classList.toggle("hidden", !isSignedIn);
+	elements.saveButton.disabled = !isSignedIn || state.loading || state.auth.pending;
+	elements.loadButton.disabled = !isSignedIn || state.auth.pending;
+	elements.authStatus.textContent = state.auth.status || (!authReady ? "Checking auth..." : getSignedOutAuthMessage());
+}
+
+function getSignedOutAuthMessage() {
+	if (!state.auth.enabled) {
+		return state.auth.status || "Supabase Auth is not configured yet. Saving and loading are disabled.";
+	}
+
+	return "Sign in with a Supabase magic link to save and load your picks.";
+}
+
+function getAuthenticatedEmail() {
+	return String(state.auth.user?.email || "").trim().toLowerCase();
+}
+
+async function handleAuthRequest() {
+	if (!state.auth.enabled || !state.auth.client) {
+		state.auth.status = "Supabase Auth is not configured yet. Saving and loading are disabled.";
+		renderAuthState();
+		return;
+	}
+
+	const email = elements.emailInput.value.trim().toLowerCase();
+
+	if (!isValidEmail(email)) {
+		state.auth.status = "Enter a valid email address to receive a magic link.";
+		renderAuthState();
+		return;
+	}
+
+	state.auth.pending = true;
+	state.auth.status = `Sending a magic link to ${email}...`;
+	renderAuthState();
+
+	try {
+		const redirectTo = new URL(window.location.pathname, window.location.origin).toString();
+		const { error } = await state.auth.client.auth.signInWithOtp({
+			email,
+			options: {
+				emailRedirectTo: redirectTo,
+			},
+		});
+
+		if (error) {
+			throw error;
+		}
+
+		state.auth.status = `Magic link sent to ${email}. Open the email on this device to finish signing in.`;
+	} catch (error) {
+		state.auth.status = error instanceof Error ? error.message : "Failed to send your magic link.";
+	} finally {
+		state.auth.pending = false;
+		renderAuthState();
+	}
+}
+
+async function handleSignOut() {
+	if (!state.auth.client) {
+		return;
+	}
+
+	state.auth.pending = true;
+	state.auth.status = "Signing out...";
+	renderAuthState();
+
+	try {
+		const { error } = await state.auth.client.auth.signOut();
+
+		if (error) {
+			throw error;
+		}
+
+		state.auth.session = null;
+		state.auth.user = null;
+		state.downloadUrl = "";
+		state.auth.status = getSignedOutAuthMessage();
+	} catch (error) {
+		state.auth.status = error instanceof Error ? error.message : "Failed to sign out.";
+	} finally {
+		state.auth.pending = false;
+		render();
+	}
+}
+
+function clearAuthRedirectState() {
+	const url = new URL(window.location.href);
+	let changed = false;
+
+	for (const key of ["code", "token_hash", "type", "error", "error_code", "error_description"]) {
+		if (url.searchParams.has(key)) {
+			url.searchParams.delete(key);
+			changed = true;
+		}
+	}
+
+	if (url.hash && /access_token=|refresh_token=|type=|error=/.test(url.hash)) {
+		url.hash = "";
+		changed = true;
+	}
+
+	if (!changed) {
+		return;
+	}
+
+	const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+	window.history.replaceState({}, document.title, nextUrl || "/");
 }
 
 async function loadWorldCup(refresh = false) {
@@ -109,6 +337,7 @@ function render() {
 	renderSource();
 	renderWarnings();
 	renderInteractiveViews();
+	renderAuthState();
 	renderSaveState();
 }
 
@@ -578,6 +807,30 @@ function renderSaveState() {
 	}
 }
 
+async function fetchWithAuth(input, init = {}) {
+	if (!state.auth.client || !state.auth.enabled) {
+		throw new Error("Supabase Auth is not configured.");
+	}
+
+	const { data, error } = await state.auth.client.auth.getSession();
+
+	if (error) {
+		throw error;
+	}
+
+	if (!data.session?.access_token) {
+		throw new Error("Sign in first.");
+	}
+
+	const headers = new Headers(init.headers || {});
+	headers.set("Authorization", `Bearer ${data.session.access_token}`);
+
+	return fetch(input, {
+		...init,
+		headers,
+	});
+}
+
 async function handleSave(event) {
 	event.preventDefault();
 
@@ -587,10 +840,10 @@ async function handleSave(event) {
 		return;
 	}
 
-	const email = elements.emailInput.value.trim().toLowerCase();
+	const email = getAuthenticatedEmail();
 
-	if (!isValidEmail(email)) {
-		state.saveStatus = "Enter a valid email address first.";
+	if (!email) {
+		state.saveStatus = "Sign in first to save picks.";
 		renderSaveState();
 		return;
 	}
@@ -598,7 +851,7 @@ async function handleSave(event) {
 	const payload = buildSavePayload(email);
 
 	try {
-		const response = await fetch("/api/picks", {
+		const response = await fetchWithAuth("/api/picks", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(payload),
@@ -619,16 +872,14 @@ async function handleSave(event) {
 }
 
 async function handleLoad() {
-	const email = elements.emailInput.value.trim().toLowerCase();
-
-	if (!isValidEmail(email)) {
-		state.saveStatus = "Enter a valid email address to load saved picks.";
+	if (!getAuthenticatedEmail()) {
+		state.saveStatus = "Sign in first to load your saved picks.";
 		renderSaveState();
 		return;
 	}
 
 	try {
-		const response = await fetch(`/api/picks/${encodeURIComponent(email)}`);
+		const response = await fetchWithAuth("/api/picks/me");
 		const data = await response.json();
 
 		if (!response.ok) {
@@ -637,12 +888,42 @@ async function handleLoad() {
 
 		applySavedPicks(data);
 		state.saveStatus = `Loaded saved picks from ${formatDateTime(data.savedAt)}.`;
-		state.downloadUrl = `/api/picks/${encodeURIComponent(email)}/download`;
+		state.downloadUrl = "/api/picks/me/download";
 	} catch (error) {
 		state.saveStatus = error instanceof Error ? error.message : "Failed to load saved picks.";
 	}
 
 	render();
+}
+
+async function handleDownload(event) {
+	if (!state.downloadUrl) {
+		return;
+	}
+
+	event.preventDefault();
+
+	try {
+		const response = await fetchWithAuth(state.downloadUrl);
+
+		if (!response.ok) {
+			const data = await response.json().catch(() => ({}));
+			throw new Error(data.detail || data.error || "Failed to download saved picks.");
+		}
+
+		const blob = await response.blob();
+		const fileUrl = URL.createObjectURL(blob);
+		const tempLink = document.createElement("a");
+		tempLink.href = fileUrl;
+		tempLink.download = `${getAuthenticatedEmail().replace(/[^a-z0-9]+/g, "_") || "wc2026"}-world-cup-2026.json`;
+		document.body.appendChild(tempLink);
+		tempLink.click();
+		tempLink.remove();
+		URL.revokeObjectURL(fileUrl);
+	} catch (error) {
+		state.saveStatus = error instanceof Error ? error.message : "Failed to download saved picks.";
+		renderSaveState();
+	}
 }
 
 function handleMoveClick(event) {
@@ -1852,6 +2133,7 @@ function buildSavePayload(email) {
 
 	return {
 		email,
+		userId: state.auth.user?.id || null,
 		source: state.worldCup.source,
 		competition: state.worldCup.competition,
 		summary: state.worldCup.summary,
