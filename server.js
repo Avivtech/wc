@@ -3,7 +3,13 @@ import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { loadPicksByEmail, savePicksForEmail, validateEmail } from "./src/saveStore.js";
+import {
+  buildScoringMatchFromFixture,
+  buildScoringResultFromFixture,
+  calculatePredictionScore,
+  settlePredictions
+} from "./src/scoring/index.js";
+import { loadPicksForUser, savePicksForUser, validateEmail } from "./src/saveStore.js";
 import { getBearerToken, getSupabasePublicConfig, isSupabaseAuthConfigured, verifySupabaseAccessToken } from "./src/supabaseAuth.js";
 import { getWorldCupData } from "./src/worldCupService.js";
 
@@ -95,6 +101,10 @@ function getSectionSnapshot(payload, section) {
   };
 }
 
+function logServerError(context, error) {
+  console.error(context, error instanceof Error ? error.message : error);
+}
+
 app.get("/api/auth/config", (_req, res) => {
   res.json(getSupabasePublicConfig());
 });
@@ -109,47 +119,134 @@ app.get("/api/world-cup", async (req, res) => {
     const data = await getWorldCupData({ refresh, timezone });
     res.json(data);
   } catch (error) {
-    res.status(500).json({
-      error: "Failed to load World Cup data.",
-      detail: error instanceof Error ? error.message : "Unknown error"
+    logServerError("Failed to load World Cup data.", error);
+    res.status(500).json({ error: "Could not load the tournament right now." });
+  }
+});
+
+app.post("/api/scoring/matches/:matchId", async (req, res) => {
+  try {
+    const prediction = req.body?.prediction;
+    const matchId = String(req.params.matchId || "").trim();
+
+    if (!matchId) {
+      return res.status(400).json({ error: "A valid match id is required." });
+    }
+
+    if (!prediction || typeof prediction !== "object") {
+      return res.status(400).json({ error: "A prediction object is required." });
+    }
+
+    const worldCup = await getWorldCupData();
+    const fixture = worldCup.fixtures.find((entry) => String(entry.id) === matchId);
+
+    if (!fixture) {
+      return res.status(404).json({ error: "Match not found." });
+    }
+
+    const scoringContext = {
+      hostCountries: worldCup.summary?.hostCountries ?? [],
+      tournamentStartAt: worldCup.summary?.dateRange?.start ?? null,
+      ...(req.body?.context && typeof req.body.context === "object" ? req.body.context : {})
+    };
+    const match = buildScoringMatchFromFixture(fixture, scoringContext);
+    const result = req.body?.result ?? buildScoringResultFromFixture(fixture);
+    const scorecard = calculatePredictionScore({
+      prediction: {
+        ...prediction,
+        matchId: prediction.matchId ?? fixture.id
+      },
+      match,
+      result,
+      config: req.body?.config,
+      context: scoringContext
     });
+
+    return res.json(scorecard);
+  } catch (error) {
+    logServerError("Failed to score match prediction.", error);
+    return res.status(500).json({ error: "Could not score this prediction right now." });
+  }
+});
+
+app.post("/api/scoring/settle", async (req, res) => {
+  try {
+    const predictions = Array.isArray(req.body?.predictions) ? req.body.predictions : null;
+
+    if (!predictions) {
+      return res.status(400).json({ error: "A predictions array is required." });
+    }
+
+    const worldCup = await getWorldCupData();
+    const scoringContext = {
+      hostCountries: worldCup.summary?.hostCountries ?? [],
+      tournamentStartAt: worldCup.summary?.dateRange?.start ?? null,
+      ...(req.body?.context && typeof req.body.context === "object" ? req.body.context : {})
+    };
+    const matchLookup = Object.fromEntries(
+      worldCup.fixtures.map((fixture) => [
+        String(fixture.id),
+        buildScoringMatchFromFixture(fixture, scoringContext)
+      ])
+    );
+    const resultLookup = Object.fromEntries(
+      worldCup.fixtures.map((fixture) => [
+        String(fixture.id),
+        buildScoringResultFromFixture(fixture)
+      ])
+    );
+    const settlement = settlePredictions({
+      predictions,
+      matchesById: {
+        ...matchLookup,
+        ...(req.body?.matchesById && typeof req.body.matchesById === "object" ? req.body.matchesById : {})
+      },
+      resultsByMatchId: {
+        ...resultLookup,
+        ...(req.body?.resultsByMatchId && typeof req.body.resultsByMatchId === "object" ? req.body.resultsByMatchId : {})
+      },
+      tournamentResults:
+        req.body?.tournamentResults && typeof req.body.tournamentResults === "object"
+          ? req.body.tournamentResults
+          : {},
+      config: req.body?.config,
+      context: scoringContext
+    });
+
+    return res.json(settlement);
+  } catch (error) {
+    logServerError("Failed to settle predictions.", error);
+    return res.status(500).json({ error: "Could not settle predictions right now." });
   }
 });
 
 app.get("/api/picks/me", requireSupabaseAuth, async (req, res) => {
   try {
-    const email = getAuthenticatedEmail(req);
-
-    const saved = await loadPicksByEmail(email);
+    const saved = await loadPicksForUser(req.authUser);
 
     if (!saved) {
-      return res.status(404).json({ error: "No saved picks found for that email." });
+      return res.status(404).json({ error: "No saved picks found for this user." });
     }
 
     return res.json(saved);
   } catch (error) {
-    return res.status(500).json({
-      error: "Failed to load saved picks.",
-      detail: error instanceof Error ? error.message : "Unknown error"
-    });
+    logServerError("Failed to load saved picks.", error);
+    return res.status(500).json({ error: "Could not load your picks right now." });
   }
 });
 
 app.get("/api/picks/:email", requireSupabaseAuth, requireMatchingEmailParam, async (req, res) => {
   try {
-    const email = getAuthenticatedEmail(req);
-    const saved = await loadPicksByEmail(email);
+    const saved = await loadPicksForUser(req.authUser);
 
     if (!saved) {
-      return res.status(404).json({ error: "No saved picks found for that email." });
+      return res.status(404).json({ error: "No saved picks found for this user." });
     }
 
     return res.json(saved);
   } catch (error) {
-    return res.status(500).json({
-      error: "Failed to load saved picks.",
-      detail: error instanceof Error ? error.message : "Unknown error"
-    });
+    logServerError("Failed to load saved picks.", error);
+    return res.status(500).json({ error: "Could not load your picks right now." });
   }
 });
 
@@ -171,7 +268,7 @@ app.post("/api/picks", requireSupabaseAuth, async (req, res) => {
       return res.status(400).json({ error: "Group rankings are required." });
     }
 
-    const existing = await loadPicksByEmail(email);
+    const existing = await loadPicksForUser(req.authUser);
 
     const immutableSections = getImmutableSections(existing);
 
@@ -181,7 +278,7 @@ app.post("/api/picks", requireSupabaseAuth, async (req, res) => {
       }
     }
 
-    const saved = await savePicksForEmail(email, payload);
+    const saved = await savePicksForUser(req.authUser, payload);
 
     return res.status(201).json({
       ok: true,
@@ -190,10 +287,8 @@ app.post("/api/picks", requireSupabaseAuth, async (req, res) => {
       sectionSubmittedAt: saved.sectionSubmittedAt
     });
   } catch (error) {
-    return res.status(500).json({
-      error: "Failed to save picks.",
-      detail: error instanceof Error ? error.message : "Unknown error"
-    });
+    logServerError("Failed to save picks.", error);
+    return res.status(500).json({ error: "Could not save your picks right now." });
   }
 });
 
@@ -208,7 +303,7 @@ app.listen(port, () => {
 
 async function requireSupabaseAuth(req, res, next) {
   if (!isSupabaseAuthConfigured()) {
-    return res.status(503).json({ error: "Supabase Auth is not configured on the server." });
+    return res.status(503).json({ error: "Sign in is currently unavailable." });
   }
 
   const accessToken = getBearerToken(req.headers.authorization);
@@ -227,10 +322,8 @@ async function requireSupabaseAuth(req, res, next) {
     req.authUser = user;
     return next();
   } catch (error) {
-    return res.status(401).json({
-      error: "Your session is invalid. Sign in again.",
-      detail: error instanceof Error ? error.message : "Unknown error"
-    });
+    logServerError("Supabase session verification failed.", error);
+    return res.status(401).json({ error: "Your session is invalid. Sign in again." });
   }
 }
 

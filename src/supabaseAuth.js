@@ -32,7 +32,7 @@ export async function verifySupabaseAccessToken(accessToken) {
 		return null;
 	}
 
-	const { data, error } = await getServerSupabaseClient().auth.getUser(accessToken);
+	const { data, error } = await getServerSupabaseAdminClient().auth.getUser(accessToken);
 
 	if (error) {
 		throw new Error(error.message);
@@ -41,7 +41,7 @@ export async function verifySupabaseAccessToken(accessToken) {
 	return data.user || null;
 }
 
-function getServerSupabaseClient() {
+export function getServerSupabaseAdminClient() {
 	if (serverSupabaseClient) {
 		return serverSupabaseClient;
 	}

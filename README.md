@@ -1,6 +1,6 @@
 # World Cup 2026 Game
 
-A small full-stack app for ranking FIFA World Cup 2026 groups, projecting the playoff field, and saving picks as JSON attached to the signed-in user's email.
+A small full-stack app for ranking FIFA World Cup 2026 groups, projecting the playoff field, and saving picks remotely against the signed-in Supabase user.
 
 ## Run
 
@@ -62,20 +62,121 @@ Schedule reference:
 
 ## Auth And Saves
 
-Saving and loading now require a Supabase-authenticated user session:
+Saving and loading require a Supabase-authenticated user session:
 
 - sign in with the email magic link in the save panel
 - saves and loads are scoped to the signed-in user's email
 - the Express API verifies the Supabase bearer token before reading or writing picks
+- picks are stored remotely in Supabase user metadata, not on the local filesystem
 
-Saved JSON files are written to:
+The payload shape is still JSON, but it is now persisted server-side in Supabase for the authenticated user.
 
-- `data/picks/<email>.json`
+## Scoring Layer
 
-You can also load your existing save from the page and download the stored JSON again.
+The app now includes a modular scoring engine under `src/scoring/`:
+
+- `src/scoring/config.js`: all scoring values in one config object
+- `src/scoring/engine.js`: match scoring, tournament-pick scoring, and batch settlement
+- `src/scoring/index.js`: public entrypoint for importing the scoring helpers
+
+### Supported Scoring Categories
+
+- timing points
+- difficulty points
+- accuracy points
+- bonus points
+- penalties
+
+### Match Prediction Example
+
+Use the current fixture shape from `getWorldCupData()` directly:
+
+```js
+import { getWorldCupData } from "./src/worldCupService.js";
+import {
+  buildScoringResultFromFixture,
+  calculatePredictionScore
+} from "./src/scoring/index.js";
+
+const worldCup = await getWorldCupData();
+const fixture = worldCup.fixtures.find((entry) => entry.id === 123456);
+
+const prediction = {
+  id: "pred-1",
+  matchId: fixture.id,
+  createdAt: "2026-06-10T09:00:00.000Z",
+  homeGoals: 1,
+  awayGoals: 0,
+  bothTeamsToScore: false,
+  cleanSheet: { home: true }
+};
+
+const scorecard = calculatePredictionScore({
+  prediction,
+  match: fixture,
+  result: buildScoringResultFromFixture(fixture),
+  context: {
+    tournamentStartAt: worldCup.summary?.dateRange?.start,
+    hostCountries: worldCup.summary?.hostCountries
+  }
+});
+```
+
+The returned object includes:
+
+- `totalPoints`
+- `timingPoints`
+- `difficultyPoints`
+- `accuracyPoints`
+- `bonusPoints`
+- `penaltyPoints`
+- `capAdjustmentPoints`
+- `breakdown`
+
+### Tournament Pick Example
+
+```js
+import { calculatePredictionScore } from "./src/scoring/index.js";
+
+const scorecard = calculatePredictionScore({
+  prediction: {
+    id: "tourn-1",
+    type: "tournament",
+    pickType: "groupWinner",
+    group: "A",
+    teamId: "25",
+    createdAt: "2026-06-01T10:00:00.000Z"
+  },
+  result: {
+    groupWinners: {
+      A: "25"
+    }
+  }
+});
+```
+
+### API Integration
+
+Two server endpoints are available:
+
+- `POST /api/scoring/matches/:matchId`
+  Body: `{ prediction, result?, config?, context? }`
+- `POST /api/scoring/settle`
+  Body: `{ predictions, resultsByMatchId?, matchesById?, tournamentResults?, config?, context? }`
+
+The match route reuses the app's current World Cup fixture model and, if no custom result is passed, settles against the live fixture result already loaded by the server.
+
+### Leaderboard Or Settlement Flow
+
+Recommended integration points:
+
+1. Run `settlePredictions()` after a fixture is final and persist the returned scorecard beside the saved prediction.
+2. Aggregate `totalPoints` per user to build the leaderboard.
+3. Keep the full `breakdown` array for audit, tie-break review, and UI explainability.
+4. Tune values by editing `DEFAULT_SCORING_CONFIG` or passing an override config into the scorer or scoring routes.
 
 ## Demo Mode
 
 If `API_FOOTBALL_KEY` is missing or the live request fails without a cache, the UI falls back to a clearly marked demo field so the drag-and-save flow still works locally.
 
-If `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, or `SUPABASE_SECRET_KEY` is missing, the app still loads in read-only mode, but auth, save, load, and download are disabled.
+If `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, or `SUPABASE_SECRET_KEY` is missing, the app still loads in read-only mode, but auth, save, and load are disabled.

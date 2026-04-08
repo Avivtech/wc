@@ -1,9 +1,20 @@
+import {
+	attachClosestEdge,
+	combine,
+	draggable,
+	dropTargetForElements,
+	extractClosestEdge,
+	monitorForElements,
+} from "/vendor/pragmatic-dnd.js";
+
 const state = {
 	worldCup: null,
 	groups: [],
 	thirdPlaceRanking: [],
 	selectedThirdTeamIds: [],
 	bracketWinnerSelections: {},
+	viewMode: "live",
+	playoffDragHintDismissed: getStoredPlayoffDragHintDismissed(),
 	calendarMonthIndex: null,
 	playoffMatches: [],
 	submittedAt: "",
@@ -13,17 +24,22 @@ const state = {
 		enabled: false,
 		ready: false,
 		pending: false,
+		mode: "login",
 		client: null,
 		session: null,
 		user: null,
 		displayNameDraft: "",
 		status: "",
 	},
+	overallScore: null,
 	saveStatus: "",
 	loading: true,
 };
 
-let dragPayload = null;
+const groupDragState = {
+	cleanup: null,
+	activeDrag: null,
+};
 const syncState = {
 	autoSaveTimer: 0,
 	autoSaveInFlight: false,
@@ -31,6 +47,13 @@ const syncState = {
 	lastSavedSnapshot: "",
 	loadedEmail: "",
 	loadingSavedPicks: false,
+};
+const scoreSyncState = {
+	timer: 0,
+	inFlight: false,
+	pendingSnapshot: "",
+	pendingPayload: null,
+	lastResolvedSnapshot: "",
 };
 const tooltipState = {
 	element: null,
@@ -57,10 +80,21 @@ const elements = {
 	playoffBoard: document.getElementById("playoff-board"),
 	fixturesFeed: document.getElementById("fixtures-feed"),
 	warningStrip: document.getElementById("warning-strip"),
+	authForm: document.getElementById("auth-form"),
+	authModeSwitch: document.getElementById("auth-mode-switch"),
+	authModeButtons: Array.from(document.querySelectorAll("[data-auth-mode]")),
+	authFields: document.getElementById("auth-fields"),
+	displayNameField: document.getElementById("display-name-field"),
+	displayNameLabel: document.getElementById("display-name-label"),
+	displayNameInput: document.getElementById("display-name-input"),
+	emailField: document.getElementById("email-field"),
 	emailLabel: document.getElementById("email-label"),
 	emailInput: document.getElementById("email-input"),
 	welcomeMessage: document.getElementById("welcome-message"),
 	authButton: document.getElementById("auth-button"),
+	viewModeSwitch: document.querySelector(".view-mode-switch"),
+	viewModeButtons: Array.from(document.querySelectorAll("[data-view-mode]")),
+	viewModeCopy: document.getElementById("view-mode-copy"),
 	submitButtons: Array.from(document.querySelectorAll("[data-submit-picks]")),
 	clearAllButton: document.getElementById("clear-all-button"),
 	clearAllDialog: document.getElementById("clear-all-dialog"),
@@ -69,20 +103,38 @@ const elements = {
 	signOutButton: document.getElementById("signout-button"),
 	authStatus: document.getElementById("auth-status"),
 	saveStatus: document.getElementById("save-status"),
+	overallScoreCard: document.getElementById("overall-score-card"),
+	overallScoreValue: document.getElementById("overall-score-value"),
 };
 
 const CALENDAR_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const SUBMISSION_SECTIONS = ["groups", "thirdPlace", "playoffs"];
+const AUTH_MODES = {
+	LOGIN: "login",
+	REGISTER: "register",
+};
+const VIEW_MODES = {
+	MY: "my",
+	LIVE: "live",
+};
+const PLAYOFF_DRAG_HINT_STORAGE_KEY = "wc2026:playoff-drag-hint-dismissed";
 const SECTION_LABELS = {
 	groups: "Groups",
 	thirdPlace: "Third Place",
 	playoffs: "Playoffs",
 };
-const SECTION_LOCKS = {
-	groups: ["groups", "thirdPlace", "playoffs"],
-	thirdPlace: ["thirdPlace", "playoffs"],
-	playoffs: ["playoffs"],
+const SECTION_SUBMIT_LABELS = {
+	ready: "Submit picks",
+	pending: "Submitting...",
+	submitted: "Submitted",
+	locked: "Locked",
 };
+const SECTION_LOCKS = {
+	groups: ["groups"],
+	thirdPlace: ["groups", "thirdPlace"],
+	playoffs: ["groups", "thirdPlace", "playoffs"],
+};
+const TECHNICAL_MESSAGE_PATTERN = /\b(api|server|supabase|request failed|status \d+|unknown error|cache|cached data|environment|documentation|provider|rankings page|odds|predictions|fetch|network|connection|timeout|json|syntaxerror|unexpected token)\b/i;
 
 boot();
 
@@ -94,11 +146,16 @@ async function boot() {
 }
 
 function bindEvents() {
-	elements.authButton.addEventListener("click", handleAuthRequest);
+	elements.authForm.addEventListener("submit", handleAuthSubmit);
+	elements.authModeButtons.forEach((button) => {
+		button.addEventListener("click", handleAuthModeClick);
+	});
 	elements.clearAllButton.addEventListener("click", openClearAllDialog);
 	elements.clearAllCancelButton.addEventListener("click", closeClearAllDialog);
 	elements.clearAllConfirmButton.addEventListener("click", handleClearAll);
 	elements.signOutButton.addEventListener("click", handleSignOut);
+	elements.displayNameInput.addEventListener("input", handleAuthFieldInput);
+	elements.emailInput.addEventListener("input", handleAuthFieldInput);
 
 	document.addEventListener("click", handlePlayoffPanClickCapture, true);
 	document.addEventListener("click", handleMoveClick);
@@ -106,17 +163,11 @@ function bindEvents() {
 	document.addEventListener("mouseout", handleTooltipMouseOut);
 	document.addEventListener("keydown", handleGlobalKeyDown);
 	document.addEventListener("scroll", handleTooltipViewportChange, true);
+	document.addEventListener("wheel", handlePlayoffWheel, { passive: false });
 	document.addEventListener("pointerdown", handlePlayoffPanStart);
 	document.addEventListener("pointermove", handlePlayoffPanMove);
 	document.addEventListener("pointerup", handlePlayoffPanEnd);
 	document.addEventListener("pointercancel", handlePlayoffPanEnd);
-	document.addEventListener("dragstart", handleDragStart);
-	document.addEventListener("dragover", handleDragOver);
-	document.addEventListener("drop", handleDrop);
-	document.addEventListener("dragend", () => {
-		dragPayload = null;
-		hideFloatingTooltip();
-	});
 	window.addEventListener("resize", scheduleBracketLineDraw);
 	window.addEventListener("resize", handleTooltipViewportChange);
 	elements.clearAllDialog.addEventListener("click", handleClearAllDialogBackdrop);
@@ -131,17 +182,17 @@ async function initializeAuth() {
 		const config = await response.json();
 
 		if (!response.ok) {
-			throw new Error(config.detail || config.error || "Failed to load auth config.");
+			throw new Error("Sign in is currently unavailable.");
 		}
 
 		if (!config.enabled) {
 			state.auth.enabled = false;
-			state.auth.status = "Supabase Auth is not configured yet. Saving and loading are disabled.";
+			state.auth.status = "Sign in is currently unavailable.";
 			return;
 		}
 
 		if (!window.supabase?.createClient) {
-			throw new Error("Supabase browser client failed to load.");
+			throw new Error("Sign in is currently unavailable.");
 		}
 
 		state.auth.enabled = true;
@@ -163,7 +214,7 @@ async function initializeAuth() {
 		state.auth.session = null;
 		state.auth.user = null;
 		state.auth.displayNameDraft = "";
-		state.auth.status = error instanceof Error ? error.message : "Failed to initialize auth.";
+		state.auth.status = "Sign in is currently unavailable.";
 	} finally {
 		state.auth.ready = true;
 	}
@@ -174,8 +225,10 @@ async function syncAuthSession(session, event = "SESSION") {
 	state.auth.session = session || null;
 
 	if (!session?.access_token || !state.auth.client) {
+		state.auth.mode = AUTH_MODES.LOGIN;
 		state.auth.user = null;
 		state.auth.displayNameDraft = "";
+		state.viewMode = VIEW_MODES.LIVE;
 		resetPickSyncState();
 		if (event === "SIGNED_OUT") {
 			state.saveStatus = "";
@@ -189,10 +242,12 @@ async function syncAuthSession(session, event = "SESSION") {
 
 	if (error || !data.user?.email) {
 		state.auth.session = null;
+		state.auth.mode = AUTH_MODES.LOGIN;
 		state.auth.user = null;
 		state.auth.displayNameDraft = "";
+		state.viewMode = VIEW_MODES.LIVE;
 		resetPickSyncState();
-		state.auth.status = error?.message || "Your Supabase session could not be verified.";
+		state.auth.status = "Please sign in again.";
 		render();
 		return;
 	}
@@ -219,49 +274,130 @@ function renderAuthState() {
 	const authReady = state.auth.ready;
 	const authAvailable = state.auth.enabled && Boolean(state.auth.client);
 	const isSignedIn = Boolean(email);
+	const isRegisterMode = isRegisterAuthMode();
+	const hasRequiredFields = hasRequiredAuthFields();
+	const shouldShowAuthForm = authReady && authAvailable && !isSignedIn;
 
 	if (isSignedIn) {
+		elements.displayNameInput.value = state.auth.displayNameDraft;
 		elements.emailInput.value = email;
+	} else if (elements.displayNameInput.value !== state.auth.displayNameDraft) {
+		elements.displayNameInput.value = state.auth.displayNameDraft;
 	}
 
+	elements.displayNameInput.readOnly = isSignedIn;
 	elements.emailInput.readOnly = isSignedIn;
-	elements.emailLabel.classList.toggle("hidden", isSignedIn);
-	elements.emailInput.classList.toggle("hidden", isSignedIn);
+	elements.displayNameInput.required = !isSignedIn && isRegisterMode;
+	elements.emailInput.required = !isSignedIn;
+	elements.authForm.classList.toggle("hidden", !shouldShowAuthForm);
+	elements.authModeSwitch.classList.toggle("hidden", isSignedIn);
+	elements.authFields.classList.toggle("hidden", isSignedIn);
+	elements.displayNameField.classList.toggle("hidden", isSignedIn || !isRegisterMode);
+	elements.emailField.classList.toggle("hidden", isSignedIn);
+	elements.authModeSwitch.dataset.activeAuthMode = state.auth.mode;
+	elements.authModeButtons.forEach((button) => {
+		const isActive = button.dataset.authMode === state.auth.mode;
+		button.classList.toggle("is-active", isActive);
+		button.setAttribute("aria-pressed", isActive ? "true" : "false");
+		button.disabled = isSignedIn || state.auth.pending;
+	});
 	elements.welcomeMessage.classList.toggle("hidden", !isSignedIn);
 	elements.welcomeMessage.textContent = getWelcomeMessage();
-	elements.authButton.textContent = state.auth.pending ? "Sending link..." : "Email magic link";
-	elements.authButton.disabled = !authReady || !authAvailable || state.auth.pending || isSignedIn;
-	elements.clearAllButton.disabled = state.loading || !state.worldCup || hasSubmittedSections() || isSubmissionPending();
+	elements.authButton.textContent = state.auth.pending ? getPendingAuthButtonLabel() : getAuthButtonLabel();
+	elements.authButton.disabled = !authReady || !authAvailable || state.auth.pending || isSignedIn || !hasRequiredFields;
+	elements.clearAllButton.disabled = state.loading || !state.worldCup || hasSubmittedSections() || isSubmissionPending() || isShowingLiveResults();
 	elements.signOutButton.disabled = !authReady || state.auth.pending;
+	elements.clearAllButton.classList.toggle("hidden", !isSignedIn);
 	elements.authButton.classList.toggle("hidden", isSignedIn);
 	elements.signOutButton.classList.toggle("hidden", !isSignedIn);
 	elements.authStatus.textContent = state.auth.status || (!authReady ? "Checking auth..." : getSignedOutAuthMessage());
 }
 
 function renderSubmitButtons() {
-	const isReadyToSubmit = Boolean(getAuthenticatedEmail()) && !state.loading && Boolean(state.worldCup);
-
-	elements.submitButtons.forEach((button) => {
+	for (const button of elements.submitButtons) {
 		const section = button.dataset.submitPicks || "";
-		const label = isSectionPending(section) ? "Submitting..." : isSectionSubmitted(section) ? "Submitted" : isSectionLockedByDependency(section) ? "Locked" : "Submit";
-		const disabled = !isReadyToSubmit || isSubmissionPending() || isSectionReadOnly(section);
-		button.textContent = label;
-		button.disabled = disabled;
+		const uiState = getSectionSubmitButtonState(section);
+		const wrapper = button.closest("[data-submit-section-actions]");
+
+		button.textContent = uiState.label;
+		button.disabled = uiState.disabled;
+		button.classList.toggle("is-ready", uiState.state === "ready");
+		button.classList.toggle("is-submitted", uiState.state === "submitted");
+		button.classList.toggle("is-locked", uiState.state === "locked");
+		button.classList.toggle("is-pending", uiState.state === "pending");
+		button.classList.toggle("is-disabled-state", uiState.disabled && uiState.state !== "pending");
+		wrapper?.classList.toggle("hidden", uiState.hidden);
+	}
+}
+
+function getSectionSubmitButtonState(section) {
+	const isReadyToSubmit = Boolean(getAuthenticatedEmail()) && !state.loading && Boolean(state.worldCup);
+	const hidden = isShowingLiveResults();
+	const stateKey = isSectionPending(section)
+		? "pending"
+		: isSectionSubmitted(section)
+			? "submitted"
+			: isSectionLockedByDependency(section)
+				? "locked"
+				: "ready";
+
+	return {
+		state: stateKey,
+		label: SECTION_SUBMIT_LABELS[stateKey],
+		hidden,
+		disabled: hidden || !isReadyToSubmit || isSubmissionPending() || stateKey !== "ready",
+	};
+}
+
+function renderViewModeSwitch() {
+	const canAccessMyRankings = canAccessRankings();
+
+	if (elements.viewModeSwitch) {
+		elements.viewModeSwitch.dataset.activeMode = state.viewMode;
+	}
+
+	elements.viewModeButtons.forEach((button) => {
+		const isActive = button.dataset.viewMode === state.viewMode;
+		const isMyRankingsButton = button.dataset.viewMode === VIEW_MODES.MY;
+		button.classList.toggle("is-active", isActive);
+		button.setAttribute("aria-pressed", isActive ? "true" : "false");
+		button.disabled = isMyRankingsButton && !canAccessMyRankings;
 	});
+
+	if (elements.viewModeCopy) {
+		if (!canAccessMyRankings) {
+			elements.viewModeCopy.textContent = "Sign in or register to unlock My Rankings. Live Results stays available without signing in.";
+			return;
+		}
+
+		elements.viewModeCopy.textContent = isShowingLiveResults()
+			? "Live Results shows the current standings and actual knockout outcomes when they are available."
+			: "My Rankings shows your current picks.";
+	}
 }
 
 function getSignedOutAuthMessage() {
 	if (!state.auth.enabled) {
-		return state.auth.status || "Supabase Auth is not configured yet. Saving and loading are disabled.";
+		return "Sign in is currently unavailable.";
 	}
 
-	return "Sign in with a magic link to save and load your picks.";
+	return isRegisterAuthMode()
+		? "Enter your display name and email to sign up with a magic link."
+		: "Enter your email to log in with a magic link.";
 }
 
 function getAuthenticatedEmail() {
 	return String(state.auth.user?.email || "")
 		.trim()
 		.toLowerCase();
+}
+
+function canAccessRankings() {
+	return Boolean(getAuthenticatedEmail());
+}
+
+function isRegisterAuthMode() {
+	return state.auth.mode === AUTH_MODES.REGISTER;
 }
 
 function getUserDisplayName(user) {
@@ -274,6 +410,75 @@ function sanitizeDisplayName(value) {
 		.trim()
 		.replace(/\s+/g, " ")
 		.slice(0, 60);
+}
+
+function getDisplayNameDraft() {
+	return sanitizeDisplayName(elements.displayNameInput?.value || state.auth.displayNameDraft);
+}
+
+function hasRequiredAuthFields() {
+	const hasEmail = isValidEmail(String(elements.emailInput?.value || "").trim().toLowerCase());
+
+	if (!hasEmail) {
+		return false;
+	}
+
+	return isRegisterAuthMode() ? Boolean(getDisplayNameDraft()) : true;
+}
+
+function handleAuthFieldInput() {
+	state.auth.displayNameDraft = getDisplayNameDraft();
+	renderAuthState();
+}
+
+function handleAuthSubmit(event) {
+	event.preventDefault();
+
+	if (getAuthenticatedEmail() || !elements.authForm.reportValidity()) {
+		return;
+	}
+
+	void handleAuthRequest();
+}
+
+function handleAuthModeClick(event) {
+	setAuthMode(event.currentTarget?.dataset?.authMode || "");
+}
+
+function setAuthMode(nextMode) {
+	if (!Object.values(AUTH_MODES).includes(nextMode) || state.auth.mode === nextMode || getAuthenticatedEmail()) {
+		return;
+	}
+
+	state.auth.mode = nextMode;
+	state.auth.status = getSignedOutAuthMessage();
+	renderAuthState();
+}
+
+function getAuthButtonLabel() {
+	return isRegisterAuthMode() ? "Sign up with magic link" : "Log in with magic link";
+}
+
+function getPendingAuthButtonLabel() {
+	return isRegisterAuthMode() ? "Sending sign-up link..." : "Sending log-in link...";
+}
+
+function getAuthValidationMessage() {
+	return isRegisterAuthMode()
+		? "Enter your display name and a valid email to receive a magic link."
+		: "Enter a valid email to receive a magic link.";
+}
+
+function getAuthSuccessMessage(email) {
+	return isRegisterAuthMode()
+		? `Magic link sent to ${email}. Open the email on this device to finish signing up.`
+		: `Magic link sent to ${email}. Open the email on this device to finish logging in.`;
+}
+
+function getAuthFailureMessage() {
+	return isRegisterAuthMode()
+		? "Could not send the sign-up link. Please try again."
+		: "Could not send the log-in link. Check your email or sign up first.";
 }
 
 function getWelcomeMessage() {
@@ -322,7 +527,12 @@ function getSubmissionSectionLabel(section) {
 }
 
 function getLatestSubmittedAt() {
-	return SUBMISSION_SECTIONS.map((section) => state.sectionSubmittedAt[section]).filter(Boolean).sort().at(-1) || "";
+	return (
+		SUBMISSION_SECTIONS.map((section) => state.sectionSubmittedAt[section])
+			.filter(Boolean)
+			.sort()
+			.at(-1) || ""
+	);
 }
 
 function isSubmissionPending() {
@@ -341,24 +551,26 @@ function hasSubmittedSections() {
 	return SUBMISSION_SECTIONS.some((section) => isSectionSubmitted(section));
 }
 
+function getSectionsLockingSection(section) {
+	return SUBMISSION_SECTIONS.filter((submittedSection) => {
+		if (!isSectionSubmitted(submittedSection)) {
+			return false;
+		}
+
+		return (SECTION_LOCKS[submittedSection] || [submittedSection]).includes(section);
+	});
+}
+
 function isSectionLockedByDependency(section) {
-	return (SECTION_LOCKS[section] || []).some((lockedSection) => lockedSection !== section && isSectionSubmitted(lockedSection));
+	return getSectionsLockingSection(section).some((submittedSection) => submittedSection !== section);
 }
 
 function isSectionReadOnly(section) {
-	return isSubmissionPending() || (SECTION_LOCKS[section] || [section]).some((lockedSection) => isSectionSubmitted(lockedSection));
+	return !canAccessRankings() || isShowingLiveResults() || isSubmissionPending() || getSectionsLockingSection(section).length > 0;
 }
 
 function hasEditableSections() {
 	return SUBMISSION_SECTIONS.some((section) => !isSectionReadOnly(section));
-}
-
-function isPicksLocked() {
-	return !hasEditableSections();
-}
-
-function isPicksReadOnly() {
-	return isSubmissionPending() || isPicksLocked();
 }
 
 function getSubmittedSaveMessage() {
@@ -381,17 +593,37 @@ function getSectionSubmittedSaveMessage(section) {
 	return submittedAt ? `${getSubmissionSectionLabel(section)} submitted on ${formatDateTime(submittedAt)}.` : `${getSubmissionSectionLabel(section)} submitted.`;
 }
 
+function sanitizeUserFacingMessage(message, fallback) {
+	const text = typeof message === "string" ? message.trim() : "";
+
+	if (!text) {
+		return fallback;
+	}
+
+	if (TECHNICAL_MESSAGE_PATTERN.test(text)) {
+		return fallback;
+	}
+
+	return text;
+}
+
+function getResponseErrorMessage(data, fallback) {
+	return sanitizeUserFacingMessage(data?.error, fallback);
+}
+
 async function handleAuthRequest() {
 	if (!state.auth.enabled || !state.auth.client) {
-		state.auth.status = "Supabase Auth is not configured yet. Saving and loading are disabled.";
+		state.auth.status = "Sign in is currently unavailable.";
 		renderAuthState();
 		return;
 	}
 
+	const displayName = getDisplayNameDraft();
 	const email = elements.emailInput.value.trim().toLowerCase();
+	state.auth.displayNameDraft = displayName;
 
-	if (!isValidEmail(email)) {
-		state.auth.status = "Enter a valid email address to receive a magic link.";
+	if (!hasRequiredAuthFields()) {
+		state.auth.status = getAuthValidationMessage();
 		renderAuthState();
 		return;
 	}
@@ -402,22 +634,27 @@ async function handleAuthRequest() {
 
 	try {
 		const redirectTo = new URL(window.location.pathname, window.location.origin).toString();
-		const displayName = sanitizeDisplayName(state.auth.displayNameDraft);
+		const options = {
+			emailRedirectTo: redirectTo,
+			shouldCreateUser: isRegisterAuthMode(),
+		};
+
+		if (isRegisterAuthMode()) {
+			options.data = { display_name: displayName };
+		}
+
 		const { error } = await state.auth.client.auth.signInWithOtp({
 			email,
-			options: {
-				emailRedirectTo: redirectTo,
-				...(displayName ? { data: { display_name: displayName } } : {}),
-			},
+			options,
 		});
 
 		if (error) {
 			throw error;
 		}
 
-		state.auth.status = `Magic link sent to ${email}. Open the email on this device to finish signing in.`;
+		state.auth.status = getAuthSuccessMessage(email);
 	} catch (error) {
-		state.auth.status = error instanceof Error ? error.message : "Failed to send your magic link.";
+		state.auth.status = getAuthFailureMessage();
 	} finally {
 		state.auth.pending = false;
 		renderAuthState();
@@ -441,12 +678,14 @@ async function handleSignOut() {
 		}
 
 		state.auth.session = null;
+		state.auth.mode = AUTH_MODES.LOGIN;
 		state.auth.user = null;
 		state.auth.displayNameDraft = "";
+		state.viewMode = VIEW_MODES.LIVE;
 		resetPickSyncState();
 		state.auth.status = getSignedOutAuthMessage();
 	} catch (error) {
-		state.auth.status = error instanceof Error ? error.message : "Failed to sign out.";
+		state.auth.status = "Could not sign out. Please try again.";
 	} finally {
 		state.auth.pending = false;
 		render();
@@ -454,7 +693,7 @@ async function handleSignOut() {
 }
 
 function handleClearAll() {
-	if (!state.worldCup || isSubmissionPending() || hasSubmittedSections()) {
+	if (!state.worldCup || isShowingLiveResults() || isSubmissionPending() || hasSubmittedSections()) {
 		return;
 	}
 
@@ -477,7 +716,7 @@ function handleClearAll() {
 }
 
 function openClearAllDialog() {
-	if (!state.worldCup || state.loading || isSubmissionPending() || hasSubmittedSections()) {
+	if (!state.worldCup || state.loading || isShowingLiveResults() || isSubmissionPending() || hasSubmittedSections()) {
 		return;
 	}
 
@@ -543,7 +782,7 @@ async function loadWorldCup(refresh = false) {
 		const data = await response.json();
 
 		if (!response.ok) {
-			throw new Error(data.detail || data.error || "Failed to load data.");
+			throw new Error("Could not load the tournament right now.");
 		}
 
 		state.worldCup = data;
@@ -568,7 +807,7 @@ async function loadWorldCup(refresh = false) {
 		state.submittedAt = "";
 		state.sectionSubmittedAt = createEmptySectionSubmissionState();
 		state.submissionPendingSection = "";
-		state.saveStatus = error instanceof Error ? error.message : "Failed to load data.";
+		state.saveStatus = "Could not load the tournament right now.";
 		syncState.lastSavedSnapshot = "";
 		syncState.loadedEmail = "";
 	} finally {
@@ -580,11 +819,15 @@ async function loadWorldCup(refresh = false) {
 
 function render() {
 	hideFloatingTooltip();
+	document.body.dataset.viewMode = state.viewMode;
 	renderWarnings();
+	renderViewModeSwitch();
 	renderInteractiveViews();
 	renderAuthState();
 	renderSubmitButtons();
 	renderSaveState();
+	renderOverallScore();
+	scheduleOverallScoreRefresh();
 }
 
 function renderInteractiveViews() {
@@ -595,25 +838,21 @@ function renderInteractiveViews() {
 }
 
 function renderWarnings() {
-	const warnings = state.worldCup?.source?.warnings || [];
-
-	if (!warnings.length) {
-		elements.warningStrip.classList.add("hidden");
-		elements.warningStrip.innerHTML = "";
-		return;
-	}
-
-	elements.warningStrip.classList.remove("hidden");
-	elements.warningStrip.innerHTML = warnings.map((warning) => `<p>${escapeHtml(warning)}</p>`).join("");
+	elements.warningStrip.classList.add("hidden");
+	elements.warningStrip.innerHTML = "";
 }
 
 function renderGroups() {
+	teardownGroupDragAndDrop();
+
 	if (!state.worldCup) {
 		elements.groupsGrid.innerHTML = emptyState("Load data to rank the groups.");
 		return;
 	}
 
-	elements.groupsGrid.innerHTML = state.groups
+	const isLiveView = isShowingLiveResults();
+
+	elements.groupsGrid.innerHTML = getDisplayedGroups()
 		.map(
 			(group) => `
         <article class="group-card">
@@ -624,13 +863,11 @@ function renderGroups() {
 			<table class="group-table">
               <thead>
                 <tr>
-                  <th>#</th>
-                  <th>Country</th>
-                  <th>Status</th>
+                  ${renderGroupTableHeaderCells(isLiveView)}
                 </tr>
               </thead>
-              <tbody data-drop-zone="group" data-group="${group.letter}">
-                ${group.teams.map((team, index) => renderGroupTableRow(team, index, group.letter)).join("")}
+              <tbody data-group="${group.letter}">
+                ${group.teams.map((team, index) => renderGroupTableRow(team, index, group.letter, isLiveView)).join("")}
               </tbody>
             </table>
           </div>
@@ -638,6 +875,27 @@ function renderGroups() {
       `,
 		)
 		.join("");
+
+	bindGroupDragAndDrop();
+}
+
+function renderGroupTableHeaderCells(isLiveView) {
+	if (isLiveView) {
+		return `
+      <th>#</th>
+      <th>Country</th>
+      <th class="group-stat-head">W</th>
+      <th class="group-stat-head">L</th>
+      <th class="group-stat-head">D</th>
+      <th class="group-stat-head">GD</th>
+      <th class="group-stat-head">Pts</th>
+    `;
+	}
+
+	return `
+    <th>#</th>
+    <th>Country</th>
+  `;
 }
 
 function renderThirdPlace() {
@@ -646,8 +904,10 @@ function renderThirdPlace() {
 		return;
 	}
 
-	const selectedCount = getSelectedBestThirdTeams().length;
-	const cards = state.thirdPlaceRanking.map((team) => renderThirdPlaceSelectionCard(team)).join("");
+	const ranking = getDisplayedThirdPlaceRanking();
+	const selectedTeamIds = getDisplayedSelectedThirdTeamIds();
+	const selectedCount = getSelectedBestThirdTeams(selectedTeamIds, ranking).length;
+	const cards = ranking.map((team) => renderThirdPlaceSelectionCard(team, { ranking, selectedTeamIds })).join("");
 
 	elements.thirdPlaceCard.innerHTML = `
     <div class="third-place-head">
@@ -668,11 +928,14 @@ function renderPlayoffBoard() {
 	const scrollSnapshot = getPlayoffScrollSnapshot();
 	clearPlayoffPanState();
 
-	const { projectedMatches } = getProjectedPlayoffData();
+	const { projectedMatches } = getDisplayedPlayoffData({ syncRenderedMatches: true });
 	const bracket = buildPlayoffBracketLayout(projectedMatches);
 
 	elements.playoffBoard.innerHTML = `
     <div class="playoff-bracket-scroll">
+      <div class="playoff-drag-overlay" aria-hidden="true">
+        <span class="playoff-drag-overlay-copy">To drag use Ctrl / Cmd + Mouse</span>
+      </div>
       <div class="playoff-bracket-shell">
         <svg class="bracket-lines" aria-hidden="true"></svg>
         <div class="playoff-bracket">
@@ -728,7 +991,7 @@ function renderFixtures() {
 	const fixtures = buildCalendarFixtures();
 
 	if (!fixtures.length) {
-		elements.fixturesFeed.innerHTML = emptyState("No live fixture list is available yet. When API-Football publishes the schedule, dates and locations will show here.");
+		elements.fixturesFeed.innerHTML = emptyState("No fixture list is available yet. Dates and locations will appear here when available.");
 		return;
 	}
 
@@ -766,7 +1029,9 @@ function renderFixtures() {
 }
 
 function buildCalendarFixtures() {
+	const includeAllLiveFixtures = isShowingLiveResults();
 	const liveFixtures = [...(state.worldCup?.fixtures || [])]
+		.filter((fixture) => includeAllLiveFixtures || isGroupStageStage(fixture.stage))
 		.filter((fixture) => !Number.isNaN(getFixtureDate(fixture).getTime()))
 		.map((fixture) => ({
 			...fixture,
@@ -781,9 +1046,9 @@ function buildCalendarFixtures() {
 			},
 		}));
 
-	const { projectedMatches } = getProjectedPlayoffData();
+	const { projectedMatches } = getDisplayedPlayoffData();
 	const projectedFixtures = projectedMatches
-		.filter((match) => !hasLiveFixtureEquivalent(match, liveFixtures))
+		.filter((match) => !includeAllLiveFixtures || !hasLiveFixtureEquivalent(match, liveFixtures))
 		.map((match) => ({
 			id: `template-${match.match}`,
 			calendarKey: `template-${match.match}`,
@@ -800,13 +1065,21 @@ function buildCalendarFixtures() {
 }
 
 function hasLiveFixtureEquivalent(match, liveFixtures) {
-	return liveFixtures.some((fixture) => {
+	const sameStageDayFixtures = liveFixtures.filter((fixture) => {
 		const sameStage = fixture.stage === match.stage;
-		const sameVenue = fixture.venue?.name === match.venue;
 		const sameDay = getCalendarDateKey(getFixtureDate(fixture)) === getCalendarDateKey(getFixtureDate(match));
-
-		return sameStage && sameVenue && sameDay;
+		return sameStage && sameDay;
 	});
+
+	if (!sameStageDayFixtures.length) {
+		return false;
+	}
+
+	if (sameStageDayFixtures.length === 1) {
+		return true;
+	}
+
+	return sameStageDayFixtures.some((fixture) => normalizeVenueMatchValue(fixture.venue?.name) === normalizeVenueMatchValue(match.venue));
 }
 
 function getCalendarDateKey(date) {
@@ -1012,7 +1285,7 @@ function renderCalendarSide(side) {
 		return `<span class="calendar-side-label">TBD</span>`;
 	}
 
-	if (side.type === "team") {
+	if (side.type === "team" && side.team) {
 		return `
       <span class="calendar-team-mark">
         ${renderTeamLogo(side.team)}
@@ -1021,12 +1294,16 @@ function renderCalendarSide(side) {
     `;
 	}
 
+	if (side.type === "team") {
+		return `<span class="calendar-side-label">${escapeHtml(side.groupSlot || side.label || "TBD")}</span>`;
+	}
+
 	return `<span class="calendar-side-label">${escapeHtml(formatCalendarSideLabel(side))}</span>`;
 }
 
 function formatCalendarSideLabel(side) {
 	if (side.type === "thirdEligible") {
-		return "3rd Place";
+		return side.label || "3rd Place";
 	}
 
 	if (side.type === "matchLink") {
@@ -1048,16 +1325,36 @@ function parseFixtureDateValue(value) {
 	return new Date(value);
 }
 
-function getUserTimeZoneLabel() {
-	const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-	return timezone || "Local time";
-}
-
 function renderSaveState() {
 	elements.saveStatus.textContent = state.saveStatus || getDefaultSaveStatus();
 }
 
+function renderOverallScore() {
+	const shouldShow = Boolean(canAccessRankings() && state.worldCup && state.overallScore !== null);
+	elements.overallScoreCard.classList.toggle("hidden", !shouldShow);
+
+	if (!shouldShow) {
+		return;
+	}
+
+	elements.overallScoreValue.textContent = String(state.overallScore);
+}
+
 function getDefaultSaveStatus() {
+	if (!state.auth.enabled) {
+		return "Sign in is currently unavailable.";
+	}
+
+	if (!canAccessRankings()) {
+		return isShowingLiveResults()
+			? "Sign in or register to unlock My Rankings."
+			: "Sign in or register to start ranking.";
+	}
+
+	if (isShowingLiveResults()) {
+		return "Viewing live results. Switch to My Rankings to edit your picks.";
+	}
+
 	if (!hasEditableSections() && hasSubmittedSections()) {
 		return getSubmittedSaveMessage();
 	}
@@ -1066,20 +1363,224 @@ function getDefaultSaveStatus() {
 		return `${getSubmittedSaveMessage()} Changes save automatically for unsubmitted sections.`;
 	}
 
-	if (!state.auth.enabled) {
-		return "Sign-in must be configured before picks can sync.";
-	}
-
-	if (!getAuthenticatedEmail()) {
-		return "Sign in to load your saved picks automatically.";
-	}
-
 	return "Changes save automatically as you edit your picks.";
+}
+
+function scheduleOverallScoreRefresh() {
+	const request = buildOverallScoreRequest();
+
+	if (!request) {
+		resetOverallScore();
+		return;
+	}
+
+	if (request.snapshot === scoreSyncState.lastResolvedSnapshot && !scoreSyncState.inFlight) {
+		return;
+	}
+
+	scoreSyncState.pendingSnapshot = request.snapshot;
+	scoreSyncState.pendingPayload = request.payload;
+
+	if (scoreSyncState.timer) {
+		clearTimeout(scoreSyncState.timer);
+	}
+
+	scoreSyncState.timer = window.setTimeout(() => {
+		scoreSyncState.timer = 0;
+		void flushOverallScoreRefresh();
+	}, 180);
+}
+
+async function flushOverallScoreRefresh() {
+	if (scoreSyncState.inFlight || !scoreSyncState.pendingPayload || !scoreSyncState.pendingSnapshot) {
+		return;
+	}
+
+	const payload = scoreSyncState.pendingPayload;
+	const snapshot = scoreSyncState.pendingSnapshot;
+
+	scoreSyncState.inFlight = true;
+
+	try {
+		const response = await fetch("/api/scoring/settle", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(payload),
+		});
+		const data = await response.json().catch(() => ({}));
+
+		if (!response.ok || !Number.isFinite(Number(data?.totalPoints))) {
+			throw new Error("Could not score the current picks.");
+		}
+
+		state.overallScore = Number(data.totalPoints);
+		renderOverallScore();
+	} catch (_error) {
+		// Keep score failures silent in the UI.
+	} finally {
+		scoreSyncState.inFlight = false;
+		scoreSyncState.lastResolvedSnapshot = snapshot;
+
+		if (scoreSyncState.pendingSnapshot === snapshot) {
+			scoreSyncState.pendingSnapshot = "";
+			scoreSyncState.pendingPayload = null;
+			return;
+		}
+
+		if (scoreSyncState.pendingSnapshot && scoreSyncState.pendingSnapshot !== scoreSyncState.lastResolvedSnapshot) {
+			void flushOverallScoreRefresh();
+		}
+	}
+}
+
+function resetOverallScore() {
+	if (scoreSyncState.timer) {
+		clearTimeout(scoreSyncState.timer);
+		scoreSyncState.timer = 0;
+	}
+
+	scoreSyncState.inFlight = false;
+	scoreSyncState.pendingSnapshot = "";
+	scoreSyncState.pendingPayload = null;
+	scoreSyncState.lastResolvedSnapshot = "";
+	state.overallScore = null;
+	renderOverallScore();
+}
+
+function buildOverallScoreRequest() {
+	if (!canAccessRankings() || !state.worldCup) {
+		return null;
+	}
+
+	const predictions = buildTournamentScorePredictions();
+	const tournamentResults = buildTournamentScoreResults();
+	const payload = {
+		predictions,
+		tournamentResults,
+	};
+
+	return {
+		payload,
+		snapshot: JSON.stringify(payload),
+	};
+}
+
+function buildTournamentScorePredictions() {
+	const predictions = [];
+	const groupsCreatedAt = getSectionPredictionTimestamp("groups");
+
+	for (const group of state.groups) {
+		const winner = group.teams?.[0];
+
+		if (!winner?.id) {
+			continue;
+		}
+
+		predictions.push({
+			predictionId: `group-winner-${group.letter}`,
+			pickType: "groupWinner",
+			group: group.letter,
+			teamId: winner.id,
+			createdAt: groupsCreatedAt,
+		});
+	}
+
+	const { projectedMatches } = getProjectedPlayoffData({
+		syncWinnerSelections: false,
+		syncRenderedMatches: false,
+	});
+	const playoffsCreatedAt = getSectionPredictionTimestamp("playoffs");
+	const semifinalistTeamIds = collectStageTeamIds(projectedMatches, "Semi-finals", 4);
+	const finalistTeamIds = collectStageTeamIds(projectedMatches, "Final", 2);
+	const championTeamId = getStageWinnerTeamId(projectedMatches, "Final");
+
+	if (semifinalistTeamIds.length === 4) {
+		predictions.push({
+			predictionId: "semifinalists",
+			pickType: "semifinalist",
+			teamIds: semifinalistTeamIds,
+			createdAt: playoffsCreatedAt,
+		});
+	}
+
+	if (finalistTeamIds.length === 2) {
+		predictions.push({
+			predictionId: "finalists",
+			pickType: "finalist",
+			teamIds: finalistTeamIds,
+			createdAt: playoffsCreatedAt,
+		});
+	}
+
+	if (championTeamId) {
+		predictions.push({
+			predictionId: "champion",
+			pickType: "champion",
+			teamId: championTeamId,
+			createdAt: playoffsCreatedAt,
+		});
+	}
+
+	return predictions;
+}
+
+function buildTournamentScoreResults() {
+	const liveGroups = getLiveGroups();
+	const liveGroupWinners = Object.fromEntries(
+		liveGroups
+			.filter((group) => isLiveGroupComplete(group))
+			.map((group) => [group.letter, group.teams?.[0]?.id])
+			.filter(([, teamId]) => teamId != null),
+	);
+	const { projectedMatches } = getLivePlayoffData({
+		syncWinnerSelections: false,
+		syncRenderedMatches: false,
+	});
+
+	return {
+		groupWinners: liveGroupWinners,
+		semifinalistTeamIds: collectStageTeamIds(projectedMatches, "Semi-finals", 4),
+		finalistTeamIds: collectStageTeamIds(projectedMatches, "Final", 2),
+		championTeamId: getStageWinnerTeamId(projectedMatches, "Final"),
+	};
+}
+
+function getSectionPredictionTimestamp(section) {
+	const submittedAt = state.sectionSubmittedAt?.[section];
+	return typeof submittedAt === "string" && submittedAt.trim() ? submittedAt.trim() : null;
+}
+
+function isLiveGroupComplete(group) {
+	return Array.isArray(group?.fixtures) && group.fixtures.length > 0 && group.fixtures.every((fixture) => isCompletedFixtureStatus(fixture?.status?.short));
+}
+
+function collectStageTeamIds(matches, stage, expectedCount = 0) {
+	const teamIds = Array.from(
+		new Set(
+			(matches || [])
+				.filter((match) => match.stage === stage)
+				.flatMap((match) => [match.home, match.away])
+				.filter((side) => side?.type === "team" && side.team?.id != null)
+				.map((side) => getTeamIdKey(side.team.id)),
+		),
+	);
+
+	if (expectedCount > 0 && teamIds.length !== expectedCount) {
+		return [];
+	}
+
+	return teamIds;
+}
+
+function getStageWinnerTeamId(matches, stage) {
+	const match = (matches || []).find((entry) => entry.stage === stage);
+	const winner = match ? getSelectedWinnerSide(match, match.selectedWinnerTeamId ? { [String(match.match)]: match.selectedWinnerTeamId } : {}) : null;
+	return winner?.team?.id != null ? getTeamIdKey(winner.team.id) : "";
 }
 
 async function fetchWithAuth(input, init = {}) {
 	if (!state.auth.client || !state.auth.enabled) {
-		throw new Error("Supabase Auth is not configured.");
+		throw new Error("Sign in is currently unavailable.");
 	}
 
 	const { data, error } = await state.auth.client.auth.getSession();
@@ -1135,7 +1636,7 @@ async function saveCurrentPicks(preparedState = null) {
 	const data = await response.json();
 
 	if (!response.ok) {
-		throw new Error(data.detail || data.error || "Failed to save picks.");
+		throw new Error(getResponseErrorMessage(data, "Could not save your picks right now."));
 	}
 
 	state.sectionSubmittedAt = normalizeSectionSubmissionState(data.sectionSubmittedAt, data.submittedAt);
@@ -1174,7 +1675,7 @@ async function loadSavedPicks({ silentMissing = false, silentSuccess = false } =
 		}
 
 		if (!response.ok) {
-			throw new Error(data.detail || data.error || "Failed to load saved picks.");
+			throw new Error(getResponseErrorMessage(data, "Could not load your picks right now."));
 		}
 
 		applySavedPicks(data);
@@ -1186,7 +1687,7 @@ async function loadSavedPicks({ silentMissing = false, silentSuccess = false } =
 		render();
 		return true;
 	} catch (error) {
-		state.saveStatus = error instanceof Error ? error.message : "Failed to load saved picks.";
+		state.saveStatus = sanitizeUserFacingMessage(error instanceof Error ? error.message : "", "Could not load your picks right now.");
 		renderSaveState();
 		return false;
 	} finally {
@@ -1241,7 +1742,7 @@ async function flushAutoSave() {
 	try {
 		await saveCurrentPicks(current);
 	} catch (error) {
-		state.saveStatus = error instanceof Error ? error.message : "Failed to save picks.";
+		state.saveStatus = sanitizeUserFacingMessage(error instanceof Error ? error.message : "", "Could not save your picks right now.");
 		renderSaveState();
 	} finally {
 		syncState.autoSaveInFlight = false;
@@ -1285,9 +1786,10 @@ async function handleSubmitPicks(section) {
 	} catch (error) {
 		state.sectionSubmittedAt = previousSectionSubmittedAt;
 		state.submittedAt = getLatestSubmittedAt();
-		const message = error instanceof Error ? error.message : "Failed to submit picks.";
+		const rawMessage = error instanceof Error ? error.message : "";
+		const message = sanitizeUserFacingMessage(rawMessage, `Could not submit ${getSubmissionSectionLabel(section).toLowerCase()} right now.`);
 
-		if (/submitted/i.test(message)) {
+		if (/submitted/i.test(rawMessage)) {
 			await loadSavedPicks({ silentMissing: true, silentSuccess: true });
 			state.saveStatus = getSubmittedSaveMessage();
 			render();
@@ -1335,6 +1837,13 @@ function resetPickSyncState() {
 }
 
 function handleMoveClick(event) {
+	const viewModeButton = event.target.closest("[data-view-mode]");
+
+	if (viewModeButton) {
+		setViewMode(viewModeButton.dataset.viewMode);
+		return;
+	}
+
 	const submitButton = event.target.closest("[data-submit-picks]");
 
 	if (submitButton) {
@@ -1407,6 +1916,66 @@ function handlePlayoffPanClickCapture(event) {
 	event.stopPropagation();
 }
 
+function handlePlayoffWheel(event) {
+	if (!(event.target instanceof Element)) {
+		return;
+	}
+
+	const scroller = event.target.closest(".playoff-bracket-scroll");
+
+	if (!scroller) {
+		return;
+	}
+
+	if (!event.cancelable) {
+		return;
+	}
+
+	event.preventDefault();
+
+	if (event.ctrlKey || event.metaKey) {
+		scrollPlayoffByWheel(scroller, event);
+		return;
+	}
+
+	window.scrollBy({
+		top: normalizeWheelDeltaToPixels(event.deltaY, event.deltaMode),
+		behavior: "auto",
+	});
+}
+
+function normalizeWheelDeltaToPixels(delta, deltaMode) {
+	if (deltaMode === WheelEvent.DOM_DELTA_LINE) {
+		return delta * 16;
+	}
+
+	if (deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+		return delta * window.innerHeight * 0.85;
+	}
+
+	return delta;
+}
+
+function scrollPlayoffByWheel(scroller, event) {
+	const deltaX = normalizeWheelDeltaToPixels(event.deltaX, event.deltaMode);
+	const deltaY = normalizeWheelDeltaToPixels(event.deltaY, event.deltaMode);
+	const canScrollHorizontally = scroller.scrollWidth > scroller.clientWidth + 1;
+	const canScrollVertically = scroller.scrollHeight > scroller.clientHeight + 1;
+
+	if (canScrollHorizontally && !canScrollVertically && Math.abs(deltaX) < 0.5) {
+		scroller.scrollLeft += deltaY;
+		return;
+	}
+
+	if (canScrollHorizontally) {
+		scroller.scrollLeft += deltaX;
+	}
+
+	if (canScrollVertically) {
+		scroller.scrollTop += deltaY;
+	}
+}
+
 function handlePlayoffPanStart(event) {
 	const scroller = event.target.closest(".playoff-bracket-scroll");
 
@@ -1415,6 +1984,10 @@ function handlePlayoffPanStart(event) {
 	}
 
 	if (event.pointerType === "mouse" && event.button !== 0) {
+		return;
+	}
+
+	if (shouldRequirePlayoffPanModifier(event) && !event.ctrlKey && !event.metaKey) {
 		return;
 	}
 
@@ -1437,6 +2010,18 @@ function handlePlayoffPanStart(event) {
 	playoffPanState.moved = false;
 }
 
+function shouldRequirePlayoffPanModifier(event) {
+	if (event.pointerType === "touch") {
+		return false;
+	}
+
+	return !deviceSupportsTouchInput();
+}
+
+function deviceSupportsTouchInput() {
+	return (navigator.maxTouchPoints || 0) > 0;
+}
+
 function handlePlayoffPanMove(event) {
 	if (!playoffPanState.active || event.pointerId !== playoffPanState.pointerId || !playoffPanState.scroller) {
 		return;
@@ -1451,6 +2036,7 @@ function handlePlayoffPanMove(event) {
 		}
 
 		playoffPanState.moved = true;
+		dismissPlayoffDragOverlay();
 		playoffPanState.scroller.classList.add("is-panning");
 
 		if (typeof playoffPanState.scroller.setPointerCapture === "function") {
@@ -1519,101 +2105,198 @@ function clearPlayoffPanState(suppressClick = false) {
 	}
 }
 
-function handleDragStart(event) {
+function teardownGroupDragAndDrop() {
+	if (typeof groupDragState.cleanup === "function") {
+		groupDragState.cleanup();
+	}
+
+	if (groupDragState.activeDrag?.row?.isConnected) {
+		groupDragState.activeDrag.row.classList.remove("is-dragging");
+	}
+
+	groupDragState.cleanup = null;
+	groupDragState.activeDrag = null;
+}
+
+function bindGroupDragAndDrop() {
 	if (isSectionReadOnly("groups")) {
 		return;
 	}
 
-	const row = event.target.closest("[data-drag-kind]");
+	const rows = Array.from(document.querySelectorAll(".group-table-row[data-team-id]"));
 
-	if (!row) {
+	if (!rows.length) {
 		return;
 	}
 
-	dragPayload = {
-		kind: row.dataset.dragKind,
-		group: row.dataset.group || null,
-		index: Number(row.dataset.index),
+	const cleanup = combine(
+		...rows.map((row) =>
+			combine(
+				draggable({
+					element: row,
+					getInitialData() {
+						return getGroupRowDragData(row);
+					},
+					onDragStart() {
+						startGroupRowDrag(row);
+					},
+					onDrop() {
+						row.classList.remove("is-dragging");
+					},
+				}),
+				dropTargetForElements({
+					element: row,
+					getIsSticky: () => true,
+					canDrop({ source }) {
+						return canDropOnGroupRow(source.data, row);
+					},
+					getData({ element, input }) {
+						return attachClosestEdge(getGroupRowDropTargetData(row), {
+							element,
+							input,
+							allowedEdges: ["top", "bottom"],
+						});
+					},
+					onDragEnter({ source, self }) {
+						handleGroupRowDropInteraction(source.data, self.data);
+					},
+					onDrag({ source, self }) {
+						handleGroupRowDropInteraction(source.data, self.data);
+					},
+				}),
+			),
+		),
+		monitorForElements({
+			canMonitor({ source }) {
+				return isGroupRowDragData(source.data);
+			},
+			onDrop({ source, location }) {
+				finishGroupRowDrag(source.data, location.current.dropTargets);
+			},
+		}),
+	);
+
+	groupDragState.cleanup = cleanup;
+}
+
+function startGroupRowDrag(row) {
+	if (isSectionReadOnly("groups")) {
+		return;
+	}
+
+	const container = row.closest("tbody");
+
+	if (!container) {
+		return;
+	}
+
+	hideFloatingTooltip();
+
+	if (groupDragState.activeDrag?.row?.isConnected) {
+		groupDragState.activeDrag.row.classList.remove("is-dragging");
+	}
+
+	groupDragState.activeDrag = {
+		groupLetter: row.dataset.group || "",
+		teamId: row.dataset.teamId || "",
+		row,
+		container,
+		hasMoved: false,
 	};
 
-	event.dataTransfer.effectAllowed = "move";
+	row.classList.add("is-dragging");
 }
 
-function handleDragOver(event) {
-	if (isSectionReadOnly("groups")) {
+function handleGroupRowDropInteraction(sourceData, targetData) {
+	if (!isGroupRowDragData(sourceData) || !isGroupRowDropTargetData(targetData)) {
 		return;
 	}
 
-	const dropZone = event.target.closest("[data-drop-zone]");
+	const activeDrag = groupDragState.activeDrag;
 
-	if (!dropZone || !dragPayload) {
+	if (!activeDrag || activeDrag.teamId !== sourceData.teamId || activeDrag.groupLetter !== sourceData.groupLetter) {
 		return;
 	}
 
-	event.preventDefault();
-
-	const targetRow = event.target.closest("[data-index]");
-	const targetIndex = targetRow ? Number(targetRow.dataset.index) : null;
-
-	if (dropZone.dataset.dropZone === "group" && dragPayload.kind === "group") {
-		if (dragPayload.group !== dropZone.dataset.group || targetIndex === null || targetIndex === dragPayload.index) {
-			return;
-		}
-
-		const targetRect = targetRow.getBoundingClientRect();
-		const targetMidpoint = targetRect.top + targetRect.height / 2;
-		const movingDown = dragPayload.index < targetIndex;
-		const crossedThreshold = movingDown ? event.clientY >= targetMidpoint : event.clientY <= targetMidpoint;
-
-		if (!crossedThreshold) {
-			return;
-		}
-
-		reorderGroup(dropZone.dataset.group, dragPayload.index, targetIndex);
-		dragPayload.index = targetIndex;
-	}
-}
-
-function handleDrop(event) {
-	if (isSectionReadOnly("groups")) {
+	if (activeDrag.groupLetter !== targetData.groupLetter || activeDrag.teamId === targetData.teamId) {
 		return;
 	}
 
-	const dropZone = event.target.closest("[data-drop-zone]");
+	const closestEdge = extractClosestEdge(targetData);
 
-	if (!dropZone || !dragPayload) {
+	if (closestEdge !== "top" && closestEdge !== "bottom") {
 		return;
 	}
 
-	event.preventDefault();
+	const targetRow = findGroupRowByTeamId(activeDrag.container, targetData.teamId);
 
-	const targetRow = event.target.closest("[data-index]");
-	const targetIndex = targetRow ? Number(targetRow.dataset.index) : null;
-
-	if (dropZone.dataset.dropZone === "group" && dragPayload.kind === "group") {
-		if (dragPayload.group !== dropZone.dataset.group) {
-			return;
-		}
-
-		reorderGroup(dropZone.dataset.group, dragPayload.index, targetIndex === null ? state.groups.find((group) => group.letter === dragPayload.group).teams.length - 1 : targetIndex);
-		return;
-	}
-}
-
-function reorderGroup(groupLetter, fromIndex, toIndex) {
-	if (isSectionReadOnly("groups")) {
-		return;
-	}
-
-	const group = state.groups.find((entry) => entry.letter === groupLetter);
-
-	if (!group || fromIndex === toIndex || toIndex < 0 || toIndex >= group.teams.length) {
+	if (!targetRow) {
 		return;
 	}
 
 	const previousRects = captureRowRects(".group-table-row[data-team-id]");
 
-	moveItem(group.teams, fromIndex, toIndex);
+	if (!moveGroupRowElement(activeDrag.row, targetRow, closestEdge)) {
+		return;
+	}
+
+	activeDrag.hasMoved = true;
+	animateMovedRows(previousRects, ".group-table-row[data-team-id]");
+}
+
+function finishGroupRowDrag(sourceData, dropTargets) {
+	const activeDrag = groupDragState.activeDrag;
+
+	if (!activeDrag) {
+		return;
+	}
+
+	activeDrag.row.classList.remove("is-dragging");
+	groupDragState.activeDrag = null;
+
+	if (!isGroupRowDragData(sourceData)) {
+		renderGroups();
+		return;
+	}
+
+	const droppedOnValidRow = Array.isArray(dropTargets)
+		&& dropTargets.some(
+			(dropTarget) => isGroupRowDropTargetData(dropTarget?.data) && dropTarget.data.groupLetter === activeDrag.groupLetter,
+		);
+
+	if (!activeDrag.hasMoved && !droppedOnValidRow) {
+		return;
+	}
+
+	applyGroupOrderByTeamIds(activeDrag.groupLetter, getGroupDomTeamIds(activeDrag.container));
+}
+
+function applyGroupOrderByTeamIds(groupLetter, orderedTeamIds) {
+	if (isSectionReadOnly("groups")) {
+		renderGroups();
+		return;
+	}
+
+	const group = state.groups.find((entry) => entry.letter === groupLetter);
+
+	if (!group || !orderedTeamIds.length) {
+		renderGroups();
+		return;
+	}
+
+	const currentOrder = group.teams.map((team) => getTeamIdKey(team.id));
+
+	if (currentOrder.length === orderedTeamIds.length && currentOrder.every((teamId, index) => teamId === orderedTeamIds[index])) {
+		return;
+	}
+
+	const orderMap = new Map(orderedTeamIds.map((teamId, index) => [teamId, index]));
+
+	group.teams = [...group.teams].sort((left, right) => {
+		const leftOrder = orderMap.has(getTeamIdKey(left.id)) ? orderMap.get(getTeamIdKey(left.id)) : Number.POSITIVE_INFINITY;
+		const rightOrder = orderMap.has(getTeamIdKey(right.id)) ? orderMap.get(getTeamIdKey(right.id)) : Number.POSITIVE_INFINITY;
+		return leftOrder - rightOrder;
+	});
 	group.teams.forEach((team, index) => {
 		team.standing.rank = index + 1;
 	});
@@ -1623,7 +2306,6 @@ function reorderGroup(groupLetter, fromIndex, toIndex) {
 	);
 	state.selectedThirdTeamIds = chooseThirdPlaceSelections(state.selectedThirdTeamIds);
 	renderInteractiveViews();
-	animateMovedRows(previousRects, ".group-table-row[data-team-id]");
 	scheduleAutoSave();
 }
 
@@ -1662,27 +2344,27 @@ function compareTeams(left, right) {
 	return `${left.groupLetter}${left.name}`.localeCompare(`${right.groupLetter}${right.name}`);
 }
 
-function getCurrentQualifiers() {
+function getCurrentQualifiers({ groups = state.groups, thirdPlaceRanking = state.thirdPlaceRanking, selectedThirdTeamIds = state.selectedThirdTeamIds } = {}) {
 	return {
-		winners: state.groups.map((group) => group.teams[0]).filter(Boolean),
-		runnersUp: state.groups.map((group) => group.teams[1]).filter(Boolean),
-		bestThird: getSelectedBestThirdTeams(),
+		winners: groups.map((group) => group.teams[0]).filter(Boolean),
+		runnersUp: groups.map((group) => group.teams[1]).filter(Boolean),
+		bestThird: getSelectedBestThirdTeams(selectedThirdTeamIds, thirdPlaceRanking),
 	};
 }
 
-function getSelectedBestThirdTeams() {
-	const teamMap = new Map(state.thirdPlaceRanking.map((team) => [getTeamIdKey(team.id), team]));
+function getSelectedBestThirdTeams(selectedThirdTeamIds = state.selectedThirdTeamIds, thirdPlaceRanking = state.thirdPlaceRanking) {
+	const teamMap = new Map(thirdPlaceRanking.map((team) => [getTeamIdKey(team.id), team]));
 
-	return state.selectedThirdTeamIds.map((teamId) => teamMap.get(getTeamIdKey(teamId))).filter(Boolean);
+	return selectedThirdTeamIds.map((teamId) => teamMap.get(getTeamIdKey(teamId))).filter(Boolean);
 }
 
-function getSelectedThirdTeamRank(teamId) {
-	const selectedIndex = state.selectedThirdTeamIds.indexOf(getTeamIdKey(teamId));
+function getSelectedThirdTeamRank(teamId, selectedThirdTeamIds = state.selectedThirdTeamIds) {
+	const selectedIndex = selectedThirdTeamIds.indexOf(getTeamIdKey(teamId));
 	return selectedIndex >= 0 ? selectedIndex + 1 : 0;
 }
 
-function chooseThirdPlaceSelections(preferredIds) {
-	const availableTeams = state.thirdPlaceRanking;
+function chooseThirdPlaceSelections(preferredIds, thirdPlaceRanking = state.thirdPlaceRanking) {
+	const availableTeams = thirdPlaceRanking;
 	const availableIds = new Set(availableTeams.map((team) => getTeamIdKey(team.id)));
 
 	return Array.from(new Set((preferredIds || []).map(getTeamIdKey).filter((teamId) => availableIds.has(teamId)))).slice(0, 8);
@@ -1762,40 +2444,87 @@ function clearBracketSourceSelection(sourceMatchId) {
 	scheduleAutoSave();
 }
 
-function getProjectedPlayoffData() {
+function getProjectedPlayoffData({
+	groups = state.groups,
+	thirdPlaceRanking = state.thirdPlaceRanking,
+	selectedThirdTeamIds = state.selectedThirdTeamIds,
+	winnerSelections = state.bracketWinnerSelections,
+	liveFixtureMap = null,
+	syncWinnerSelections = true,
+	syncRenderedMatches = false,
+} = {}) {
 	if (!state.worldCup?.playoffBoard?.knockoutTemplate) {
-		state.playoffMatches = [];
+		if (syncRenderedMatches) {
+			state.playoffMatches = [];
+		}
+
 		return { projectedMatches: [] };
 	}
 
-	const qualifiers = getCurrentQualifiers();
+	const qualifiers = getCurrentQualifiers({ groups, thirdPlaceRanking, selectedThirdTeamIds });
 	const knockoutTemplate = state.worldCup.playoffBoard.knockoutTemplate;
 	const thirdPlaceAssignments = buildThirdPlaceAssignments(knockoutTemplate, qualifiers.bestThird);
 	const projectedMatchMap = new Map();
 	const projectedMatches = knockoutTemplate.map((match) => {
 		const projectedMatch = projectMatch(match, {
+			groups,
 			bestThird: qualifiers.bestThird,
 			thirdPlaceAssignments,
 			projectedMatchMap,
-			winnerSelections: state.bracketWinnerSelections,
+			winnerSelections,
+			liveFixture: liveFixtureMap?.get(match.match) || null,
 		});
-		const selectedWinner = getSelectedWinnerSide(projectedMatch, state.bracketWinnerSelections);
+		const selectedWinner = getSelectedWinnerSide(projectedMatch, winnerSelections);
 		projectedMatch.selectedWinnerTeamId = selectedWinner?.team ? getTeamIdKey(selectedWinner.team.id) : "";
 		projectedMatchMap.set(projectedMatch.match, projectedMatch);
 		return projectedMatch;
 	});
 	const cleanedSelections = Object.fromEntries(projectedMatches.flatMap((match) => (match.selectedWinnerTeamId ? [[String(match.match), match.selectedWinnerTeamId]] : [])));
 
-	if (!areWinnerSelectionsEqual(state.bracketWinnerSelections, cleanedSelections)) {
+	if (syncWinnerSelections && !areWinnerSelectionsEqual(state.bracketWinnerSelections, cleanedSelections)) {
 		state.bracketWinnerSelections = cleanedSelections;
 	}
 
-	state.playoffMatches = projectedMatches;
+	if (syncRenderedMatches) {
+		state.playoffMatches = projectedMatches;
+	}
+
 	return {
 		qualifiers,
 		projectedMatches,
 		thirdPlaceAssignments,
 	};
+}
+
+function getDisplayedPlayoffData(options = {}) {
+	return isShowingLiveResults() ? getLivePlayoffData(options) : getProjectedPlayoffData(options);
+}
+
+function getLivePlayoffData(options = {}) {
+	if (!hasLiveTournamentStarted()) {
+		return getProjectedPlayoffData({
+			...options,
+			groups: [],
+			thirdPlaceRanking: [],
+			selectedThirdTeamIds: [],
+			winnerSelections: {},
+			syncWinnerSelections: false,
+		});
+	}
+
+	const knockoutTemplate = state.worldCup?.playoffBoard?.knockoutTemplate || [];
+	const liveFixtureMap = buildLiveKnockoutFixtureMap(knockoutTemplate, state.worldCup?.fixtures || []);
+	const liveWinnerSelections = buildLiveWinnerSelections(liveFixtureMap);
+
+	return getProjectedPlayoffData({
+		...options,
+		groups: getLiveGroups(),
+		thirdPlaceRanking: getLiveThirdPlaceRanking(),
+		selectedThirdTeamIds: getLiveSelectedThirdTeamIds(),
+		winnerSelections: liveWinnerSelections,
+		liveFixtureMap,
+		syncWinnerSelections: false,
+	});
 }
 
 function areWinnerSelectionsEqual(left, right) {
@@ -1810,23 +2539,25 @@ function areWinnerSelectionsEqual(left, right) {
 }
 
 function projectMatch(match, projectionContext) {
-	return {
+	const projectedMatch = {
 		...match,
 		home: resolveProjectedSide(match.homeSource, projectionContext, createThirdPlaceSlotKey(match.match, "home")),
 		away: resolveProjectedSide(match.awaySource, projectionContext, createThirdPlaceSlotKey(match.match, "away")),
 	};
+
+	return projectionContext.liveFixture ? applyLiveFixtureToProjectedMatch(projectedMatch, projectionContext.liveFixture) : projectedMatch;
 }
 
 function resolveProjectedSide(source, projectionContext, thirdPlaceSlotKey = "") {
-	const { bestThird, thirdPlaceAssignments = new Map(), projectedMatchMap = new Map(), winnerSelections = {} } = projectionContext;
+	const { groups = [], bestThird, thirdPlaceAssignments = new Map(), projectedMatchMap = new Map(), winnerSelections = {} } = projectionContext;
 
 	if (source.type === "groupPlacement") {
-		const group = state.groups.find((entry) => entry.letter === source.group);
+		const group = groups.find((entry) => entry.letter === source.group);
 		const team = group?.teams?.[source.placement - 1] || null;
 
 		return {
 			type: "team",
-			label: team ? `${team.groupLetter}${source.placement} • ${getTeamCode(team)}` : `${source.group}${source.placement}`,
+			label: team ? `${team.groupLetter}${source.placement} • ${getTeamCode(team)}` : formatGroupPlacementLabel(source.group, source.placement),
 			groupSlot: `${source.group}${source.placement}`,
 			team,
 		};
@@ -1859,6 +2590,135 @@ function resolveProjectedSide(source, projectionContext, thirdPlaceSlotKey = "")
 	}
 
 	return createMatchLinkSide(source);
+}
+
+function applyLiveFixtureToProjectedMatch(projectedMatch, fixture) {
+	return {
+		...projectedMatch,
+		id: fixture.id ?? projectedMatch.id,
+		date: fixture.date || projectedMatch.date,
+		timestamp: fixture.timestamp ?? projectedMatch.timestamp ?? null,
+		venue: fixture.venue?.name || projectedMatch.venue,
+		status: fixture.status || projectedMatch.status || null,
+		home: createLiveFixtureSide(fixture.teams?.home, projectedMatch.home),
+		away: createLiveFixtureSide(fixture.teams?.away, projectedMatch.away),
+	};
+}
+
+function createLiveFixtureSide(team, fallbackSide) {
+	if (!team?.id) {
+		return fallbackSide;
+	}
+
+	const teamKey = getTeamIdKey(team.id);
+	const fallbackGroupSlot =
+		fallbackSide?.type === "team" && fallbackSide.team && getTeamIdKey(fallbackSide.team.id) === teamKey
+			? fallbackSide.groupSlot || fallbackSide.team.groupLetter || ""
+			: team.groupLetter || "";
+
+	return {
+		type: "team",
+		label: fallbackGroupSlot ? `${fallbackGroupSlot} • ${getTeamCode(team)}` : getTeamCode(team),
+		groupSlot: fallbackGroupSlot,
+		team,
+	};
+}
+
+function buildLiveKnockoutFixtureMap(knockoutTemplate, fixtures) {
+	const templateStages = new Set(knockoutTemplate.map((match) => match.stage));
+	const liveKnockoutFixtures = fixtures.filter((fixture) => templateStages.has(fixture.stage));
+	const fixtureMap = new Map();
+
+	for (const stage of templateStages) {
+		const stageTemplates = knockoutTemplate
+			.filter((match) => match.stage === stage)
+			.sort((left, right) => getFixtureDate(left).getTime() - getFixtureDate(right).getTime() || left.match - right.match);
+		const remainingFixtures = liveKnockoutFixtures
+			.filter((fixture) => fixture.stage === stage)
+			.sort((left, right) => getFixtureDate(left).getTime() - getFixtureDate(right).getTime() || String(left.venue?.name || "").localeCompare(String(right.venue?.name || "")));
+
+		for (const templateMatch of stageTemplates) {
+			if (!remainingFixtures.length) {
+				break;
+			}
+
+			const templateDateKey = getCalendarDateKey(getFixtureDate(templateMatch));
+			const sameDayCandidates = remainingFixtures
+				.map((fixture, index) => ({ fixture, index }))
+				.filter(({ fixture }) => getCalendarDateKey(getFixtureDate(fixture)) === templateDateKey);
+			const exactVenueCandidate = sameDayCandidates.find(
+				({ fixture }) => normalizeVenueMatchValue(fixture.venue?.name) === normalizeVenueMatchValue(templateMatch.venue),
+			);
+			const fixtureIndex = exactVenueCandidate
+				? exactVenueCandidate.index
+				: sameDayCandidates.length === 1
+					? sameDayCandidates[0].index
+					: 0;
+			const [matchedFixture] = remainingFixtures.splice(fixtureIndex, 1);
+
+			if (matchedFixture) {
+				fixtureMap.set(templateMatch.match, matchedFixture);
+			}
+		}
+	}
+
+	return fixtureMap;
+}
+
+function buildLiveWinnerSelections(liveFixtureMap) {
+	return Object.fromEntries(
+		Array.from(liveFixtureMap.entries())
+			.map(([matchId, fixture]) => [String(matchId), getFixtureWinnerTeamId(fixture)])
+			.filter(([, teamId]) => teamId),
+	);
+}
+
+function getFixtureWinnerTeamId(fixture) {
+	const homeTeam = fixture?.teams?.home;
+	const awayTeam = fixture?.teams?.away;
+
+	if (homeTeam?.winner === true) {
+		return getTeamIdKey(homeTeam.id);
+	}
+
+	if (awayTeam?.winner === true) {
+		return getTeamIdKey(awayTeam.id);
+	}
+
+	if (!isCompletedFixtureStatus(fixture?.status?.short)) {
+		return "";
+	}
+
+	const homeScore = getResolvedFixtureScore(fixture, "home");
+	const awayScore = getResolvedFixtureScore(fixture, "away");
+
+	if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore) || homeScore === awayScore) {
+		return "";
+	}
+
+	return getTeamIdKey(homeScore > awayScore ? homeTeam?.id : awayTeam?.id);
+}
+
+function getResolvedFixtureScore(fixture, side) {
+	for (const value of [fixture?.score?.penalty?.[side], fixture?.score?.extratime?.[side], fixture?.score?.fulltime?.[side], fixture?.goals?.[side]]) {
+		if (value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value))) {
+			return Number(value);
+		}
+	}
+
+	return Number.NaN;
+}
+
+function isCompletedFixtureStatus(status) {
+	return ["FT", "AET", "PEN", "AWD", "WO"].includes(String(status || "").toUpperCase());
+}
+
+function normalizeVenueMatchValue(value) {
+	return String(value || "")
+		.toLowerCase()
+		.normalize("NFKD")
+		.replace(/[^\p{L}\p{N}]+/gu, " ")
+		.trim();
 }
 
 function resolveLinkedMatchSide(source, projectedMatchMap, winnerSelections) {
@@ -2129,7 +2989,7 @@ function renderBracketSide(match, side, source) {
 	if (side.type === "thirdEligible") {
 		return `
       <div class="bracket-side">
-        ${side.candidates.length ? renderBracketFlagOptions(side.candidates) : `<div class="bracket-placeholder-row">${escapeHtml(side.label)}</div>`}
+        <div class="bracket-placeholder-row">${escapeHtml(side.label)}</div>
       </div>
     `;
 	}
@@ -2164,51 +3024,12 @@ function renderBracketTeamRow(team, groupSlot) {
   `;
 }
 
-function renderBracketFlagOptions(teams) {
-	return `
-    <div class="bracket-flag-options">
-      ${teams.map((team) => `<span class="bracket-flag-option">${renderTeamLogo(team)}</span>`).join("")}
-    </div>
-  `;
-}
-
-function renderStatsCard(entry) {
-	const left = entry.statistics[0];
-	const right = entry.statistics[1];
-	const statNames = ["Ball Possession", "Total Shots", "Corner Kicks", "Passes accurate"];
-
-	return `
-    <article class="stat-card">
-      <div class="stat-head">
-        <strong>${renderTeamCode(entry.teams.home)} vs ${renderTeamCode(entry.teams.away)}</strong>
-        <span class="status-pill">${escapeHtml(entry.round)}</span>
-      </div>
-      <p class="muted">${escapeHtml(formatDate(entry.date))} • ${escapeHtml(entry.venue.name)}</p>
-      <div class="stats-table">
-        ${statNames
-									.map((name) => {
-										const leftValue = left?.values?.[name] ?? "-";
-										const rightValue = right?.values?.[name] ?? "-";
-										return `
-              <div class="stat-row">
-                <span>${escapeHtml(name)}</span>
-                <strong>${escapeHtml(String(leftValue))}</strong>
-                <strong>${escapeHtml(String(rightValue))}</strong>
-              </div>
-            `;
-									})
-									.join("")}
-      </div>
-    </article>
-  `;
-}
-
-function renderThirdPlaceSelectionCard(team) {
-	const isSelected = state.selectedThirdTeamIds.includes(getTeamIdKey(team.id));
-	const selectedRank = getSelectedThirdTeamRank(team.id);
+function renderThirdPlaceSelectionCard(team, { selectedTeamIds = state.selectedThirdTeamIds } = {}) {
+	const isSelected = selectedTeamIds.includes(getTeamIdKey(team.id));
+	const selectedRank = getSelectedThirdTeamRank(team.id, selectedTeamIds);
 	const points = team.standing?.points != null ? String(team.standing.points) : "-";
 	const goalDifference = team.standing?.goalDifference != null ? formatSignedValue(team.standing.goalDifference) : "-";
-	const lockedOut = !isSelected && state.selectedThirdTeamIds.length >= 8;
+	const lockedOut = !isSelected && selectedTeamIds.length >= 8;
 	const isDisabled = isSectionReadOnly("thirdPlace") || lockedOut;
 	const groupLabel = selectedRank ? `#${selectedRank} • ${team.groupLetter}` : team.groupLetter;
 
@@ -2237,75 +3058,18 @@ function renderThirdPlaceSelectionCard(team) {
   `;
 }
 
-function renderTeamRow(team, index, groupLetter, listType) {
-	const isGroupList = listType === "group";
-	const positionClass = index < 2 ? "qualify" : index === 2 ? "third-place" : "out";
-	const badge = listType === "third" ? (index < 8 ? "Advances" : "Out") : index < 2 ? "Qualifies" : index === 2 ? "Third-place race" : "Out";
-
-	return `
-    <div
-      class="team-row ${positionClass}"
-      draggable="true"
-      data-drag-kind="${escapeHtml(isGroupList ? "group" : "third")}"
-      data-group="${escapeHtml(groupLetter || "")}"
-      data-index="${index}"
-    >
-      <div class="rank-badge">${index + 1}</div>
-      <div class="team-meta">
-        <div class="team-name">
-          ${renderTeamLogo(team)}
-          ${renderTeamCode(team)}
-        </div>
-        <div class="team-stats">
-          <span class="chip">${escapeHtml(team.groupLetter)}</span>
-          <span class="chip">${escapeHtml(badge)}</span>
-          ${team.standing?.points != null ? `<span class="chip">${escapeHtml(String(team.standing.points))} pts</span>` : ""}
-          ${team.standing?.goalDifference != null ? `<span class="chip">${escapeHtml(formatGoalDiff(team.standing.goalDifference))}</span>` : ""}
-        </div>
-      </div>
-      <div class="team-actions">
-        <button
-          class="button small secondary"
-          type="button"
-          data-move="true"
-          data-direction="-1"
-          data-index="${index}"
-          data-group="${escapeHtml(groupLetter || "")}"
-          data-list="${escapeHtml(listType)}"
-        >
-          Up
-        </button>
-        <button
-          class="button small secondary"
-          type="button"
-          data-move="true"
-          data-direction="1"
-          data-index="${index}"
-          data-group="${escapeHtml(groupLetter || "")}"
-          data-list="${escapeHtml(listType)}"
-        >
-          Down
-        </button>
-      </div>
-    </div>
-  `;
-}
-
-function renderGroupTableRow(team, index, groupLetter) {
-	const positionClass = index < 2 ? "qualify" : index === 2 ? "third-place" : "out";
-	const badge = index < 2 ? "Qualifies" : index === 2 ? "Third-place race" : "Out";
+function renderGroupTableRow(team, index, groupLetter, isLiveView = isShowingLiveResults()) {
 	const canDrag = !isSectionReadOnly("groups");
+	const rankLabel = getGroupRankLabel(team, index);
 
 	return `
     <tr
-      class="group-table-row ${positionClass}"
-      draggable="${canDrag ? "true" : "false"}"
-      data-drag-kind="group"
+      class="group-table-row ${canDrag ? "is-draggable" : ""}"
       data-group="${escapeHtml(groupLetter)}"
       data-index="${index}"
       data-team-id="${escapeHtml(String(team.id))}"
     >
-      <td class="group-rank-cell">${index + 1}</td>
+      <td class="group-rank-cell">${escapeHtml(rankLabel)}</td>
       <td>
         <div class="team-cell">
           ${renderTeamLogo(team)}
@@ -2314,11 +3078,44 @@ function renderGroupTableRow(team, index, groupLetter) {
           </div>
         </div>
       </td>
-      <td>
-        <span class="muted">${escapeHtml(badge)}</span>
-      </td>
+      ${
+				isLiveView
+					? `
+      <td class="group-stat-cell">${escapeHtml(getGroupStandingValue(team?.standing?.wins))}</td>
+      <td class="group-stat-cell">${escapeHtml(getGroupStandingValue(team?.standing?.losses))}</td>
+      <td class="group-stat-cell">${escapeHtml(getGroupStandingValue(team?.standing?.draws))}</td>
+      <td class="group-stat-cell">${escapeHtml(getGroupStandingValue(team?.standing?.goalDifference, true))}</td>
+      <td class="group-stat-cell">${escapeHtml(getGroupStandingValue(team?.standing?.points))}</td>
+    `
+					: ""
+			}
     </tr>
   `;
+}
+
+function getGroupRankLabel(team, index) {
+	if (!isShowingLiveResults()) {
+		return String(index + 1);
+	}
+
+	if (!hasLiveTournamentStarted()) {
+		return "-";
+	}
+
+	const rank = team?.standing?.rank;
+	return rank != null ? String(rank) : String(index + 1);
+}
+
+function getGroupStandingValue(value, signed = false) {
+	if (value == null || value === "") {
+		return "-";
+	}
+
+	if (signed) {
+		return formatSignedValue(value);
+	}
+
+	return String(value);
 }
 
 function renderTeamLogo(team) {
@@ -2513,12 +3310,117 @@ function hideFloatingTooltip() {
 	tooltipState.element.style.removeProperty("--tooltip-arrow-left");
 }
 
-function formatThirdEligibleLabel(candidates, groups) {
-	if (candidates.length) {
-		return candidates.map((team) => getTeamCode(team)).join("/");
+function isShowingLiveResults() {
+	return state.viewMode === VIEW_MODES.LIVE;
+}
+
+function getStoredPlayoffDragHintDismissed() {
+	try {
+		return window.localStorage?.getItem(PLAYOFF_DRAG_HINT_STORAGE_KEY) === "true";
+	} catch (_error) {
+		return false;
+	}
+}
+
+function dismissPlayoffDragOverlay() {
+	if (state.playoffDragHintDismissed || deviceSupportsTouchInput()) {
+		return;
 	}
 
-	return groups.join("/");
+	state.playoffDragHintDismissed = true;
+
+	try {
+		window.localStorage?.setItem(PLAYOFF_DRAG_HINT_STORAGE_KEY, "true");
+	} catch (_error) {
+		// Ignore storage failures.
+	}
+
+	elements.playoffBoard.querySelector(".playoff-bracket-scroll")?.classList.remove("shows-drag-overlay");
+}
+
+function setViewMode(nextMode) {
+	if (!Object.values(VIEW_MODES).includes(nextMode) || state.viewMode === nextMode) {
+		return;
+	}
+
+	if (nextMode === VIEW_MODES.MY && !canAccessRankings()) {
+		state.viewMode = VIEW_MODES.LIVE;
+		state.auth.status = "Sign in or register to start ranking.";
+		hideFloatingTooltip();
+		render();
+		return;
+	}
+
+	state.viewMode = nextMode;
+	hideFloatingTooltip();
+	render();
+}
+
+function getDisplayedGroups() {
+	return isShowingLiveResults() ? getLiveGroups() : state.groups;
+}
+
+function getLiveGroups() {
+	return state.worldCup?.groups || [];
+}
+
+function getDisplayedThirdPlaceRanking() {
+	return isShowingLiveResults() ? getLiveThirdPlaceRanking() : state.thirdPlaceRanking;
+}
+
+function getLiveThirdPlaceRanking() {
+	return state.worldCup?.thirdPlaceRanking || [];
+}
+
+function getDisplayedSelectedThirdTeamIds() {
+	return isShowingLiveResults() ? getLiveSelectedThirdTeamIds() : state.selectedThirdTeamIds;
+}
+
+function getLiveSelectedThirdTeamIds() {
+	if (!hasLiveTournamentStarted()) {
+		return [];
+	}
+
+	const liveAdvancers = state.worldCup?.playoffBoard?.advancingThirdPlaces || getLiveThirdPlaceRanking().slice(0, 8);
+	return liveAdvancers.map((team) => getTeamIdKey(team.id)).filter(Boolean);
+}
+
+function hasLiveTournamentStarted() {
+	return (state.worldCup?.fixtures || []).some((fixture) => isGroupStageStage(fixture.stage) && hasFixtureStarted(fixture));
+}
+
+function hasFixtureStarted(fixture) {
+	return !["NS", "TBD"].includes(String(fixture?.status?.short || "").toUpperCase());
+}
+
+function isGroupStageStage(stage) {
+	return String(stage || "").toLowerCase() === "group stage";
+}
+
+function formatThirdEligibleLabel(candidates, groups) {
+	return `3rd, ${groups.length === 1 ? "Group" : "Groups"} ${groups.join("/")}`;
+}
+
+function formatGroupPlacementLabel(group, placement) {
+	return `${formatOrdinalPlacement(placement)}, Group ${group}`;
+}
+
+function formatOrdinalPlacement(value) {
+	const number = Number(value);
+
+	if (number === 1) {
+		return "1st";
+	}
+
+	if (number === 2) {
+		return "2nd";
+	}
+
+	if (number === 3) {
+		return "3rd";
+	}
+
+	return `${number}th`;
 }
 
 function deriveFallbackCode(value) {
@@ -2571,7 +3473,13 @@ function syncPlayoffPanAvailability() {
 
 	const canPanHorizontally = scroller.scrollWidth > scroller.clientWidth + 1;
 	const canPanVertically = scroller.scrollHeight > scroller.clientHeight + 1;
-	scroller.classList.toggle("is-drag-scrollable", canPanHorizontally || canPanVertically);
+	const isDragScrollable = canPanHorizontally || canPanVertically;
+	scroller.classList.toggle("is-drag-scrollable", isDragScrollable);
+	scroller.classList.toggle("shows-drag-overlay", shouldShowPlayoffDragOverlay(isDragScrollable));
+}
+
+function shouldShowPlayoffDragOverlay(isDragScrollable = true) {
+	return Boolean(isDragScrollable && !deviceSupportsTouchInput() && !state.playoffDragHintDismissed);
 }
 
 function layoutBracketMatches() {
@@ -2865,9 +3773,80 @@ function cloneGroups(groups) {
 	}));
 }
 
-function moveItem(list, fromIndex, toIndex) {
-	const [item] = list.splice(fromIndex, 1);
-	list.splice(toIndex, 0, item);
+function getGroupRowDragData(row) {
+	return {
+		type: "group-row",
+		groupLetter: row.dataset.group || "",
+		teamId: row.dataset.teamId || "",
+	};
+}
+
+function getGroupRowDropTargetData(row) {
+	return {
+		type: "group-row",
+		groupLetter: row.dataset.group || "",
+		teamId: row.dataset.teamId || "",
+	};
+}
+
+function isGroupRowDragData(value) {
+	return Boolean(
+		value
+		&& typeof value === "object"
+		&& value.type === "group-row"
+		&& typeof value.groupLetter === "string"
+		&& typeof value.teamId === "string",
+	);
+}
+
+function isGroupRowDropTargetData(value) {
+	return isGroupRowDragData(value);
+}
+
+function canDropOnGroupRow(sourceData, row) {
+	return isGroupRowDragData(sourceData)
+		&& sourceData.groupLetter === (row.dataset.group || "")
+		&& sourceData.teamId !== (row.dataset.teamId || "");
+}
+
+function findGroupRowByTeamId(container, teamId) {
+	return Array.from(container.querySelectorAll(".group-table-row[data-team-id]")).find(
+		(row) => row.dataset.teamId === teamId,
+	) ?? null;
+}
+
+function getGroupDomTeamIds(container) {
+	return Array.from(container.querySelectorAll(".group-table-row[data-team-id]"))
+		.map((row) => row.dataset.teamId || "")
+		.filter(Boolean);
+}
+
+function moveGroupRowElement(sourceRow, targetRow, closestEdge) {
+	if (sourceRow === targetRow) {
+		return false;
+	}
+
+	const container = sourceRow.parentElement;
+
+	if (!container || container !== targetRow.parentElement) {
+		return false;
+	}
+
+	if (closestEdge === "top") {
+		if (sourceRow.nextElementSibling === targetRow) {
+			return false;
+		}
+
+		container.insertBefore(sourceRow, targetRow);
+		return true;
+	}
+
+	if (targetRow.nextElementSibling === sourceRow) {
+		return false;
+	}
+
+	container.insertBefore(sourceRow, targetRow.nextElementSibling);
+	return true;
 }
 
 function captureRowRects(selector) {
@@ -2908,17 +3887,6 @@ function animateMovedRows(previousRects, selector) {
 			});
 		});
 	});
-}
-
-function pickFixturePreview(fixtures) {
-	const now = Date.now();
-	const upcoming = fixtures.filter((fixture) => new Date(fixture.date).getTime() >= now - 24 * 60 * 60 * 1000).slice(0, 12);
-
-	if (upcoming.length) {
-		return upcoming;
-	}
-
-	return [...fixtures].reverse().slice(0, 12);
 }
 
 function formatDate(value) {
@@ -2970,10 +3938,6 @@ function formatTime(value) {
 	}).format(date);
 }
 
-function formatLocation(venue) {
-	return [venue.city, venue.country].filter(Boolean).join(", ") || "Location pending";
-}
-
 function formatStageShortLabel(stage) {
 	const label = String(stage || "").toLowerCase();
 
@@ -3006,10 +3970,6 @@ function formatStageShortLabel(stage) {
 	}
 
 	return stage || "Match";
-}
-
-function formatGoalDiff(value) {
-	return `${Number(value) > 0 ? "+" : ""}${value} GD`;
 }
 
 function formatSignedValue(value) {

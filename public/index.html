@@ -21,20 +21,43 @@
         <p class="eyebrow">World Cup 2026 Predictor</p>
         <h1>Build your own playoff field from the groups.</h1>
         <p id="save-status" class="panel-note">Changes save automatically once you sign in.</p>
+        <div class="view-mode-panel" aria-label="Ranking view">
+          <div class="view-mode-switch" role="group" aria-label="Ranking view switch">
+            <button id="view-mode-live" class="view-mode-option is-active" type="button" data-view-mode="live" aria-pressed="true">Live Results</button>
+            <button id="view-mode-my" class="view-mode-option" type="button" data-view-mode="my" aria-pressed="false">My Rankings</button>
+          </div>
+          <p id="view-mode-copy" class="panel-note">Live Results shows the current standings and actual knockout outcomes when they are available.</p>
+        </div>
       </div>
       <div id="save-panel" class="save-panel">
-        <div class="save-panel-top-actions">
-          <button id="clear-all-button" class="button secondary save-panel-action" type="button">Clear All</button>
-          <button id="signout-button" class="button secondary save-panel-action hidden" type="button">Sign out</button>
+        <div class="save-panel-top">
+          <p id="welcome-message" class="panel-note hidden">Hi, Welcome back!</p>
+          <div class="save-panel-top-actions">
+            <button id="clear-all-button" class="button secondary save-panel-action hidden" type="button">Clear All</button>
+            <button id="signout-button" class="button secondary save-panel-action hidden" type="button">Sign out</button>
+          </div>
         </div>
         <div class="save-panel-section">
-          <label id="email-label" class="field-label" for="email-input">Sign in Email</label>
-          <input id="email-input" class="field-input" type="email" autocomplete="email" placeholder="name@example.com" required />
-          <p id="welcome-message" class="panel-note hidden">Hi, Welcome back!</p>
-          <div class="save-actions">
-            <button id="auth-button" class="button secondary" type="button">Email magic link</button>
-          </div>
-          <p id="auth-status" class="panel-note">Sign in with a Supabase magic link to save and load your picks.</p>
+          <form id="auth-form" class="hidden">
+            <div id="auth-mode-switch" class="auth-mode-switch" role="group" aria-label="Authentication mode switch">
+              <button class="auth-mode-option is-active" type="button" data-auth-mode="login" aria-pressed="true">Log in</button>
+              <button class="auth-mode-option" type="button" data-auth-mode="register" aria-pressed="false">Sign up</button>
+            </div>
+            <div id="auth-fields" class="auth-fields">
+              <div id="display-name-field" class="auth-field">
+                <label id="display-name-label" class="field-label" for="display-name-input">Display Name</label>
+                <input id="display-name-input" class="field-input" type="text" autocomplete="name" placeholder="Your name" required />
+              </div>
+              <div id="email-field" class="auth-field">
+                <label id="email-label" class="field-label" for="email-input">Email</label>
+                <input id="email-input" class="field-input" type="email" autocomplete="email" placeholder="name@example.com" required />
+              </div>
+            </div>
+            <div class="save-actions">
+              <button id="auth-button" class="button primary" type="submit">Log in with magic link</button>
+            </div>
+          </form>
+          <p id="auth-status" class="panel-note">Checking auth...</p>
         </div>
       </div>
     </header>
@@ -45,29 +68,29 @@
       <section class="section-block">
         <div class="section-heading">
           <p class="eyebrow">Groups</p>
-          <h2>Drag the finish order</h2>
+          <h2>Groups Stage</h2>
           <p class="section-copy">
             Drag on desktop or use the Up and Down buttons on mobile. The top two teams qualify
             automatically.
           </p>
         </div>
         <div id="groups-grid" class="groups-grid"></div>
-        <div class="section-actions">
-          <button class="button primary" type="button" data-submit-picks="groups">Submit</button>
+        <div class="section-actions section-submit-actions hidden" data-submit-section-actions="groups">
+          <button class="button primary section-submit-button" type="button" data-submit-picks="groups">Submit picks</button>
         </div>
       </section>
 
       <section class="section-block">
         <div class="section-heading">
           <p class="eyebrow">Third Place</p>
-          <h2>Best third-place race</h2>
+          <h2>Third-place race</h2>
           <p class="section-copy">Choose eight third-place teams to send them into the round of 32.</br>
             Order of choice determins the placement in the playoff bracket (1st choice gets the best matchup).
           </p>
         </div>
         <div id="third-place-card"></div>
-        <div class="section-actions">
-          <button class="button primary" type="button" data-submit-picks="thirdPlace">Submit</button>
+        <div class="section-actions section-submit-actions hidden" data-submit-section-actions="thirdPlace">
+          <button class="button primary section-submit-button" type="button" data-submit-picks="thirdPlace">Submit picks</button>
         </div>
       </section>
 
@@ -80,8 +103,8 @@
           </p>
         </div>
         <div id="playoff-board" class="playoff-board"></div>
-        <div class="section-actions">
-          <button class="button primary" type="button" data-submit-picks="playoffs">Submit</button>
+        <div class="section-actions section-submit-actions hidden" data-submit-section-actions="playoffs">
+          <button class="button primary section-submit-button" type="button" data-submit-picks="playoffs">Submit picks</button>
         </div>
       </section>
 
@@ -95,6 +118,12 @@
       </section>
     </main>
   </div>
+
+  <aside id="overall-score-card" class="overall-score-card hidden" aria-live="polite">
+    <span class="overall-score-label">Overall score</span>
+    <strong id="overall-score-value" class="overall-score-value">0</strong>
+    <span class="overall-score-unit">pts</span>
+  </aside>
 
   <div id="clear-all-dialog" class="confirm-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="clear-all-dialog-title">
     <div class="confirm-dialog-card">
