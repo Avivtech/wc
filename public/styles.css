@@ -759,6 +759,22 @@ body.dialog-open {
 	border-color: rgba(102, 226, 187, 0.46);
 }
 
+.third-choice-card-static,
+.third-choice-card-static:hover {
+	cursor: default;
+	transform: none;
+}
+
+.third-choice-card-static:hover {
+	background: #10202d;
+	border-color: rgba(255, 255, 255, 0.08);
+}
+
+.third-choice-card-static.is-selected:hover {
+	background: #12342d;
+	border-color: rgba(102, 226, 187, 0.4);
+}
+
 .third-choice-head {
 	display: flex;
 	align-items: center;

@@ -3114,6 +3114,8 @@ function renderThirdPlaceSelectionCard(team, { mode = state.viewMode, selectedTe
 	}
 
 	if (!isInteractive) {
+		cardClasses.push("third-choice-card-static");
+
 		return `
     <article class="${cardClasses.join(" ")}">
       <div class="third-choice-head">
