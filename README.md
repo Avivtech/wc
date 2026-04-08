@@ -64,7 +64,7 @@ Schedule reference:
 
 Saving and loading require a Supabase-authenticated user session:
 
-- sign in with the email magic link in the save panel
+- sign up with display name, email, and password, or log in with email and password in the save panel
 - saves and loads are scoped to the signed-in user's email
 - the Express API verifies the Supabase bearer token before reading or writing picks
 - picks are stored remotely in Supabase user metadata, not on the local filesystem

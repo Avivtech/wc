@@ -52,9 +52,13 @@
                 <label id="email-label" class="field-label" for="email-input">Email</label>
                 <input id="email-input" class="field-input" type="email" autocomplete="email" placeholder="name@example.com" required />
               </div>
+              <div id="password-field" class="auth-field">
+                <label id="password-label" class="field-label" for="password-input">Password</label>
+                <input id="password-input" class="field-input" type="password" autocomplete="current-password" placeholder="Password" minlength="6" required />
+              </div>
             </div>
             <div class="save-actions">
-              <button id="auth-button" class="button primary" type="submit">Log in with magic link</button>
+              <button id="auth-button" class="button primary" type="submit">Log in</button>
             </div>
           </form>
           <p id="auth-status" class="panel-note">Checking auth...</p>
@@ -74,9 +78,9 @@
             automatically.
           </p>
         </div>
-        <div id="groups-grid" class="groups-grid"></div>
-        <div class="section-actions section-submit-actions hidden" data-submit-section-actions="groups">
-          <button class="button primary section-submit-button" type="button" data-submit-picks="groups">Submit picks</button>
+        <div class="view-mode-stack">
+          <div id="groups-grid-live" class="groups-grid" data-view-content="live" aria-hidden="false"></div>
+          <div id="groups-grid-my" class="groups-grid hidden" data-view-content="my" hidden aria-hidden="true"></div>
         </div>
       </section>
 
@@ -88,9 +92,15 @@
             Order of choice determins the placement in the playoff bracket (1st choice gets the best matchup).
           </p>
         </div>
-        <div id="third-place-card"></div>
-        <div class="section-actions section-submit-actions hidden" data-submit-section-actions="thirdPlace">
-          <button class="button primary section-submit-button" type="button" data-submit-picks="thirdPlace">Submit picks</button>
+        <div class="view-mode-stack">
+          <div id="third-place-pane-live" data-view-content="live" aria-hidden="false">
+            <div id="third-place-head-live" class="third-place-head"></div>
+            <div id="third-place-list-live" class="third-place-list"></div>
+          </div>
+          <div id="third-place-pane-my" class="hidden" data-view-content="my" hidden aria-hidden="true">
+            <div id="third-place-head-my" class="third-place-head"></div>
+            <div id="third-place-list-my" class="third-place-list"></div>
+          </div>
         </div>
       </section>
 
@@ -102,9 +112,9 @@
             Built from the current group standings and updated immediately when you reorder a group.
           </p>
         </div>
-        <div id="playoff-board" class="playoff-board"></div>
-        <div class="section-actions section-submit-actions hidden" data-submit-section-actions="playoffs">
-          <button class="button primary section-submit-button" type="button" data-submit-picks="playoffs">Submit picks</button>
+        <div class="view-mode-stack">
+          <div id="playoff-board-live" class="playoff-board" data-view-content="live" aria-hidden="false"></div>
+          <div id="playoff-board-my" class="playoff-board hidden" data-view-content="my" hidden aria-hidden="true"></div>
         </div>
       </section>
 
@@ -121,8 +131,13 @@
 
   <aside id="overall-score-card" class="overall-score-card hidden" aria-live="polite">
     <span class="overall-score-label">Overall score</span>
-    <strong id="overall-score-value" class="overall-score-value">0</strong>
-    <span class="overall-score-unit">pts</span>
+    <div class="overall-score-value-container">
+      <strong id="overall-score-value" class="overall-score-value">0</strong>
+      <span class="overall-score-unit">pts</span>
+    </div>
+    <div class="overall-score-actions">
+      <button id="overall-score-submit-button" class="button primary overall-score-submit" type="button">Submit</button>
+    </div>
   </aside>
 
   <div id="clear-all-dialog" class="confirm-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="clear-all-dialog-title">

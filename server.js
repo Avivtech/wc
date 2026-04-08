@@ -22,16 +22,6 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const SUBMISSION_SECTIONS = ["groups", "thirdPlace", "playoffs"];
 const WORLD_CUP_REFRESH_TIMEZONE = "UTC";
-const SECTION_LOCKS = {
-  groups: ["groups"],
-  thirdPlace: ["groups", "thirdPlace"],
-  playoffs: ["groups", "thirdPlace", "playoffs"]
-};
-const SECTION_LABELS = {
-  groups: "Groups",
-  thirdPlace: "Third Place",
-  playoffs: "Playoffs"
-};
 
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(publicDir));
@@ -58,47 +48,6 @@ function normalizeSectionSubmissionState(value, fallbackSubmittedAt = "") {
   }
 
   return normalized;
-}
-
-function getImmutableSections(saved) {
-  const sectionSubmittedAt = normalizeSectionSubmissionState(saved?.sectionSubmittedAt, saved?.submittedAt);
-  const immutableSections = new Set();
-
-  for (const section of SUBMISSION_SECTIONS) {
-    if (!sectionSubmittedAt[section]) {
-      continue;
-    }
-
-    for (const lockedSection of SECTION_LOCKS[section] || [section]) {
-      immutableSections.add(lockedSection);
-    }
-  }
-
-  return immutableSections;
-}
-
-function getSectionSnapshot(payload, section) {
-  if (section === "groups") {
-    return {
-      groupRankings: Array.isArray(payload?.groupRankings) ? payload.groupRankings : []
-    };
-  }
-
-  if (section === "thirdPlace") {
-    return {
-      groupRankings: Array.isArray(payload?.groupRankings) ? payload.groupRankings : [],
-      thirdPlaceRanking: Array.isArray(payload?.thirdPlaceRanking) ? payload.thirdPlaceRanking : [],
-      bestThirdAdvancers: Array.isArray(payload?.bestThirdAdvancers) ? payload.bestThirdAdvancers : []
-    };
-  }
-
-  return {
-    groupRankings: Array.isArray(payload?.groupRankings) ? payload.groupRankings : [],
-    thirdPlaceRanking: Array.isArray(payload?.thirdPlaceRanking) ? payload.thirdPlaceRanking : [],
-    bestThirdAdvancers: Array.isArray(payload?.bestThirdAdvancers) ? payload.bestThirdAdvancers : [],
-    knockoutWinners: Array.isArray(payload?.knockoutWinners) ? payload.knockoutWinners : [],
-    projectedRoundOf32: Array.isArray(payload?.projectedRoundOf32) ? payload.projectedRoundOf32 : []
-  };
 }
 
 function logServerError(context, error) {
@@ -266,16 +215,6 @@ app.post("/api/picks", requireSupabaseAuth, async (req, res) => {
 
     if (!Array.isArray(payload?.groupRankings) || payload.groupRankings.length === 0) {
       return res.status(400).json({ error: "Group rankings are required." });
-    }
-
-    const existing = await loadPicksForUser(req.authUser);
-
-    const immutableSections = getImmutableSections(existing);
-
-    for (const section of immutableSections) {
-      if (JSON.stringify(getSectionSnapshot(existing, section)) !== JSON.stringify(getSectionSnapshot(payload, section))) {
-        return res.status(409).json({ error: `${SECTION_LABELS[section] || "This section"} has already been submitted and can no longer be changed.` });
-      }
     }
 
     const saved = await savePicksForUser(req.authUser, payload);

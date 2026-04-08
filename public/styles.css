@@ -96,6 +96,12 @@ p {
 	padding: 2rem 1.2rem 4rem;
 }
 
+.overall-score-value-container {
+	display: flex;
+	align-items: baseline;
+	gap: 0.2rem;
+}
+
 .overall-score-card {
 	position: fixed;
 	right: 1rem;
@@ -110,7 +116,7 @@ p {
 	background: rgba(8, 21, 33, 0.9);
 	backdrop-filter: blur(18px);
 	box-shadow: 0 18px 36px rgba(0, 0, 0, 0.24);
-	pointer-events: none;
+	pointer-events: auto;
 }
 
 .overall-score-label,
@@ -128,6 +134,16 @@ p {
 	line-height: 0.9;
 	letter-spacing: 0.04em;
 	color: var(--mint);
+}
+
+.overall-score-actions {
+	display: flex;
+	margin-top: 0.3rem;
+}
+
+.overall-score-submit {
+	width: 100%;
+	justify-content: center;
 }
 
 .hero {
@@ -484,8 +500,14 @@ body.dialog-open {
 	overflow: hidden;
 }
 
-.hidden {
-	display: none;
+.hidden,
+[hidden] {
+	display: none !important;
+}
+
+.view-mode-stack {
+	display: grid;
+	min-width: 0;
 }
 
 .source-badge,
@@ -570,41 +592,6 @@ body.dialog-open {
 	display: grid;
 	gap: 0.35rem;
 	margin-bottom: 1rem;
-}
-
-.section-actions {
-	display: flex;
-	justify-content: start;
-	margin-top: 1rem;
-}
-
-body[data-view-mode="live"] .section-actions {
-	display: none;
-}
-
-.section-submit-actions {
-	align-items: center;
-}
-
-.section-submit-button {
-	min-width: 8.5rem;
-}
-
-.section-submit-button.is-ready:not(:disabled) {
-	background: linear-gradient(135deg, var(--warm), #f2d06f);
-	color: #17232f;
-}
-
-.section-submit-button.is-submitted,
-.section-submit-button.is-locked,
-.section-submit-button.is-disabled-state {
-	background: rgba(255, 255, 255, 0.06);
-	color: var(--text);
-	border-color: var(--line);
-}
-
-.section-submit-button.is-disabled-state:hover {
-	transform: none;
 }
 
 .group-card,
@@ -770,20 +757,6 @@ body[data-view-mode="live"] .section-actions {
 .third-choice-card.is-selected:hover {
 	background: #184539;
 	border-color: rgba(102, 226, 187, 0.46);
-}
-
-.third-choice-card:disabled {
-	cursor: default;
-	opacity: 1;
-	transform: none;
-}
-
-.third-choice-card:disabled:hover {
-	transform: none;
-}
-
-.third-choice-card.is-locked {
-	opacity: 0.72;
 }
 
 .third-choice-head {
@@ -1389,15 +1362,6 @@ body[data-view-mode="live"] .section-actions {
 	background: #154034;
 }
 
-.bracket-side-pick:disabled {
-	cursor: default;
-	opacity: 1;
-}
-
-.bracket-side-pick:disabled:hover {
-	background: inherit;
-}
-
 .bracket-side-clear {
 	position: absolute;
 	top: 0.15rem;
@@ -1422,11 +1386,6 @@ body[data-view-mode="live"] .section-actions {
 .bracket-side-clear:focus-visible {
 	outline: 2px solid var(--blue);
 	outline-offset: 1px;
-}
-
-.bracket-side-clear:disabled {
-	cursor: default;
-	opacity: 0.42;
 }
 
 .bracket-team-row {
