@@ -21,13 +21,6 @@
         <p class="eyebrow">World Cup 2026 Predictor</p>
         <h1>Build your own playoff field from the groups.</h1>
         <p id="save-status" class="panel-note">Changes save automatically once you sign in.</p>
-        <div class="view-mode-panel" aria-label="Ranking view">
-          <div class="view-mode-switch" role="group" aria-label="Ranking view switch">
-            <button id="view-mode-live" class="view-mode-option is-active" type="button" data-view-mode="live" aria-pressed="true">Live Results</button>
-            <button id="view-mode-my" class="view-mode-option" type="button" data-view-mode="my" aria-pressed="false">My Rankings</button>
-          </div>
-          <p id="view-mode-copy" class="panel-note">Live Results shows the current standings and actual knockout outcomes when they are available.</p>
-        </div>
       </div>
       <div id="save-panel" class="save-panel">
         <div class="save-panel-top">
@@ -130,10 +123,18 @@
   </div>
 
   <aside id="overall-score-card" class="overall-score-card hidden" aria-live="polite">
-    <span class="overall-score-label">Overall score</span>
-    <div class="overall-score-value-container">
-      <strong id="overall-score-value" class="overall-score-value">0</strong>
-      <span class="overall-score-unit">pts</span>
+    <div class="overall-score-display">
+      <span class="overall-score-label">Overall score</span>
+      <div class="overall-score-value-container">
+        <strong id="overall-score-value" class="overall-score-value">0</strong>
+        <span class="overall-score-unit">pts</span>
+      </div>
+    </div>
+    <div class="view-mode-panel" aria-label="Ranking view">
+      <div class="view-mode-switch" role="group" aria-label="Ranking view switch">
+        <button id="view-mode-live" class="view-mode-option is-active" type="button" data-view-mode="live" aria-pressed="true">Live Results</button>
+        <button id="view-mode-my" class="view-mode-option" type="button" data-view-mode="my" aria-pressed="false">My Rankings</button>
+      </div>
     </div>
     <div class="overall-score-actions">
       <button id="overall-score-submit-button" class="button primary overall-score-submit" type="button">Submit</button>

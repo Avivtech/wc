@@ -31,6 +31,34 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+## Development Seed
+
+To load fake picks locally for UI checks, open:
+
+```text
+http://localhost:3000/?devPicks=1
+```
+
+Notes:
+
+- sign in first if you want to open `My Rankings`
+- the seed is built from the current tournament payload, so team ids and bracket slots stay valid
+- group rankings, 8 best third-place picks, and knockout winners are prefilled
+- with `?devPicks=1`, the app skips remote load/save so your real saved picks are not overwritten
+- remove the query param to return to the normal save/load flow
+
+To fake the `Live Results` side while keeping your real saved picks, open:
+
+```text
+http://localhost:3000/?devResults=1
+```
+
+Notes:
+
+- the live groups, third-place race, and knockout results are synthesized from the current tournament payload
+- the floating score card will score your saved picks against those fake live results
+- save/load for `My Rankings` still works normally with `?devResults=1`
+
 ## What It Uses
 
 Live tournament data is pulled from API-Football using the documented endpoints below:
@@ -67,9 +95,9 @@ Saving and loading require a Supabase-authenticated user session:
 - sign up with display name, email, and password, or log in with email and password in the save panel
 - saves and loads are scoped to the signed-in user's email
 - the Express API verifies the Supabase bearer token before reading or writing picks
-- picks are stored remotely in Supabase user metadata, not on the local filesystem
+- picks are stored remotely in a private Supabase Storage bucket, not on the local filesystem
 
-The payload shape is still JSON, but it is now persisted server-side in Supabase for the authenticated user.
+The payload shape is still JSON, but it is now persisted server-side in Supabase for the authenticated user. Older saves written into Supabase auth metadata are migrated into storage automatically on server startup.
 
 ## Scoring Layer
 

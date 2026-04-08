@@ -9,7 +9,7 @@ import {
   calculatePredictionScore,
   settlePredictions
 } from "./src/scoring/index.js";
-import { loadPicksForUser, savePicksForUser, validateEmail } from "./src/saveStore.js";
+import { loadPicksForUser, migrateStoredPicksOutOfUserMetadata, savePicksForUser, validateEmail } from "./src/saveStore.js";
 import { getBearerToken, getSupabasePublicConfig, isSupabaseAuthConfigured, verifySupabaseAccessToken } from "./src/supabaseAuth.js";
 import { getWorldCupData } from "./src/worldCupService.js";
 
@@ -237,6 +237,15 @@ app.get("*", (_req, res) => {
 
 app.listen(port, () => {
   console.log(`World Cup 2026 game running on http://localhost:${port}`);
+  void migrateStoredPicksOutOfUserMetadata()
+    .then(({ migratedUsers, clearedUsers }) => {
+      if (migratedUsers || clearedUsers) {
+        console.log(`Migrated ${migratedUsers} stored pick set(s) out of Supabase user metadata and cleared ${clearedUsers} auth profile(s).`);
+      }
+    })
+    .catch((error) => {
+      logServerError("Failed to migrate stored picks out of Supabase user metadata.", error);
+    });
   void initializeWorldCupRefreshScheduler();
 });
 
