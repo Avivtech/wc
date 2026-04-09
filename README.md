@@ -31,6 +31,58 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+## Deploy To Google Cloud
+
+This repo now includes:
+
+- `Dockerfile`
+- `.gcloudignore`
+- `cloudbuild.yaml`
+- `.cloudbuild/create-developer-connect-trigger.sh`
+
+The default Google Cloud deployment targets are:
+
+- Cloud Run service: `wc`
+- region: `europe-west1`
+- Artifact Registry host: `europe-west1-docker.pkg.dev`
+- Artifact Registry repository: `wc`
+
+The expected Cloud Run URL for this service is:
+
+- `https://wc-18268740473.europe-west1.run.app`
+
+### Developer Connect Trigger
+
+Create the Artifact Registry repository first if it does not exist:
+
+```bash
+gcloud artifacts repositories create wc \
+  --repository-format=docker \
+  --location=europe-west1
+```
+
+Then create the Cloud Build trigger from your Developer Connect git repository link:
+
+```bash
+GIT_REPOSITORY_LINK="projects/PROJECT_ID/locations/europe-west1/connections/CONNECTION/gitRepositoryLinks/REPO_LINK" \
+bash .cloudbuild/create-developer-connect-trigger.sh
+```
+
+The trigger uses Cloud Build's Developer Connect trigger flow and points at `cloudbuild.yaml`.
+
+### Required Runtime Secrets
+
+After the first deploy, configure these runtime env vars on Cloud Run:
+
+```text
+API_FOOTBALL_KEY
+SUPABASE_URL
+SUPABASE_PUBLISHABLE_KEY
+SUPABASE_SECRET_KEY
+```
+
+You can set them directly on the service or wire them from Secret Manager.
+
 ## Development Seed
 
 To load fake picks locally for UI checks, open:

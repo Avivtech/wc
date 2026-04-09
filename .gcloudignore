@@ -1,0 +1,14 @@
+# Keep upload context small for Cloud Build.
+#!include:.gitignore
+
+.git
+.gitignore
+.env
+.env.*
+node_modules/
+npm-debug.log*
+.DS_Store
+
+data/cache/*.json
+data/picks/*.json
+

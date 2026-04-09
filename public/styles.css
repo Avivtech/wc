@@ -180,10 +180,44 @@ p {
 	padding: 2rem 1.2rem 4rem;
 }
 
-.page-footer {
+.top-navbar {
 	display: flex;
-	justify-content: center;
-	padding: 0.8rem 0 0;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	margin-bottom: 1.2rem;
+	padding: 0.8rem 1rem;
+	border: 1px solid var(--mode-surface-border);
+	border-radius: 999px;
+	background: var(--mode-surface-panel-soft);
+	backdrop-filter: blur(18px);
+	box-shadow: var(--shadow);
+}
+
+.top-navbar-brand,
+.top-navbar-actions {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.top-navbar-brand {
+	gap: 0.7rem;
+}
+
+.top-navbar-kicker {
+	color: var(--mode-accent);
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+}
+
+.top-navbar-title {
+	color: var(--text);
+	font-size: 1rem;
+	font-weight: 700;
+	letter-spacing: 0.04em;
 }
 
 .language-menu {
@@ -1844,6 +1878,10 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 		padding: 0.5rem;
 	}
 
+	.top-navbar {
+		padding: 0.6rem 0.8rem;
+	}
+
 	.groups-grid,
 	.venues-grid,
 	.stats-grid {
@@ -1902,7 +1940,7 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 
 	.overall-score-card {
 		grid-template-rows: auto 2.25rem;
-		min-height: 7.4rem;
+		min-height: auto;
 		padding: 0.5rem;
 	}
 
@@ -1928,11 +1966,26 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 		width: 1.2rem;
 		height: 1.2rem;
 	}
+
+	.view-mode-option {
+		font-size: 0.78rem;
+	}
 }
 
 @media (max-width: 480px) {
 	.page-shell {
 		padding-inline: 0.75rem;
+	}
+
+	.top-navbar {
+		flex-direction: column;
+		align-items: stretch;
+		border-radius: 1rem;
+	}
+
+	.top-navbar-brand,
+	.top-navbar-actions {
+		justify-content: space-between;
 	}
 
 	.hero {
