@@ -68,7 +68,7 @@ const TRANSLATIONS = {
 		calendarSelectedCount: "{count}/8 selected",
 		calendarThirdPlace: "3rd Place",
 		bracketFinals: "Finals",
-		bracketDragHint: "To drag use Ctrl / Cmd + Mouse",
+		bracketDragHint: "To drag use two fingers or Ctrl / Cmd + drag",
 		overallSubmit: "Submit",
 		overallSubmitted: "Submitted",
 		overallSubmitting: "Submitting...",
@@ -163,7 +163,7 @@ const TRANSLATIONS = {
 		calendarSelectedCount: "{count}/8 נבחרו",
 		calendarThirdPlace: "מקום 3",
 		bracketFinals: "גמרים",
-		bracketDragHint: "לגרירה השתמשו ב-Ctrl / Cmd + עכבר",
+		bracketDragHint: "לגרירה השתמשו בשתי אצבעות או ב-Ctrl / Cmd + גרירה",
 		overallSubmit: "שליחה",
 		overallSubmitted: "נשלח",
 		overallSubmitting: "שולח...",
@@ -272,6 +272,14 @@ const state = {
 const groupDragState = {
 	cleanup: null,
 	activeDrag: null,
+};
+const groupTouchDragState = {
+	active: false,
+	row: null,
+	groupLetter: "",
+	teamId: "",
+	startX: 0,
+	startY: 0,
 };
 const syncState = {
 	autoSaveTimer: 0,
@@ -456,6 +464,10 @@ function bindEvents() {
 	elements.playoffBoardMy.addEventListener("click", handleMyPlayoffBoardClick);
 	elements.playoffBoardMy.addEventListener("input", handleMyPlayoffBoardInput);
 	elements.playoffBoardMy.addEventListener("keydown", handleMyPlayoffBoardKeyDown);
+	elements.groupsGridMy.addEventListener("touchstart", handleGroupTouchDragStart, { passive: true });
+	elements.groupsGridMy.addEventListener("touchmove", handleGroupTouchDragMove, { passive: false });
+	elements.groupsGridMy.addEventListener("touchend", handleGroupTouchDragEnd, { passive: true });
+	elements.groupsGridMy.addEventListener("touchcancel", handleGroupTouchDragEnd, { passive: true });
 
 	document.addEventListener("click", handlePlayoffPanClickCapture, true);
 	document.addEventListener("click", handleMoveClick);
@@ -2669,15 +2681,15 @@ function handlePlayoffTouchStart(event) {
 }
 
 function shouldRequirePlayoffPanModifier(event) {
-	if (event.pointerType === "touch") {
-		return false;
-	}
-
-	return !deviceSupportsTouchInput();
+	return event.pointerType !== "touch";
 }
 
 function deviceSupportsTouchInput() {
 	return (navigator.maxTouchPoints || 0) > 0;
+}
+
+function supportsFinePointerInput() {
+	return window.matchMedia?.("(pointer: fine), (any-pointer: fine)")?.matches ?? false;
 }
 
 function handlePlayoffPanMove(event) {
@@ -3002,6 +3014,107 @@ function finishGroupRowDrag(sourceData, dropTargets) {
 	}
 
 	applyGroupOrderByTeamIds(activeDrag.groupLetter, getGroupDomTeamIds(activeDrag.container));
+}
+
+function handleGroupTouchDragStart(event) {
+	if (isSectionReadOnly("groups") || isShowingLiveResults() || event.touches.length !== 1) {
+		return;
+	}
+
+	if (!(event.target instanceof Element)) {
+		return;
+	}
+
+	const row = event.target.closest(".group-table-row.is-draggable[data-team-id]");
+
+	if (!row) {
+		return;
+	}
+
+	const touch = event.touches[0];
+
+	groupTouchDragState.active = true;
+	groupTouchDragState.row = row;
+	groupTouchDragState.groupLetter = row.dataset.group || "";
+	groupTouchDragState.teamId = row.dataset.teamId || "";
+	groupTouchDragState.startX = touch.clientX;
+	groupTouchDragState.startY = touch.clientY;
+}
+
+function handleGroupTouchDragMove(event) {
+	if (!groupTouchDragState.active || event.touches.length !== 1 || !groupTouchDragState.row?.isConnected) {
+		return;
+	}
+
+	const touch = event.touches[0];
+	const deltaX = touch.clientX - groupTouchDragState.startX;
+	const deltaY = touch.clientY - groupTouchDragState.startY;
+
+	if (!groupDragState.activeDrag) {
+		if (Math.abs(deltaX) < 8 && Math.abs(deltaY) < 8) {
+			return;
+		}
+
+		startGroupRowDrag(groupTouchDragState.row);
+
+		if (!groupDragState.activeDrag) {
+			clearGroupTouchDragState();
+			return;
+		}
+	}
+
+	if (event.cancelable) {
+		event.preventDefault();
+	}
+
+	hideFloatingTooltip();
+
+	const activeDrag = groupDragState.activeDrag;
+	const targetElement = document.elementFromPoint(touch.clientX, touch.clientY);
+	const targetRow = targetElement?.closest(".group-table-row[data-team-id]") ?? null;
+
+	if (!activeDrag || !targetRow || targetRow.parentElement !== activeDrag.container || targetRow.dataset.group !== activeDrag.groupLetter || targetRow === activeDrag.row) {
+		return;
+	}
+
+	const rect = targetRow.getBoundingClientRect();
+	const closestEdge = touch.clientY < rect.top + rect.height / 2 ? "top" : "bottom";
+	const previousRects = captureRowRects(activeDrag.container);
+
+	if (!moveGroupRowElement(activeDrag.row, targetRow, closestEdge)) {
+		return;
+	}
+
+	activeDrag.hasMoved = true;
+	animateMovedRows(previousRects, activeDrag.container);
+}
+
+function handleGroupTouchDragEnd() {
+	if (!groupTouchDragState.active) {
+		return;
+	}
+
+	const activeDrag = groupDragState.activeDrag;
+
+	if (activeDrag) {
+		activeDrag.row.classList.remove("is-dragging");
+		groupDragState.activeDrag = null;
+
+		if (activeDrag.hasMoved) {
+			applyGroupOrderByTeamIds(activeDrag.groupLetter, getGroupDomTeamIds(activeDrag.container));
+		}
+	}
+
+	clearGroupTouchDragState();
+}
+
+function clearGroupTouchDragState() {
+	groupTouchDragState.active = false;
+	groupTouchDragState.row = null;
+	groupTouchDragState.groupLetter = "";
+	groupTouchDragState.teamId = "";
+	groupTouchDragState.startX = 0;
+	groupTouchDragState.startY = 0;
 }
 
 function applyGroupOrderByTeamIds(groupLetter, orderedTeamIds) {
@@ -4241,6 +4354,7 @@ function renderGroupTableRow(team, index, groupLetter, { mode = state.viewMode, 
 	const rankLabel = getGroupRankLabel(team, index);
 	const rowClasses = ["group-table-row"];
 	const matchesLiveGroupPosition = mode === VIEW_MODES.MY && doesGroupPickMatchLive(team, index, groupLetter);
+	const dragIndicator = canDrag ? `<span class="group-row-drag-indicator" aria-hidden="true">↕</span>` : "";
 
 	if (canDrag) {
 		rowClasses.push("is-draggable");
@@ -4264,6 +4378,7 @@ function renderGroupTableRow(team, index, groupLetter, { mode = state.viewMode, 
           <div class="team-cell-copy">
             <strong>${renderTeamCode(team)}</strong>
           </div>
+          ${dragIndicator}
         </div>
       </td>
       ${
@@ -4748,7 +4863,7 @@ function syncPlayoffPanAvailability() {
 }
 
 function shouldShowPlayoffDragOverlay(isDragScrollable = true) {
-	return Boolean(isDragScrollable && !deviceSupportsTouchInput() && !state.playoffDragHintDismissed);
+	return Boolean(isDragScrollable && supportsFinePointerInput() && !state.playoffDragHintDismissed);
 }
 
 function layoutBracketMatches() {

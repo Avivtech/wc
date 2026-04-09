@@ -939,6 +939,23 @@ body.dialog-open {
 	min-width: 0;
 }
 
+.group-row-drag-indicator {
+	margin-inline-start: auto;
+	color: var(--muted);
+	font-size: 0.9rem;
+	line-height: 1;
+	opacity: 0;
+	transition:
+		opacity 140ms ease,
+		color 140ms ease;
+}
+
+.group-table-row.is-draggable:hover .group-row-drag-indicator,
+.group-table-row.is-dragging .group-row-drag-indicator {
+	opacity: 1;
+	color: var(--text);
+}
+
 html[dir="rtl"] .team-name,
 html[dir="rtl"] .calendar-team-mark,
 html[dir="rtl"] .bracket-team-row {
@@ -962,6 +979,11 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy {
 html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 	direction: ltr;
 	unicode-bidi: plaintext;
+}
+
+html[dir="rtl"] #groups-grid-my .group-row-drag-indicator {
+	margin-inline-start: 0;
+	margin-inline-end: auto;
 }
 
 .team-cell-copy {
@@ -2020,5 +2042,11 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 	.group-table th,
 	.group-table td {
 		padding: 0.3rem 0.3rem;
+	}
+}
+
+@media (hover: none), (pointer: coarse) {
+	.group-table-row.is-draggable .group-row-drag-indicator {
+		opacity: 1;
 	}
 }
