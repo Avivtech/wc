@@ -24,6 +24,11 @@ const SUBMISSION_SECTIONS = ["groups", "thirdPlace", "playoffs"];
 const WORLD_CUP_REFRESH_TIMEZONE = "UTC";
 
 app.use(express.json({ limit: "1mb" }));
+
+app.get("/he", (_req, res) => {
+  res.sendFile(path.join(publicDir, "he", "index.html"));
+});
+
 app.use(express.static(publicDir));
 app.use("/vendor/supabase", express.static(supabaseBrowserBundleDir));
 

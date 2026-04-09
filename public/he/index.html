@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>משחק מונדיאל 2026</title>
+  <link rel="icon" type="image/png" href="/assets/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Heebo:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+
+<body>
+  <div class="bg-orb bg-orb-one"></div>
+  <div class="bg-orb bg-orb-two"></div>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">מנבא מונדיאל 2026</p>
+        <h1>בנו את עץ הפלייאוף שלכם מתוך שלב הבתים.</h1>
+        <p id="save-status" class="panel-note">השינויים יישמרו אוטומטית לאחר ההתחברות.</p>
+      </div>
+      <div id="save-panel" class="save-panel">
+        <div class="save-panel-top">
+          <p id="welcome-message" class="panel-note hidden">היי, ברוך שובך!</p>
+          <div class="save-panel-top-actions">
+            <button id="clear-all-button" class="button secondary save-panel-action hidden" type="button">נקה הכל</button>
+            <button id="signout-button" class="button secondary save-panel-action hidden" type="button">התנתקות</button>
+          </div>
+        </div>
+        <div class="save-panel-section">
+          <form id="auth-form" class="hidden">
+            <div id="auth-mode-switch" class="auth-mode-switch" role="group" aria-label="בחירת מצב התחברות">
+              <button class="auth-mode-option is-active" type="button" data-auth-mode="login" aria-pressed="true">התחברות</button>
+              <button class="auth-mode-option" type="button" data-auth-mode="register" aria-pressed="false">הרשמה</button>
+            </div>
+            <div id="auth-fields" class="auth-fields">
+              <div id="display-name-field" class="auth-field">
+                <label id="display-name-label" class="field-label" for="display-name-input">שם תצוגה</label>
+                <input id="display-name-input" class="field-input" type="text" autocomplete="name" placeholder="השם שלכם" required />
+              </div>
+              <div id="email-field" class="auth-field">
+                <label id="email-label" class="field-label" for="email-input">אימייל</label>
+                <input id="email-input" class="field-input" type="email" autocomplete="email" placeholder="name@example.com" required />
+              </div>
+              <div id="password-field" class="auth-field">
+                <label id="password-label" class="field-label" for="password-input">סיסמה</label>
+                <input id="password-input" class="field-input" type="password" autocomplete="current-password" placeholder="סיסמה" minlength="6" required />
+              </div>
+            </div>
+            <div class="save-actions">
+              <button id="auth-button" class="button primary" type="submit">התחברות</button>
+            </div>
+          </form>
+          <p id="auth-status" class="panel-note">בודק התחברות...</p>
+        </div>
+      </div>
+    </header>
+
+    <section id="warning-strip" class="warning-strip hidden"></section>
+
+    <main class="page-grid">
+      <section class="section-block">
+        <div class="section-heading">
+          <p class="eyebrow">בתים</p>
+          <h2 id="groups-section-title">שלב הבתים תוצאות חיות</h2>
+          <p id="groups-section-copy" class="section-copy">
+            גררו על שולחן העבודה או השתמשו בכפתורי ההזזה בנייד. שתי הנבחרות הראשונות עולות
+            אוטומטית.
+          </p>
+        </div>
+        <div class="view-mode-stack">
+          <div id="groups-grid-live" class="groups-grid" data-view-content="live" aria-hidden="false"></div>
+          <div id="groups-grid-my" class="groups-grid hidden" data-view-content="my" hidden aria-hidden="true"></div>
+        </div>
+      </section>
+
+      <section class="section-block">
+        <div class="section-heading">
+          <p class="eyebrow">מקום שלישי</p>
+          <h2 id="third-place-section-title">המקומות השלישיים תוצאות חיות</h2>
+          <p id="third-place-section-copy" class="section-copy">בחרו שמונה נבחרות מהמקום השלישי שיעלו ל-32 האחרונות.</br>
+            סדר הבחירה קובע את המיקום בעץ הפלייאוף, כך שהבחירה הראשונה מקבלת את ההגרלה הטובה ביותר.
+          </p>
+        </div>
+        <div class="view-mode-stack">
+          <div id="third-place-pane-live" data-view-content="live" aria-hidden="false">
+            <div id="third-place-head-live" class="third-place-head"></div>
+            <div id="third-place-list-live" class="third-place-list"></div>
+          </div>
+          <div id="third-place-pane-my" class="hidden" data-view-content="my" hidden aria-hidden="true">
+            <div id="third-place-head-my" class="third-place-head"></div>
+            <div id="third-place-list-my" class="third-place-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section-block playoff-section">
+        <div class="section-heading">
+          <p class="eyebrow">פלייאוף</p>
+          <h2 id="playoffs-section-title">עץ הפלייאוף תוצאות חיות</h2>
+          <p id="playoffs-section-copy" class="section-copy">
+            נבנה לפי דירוג הבתים הנוכחי ומתעדכן מיד כשמשנים סדר בבית.
+          </p>
+        </div>
+        <div class="view-mode-stack">
+          <div id="playoff-board-live" class="playoff-board" data-view-content="live" aria-hidden="false"></div>
+          <div id="playoff-board-my" class="playoff-board hidden" data-view-content="my" hidden aria-hidden="true"></div>
+        </div>
+      </section>
+
+      <section class="section-block">
+        <div class="section-heading">
+          <p class="eyebrow">לוח משחקים</p>
+          <h2>לוח משחקים חודשי</h2>
+          <p class="section-copy">תצוגה חודשית של המשחקים שפורסמו. השבוע מתחיל ביום ראשון.</p>
+        </div>
+        <div id="fixtures-feed" class="fixtures-feed"></div>
+      </section>
+    </main>
+
+    <footer class="page-footer">
+      <nav class="language-menu" aria-label="בחירת שפה">
+        <span class="language-menu-label">שפה</span>
+        <a class="language-link" href="/" lang="en" dir="ltr">English</a>
+        <span class="language-menu-divider" aria-hidden="true">/</span>
+        <a class="language-link is-active" href="/he" lang="he" dir="rtl">עברית</a>
+      </nav>
+    </footer>
+  </div>
+
+  <aside id="overall-score-card" class="overall-score-card hidden" aria-live="polite">
+    <div class="overall-score-display">
+      <span class="overall-score-label">ניקוד כולל</span>
+      <div class="overall-score-value-container">
+        <strong id="overall-score-value" class="overall-score-value">0</strong>
+        <span class="overall-score-unit">נק׳</span>
+      </div>
+    </div>
+    <div class="view-mode-panel" aria-label="בחירת תצוגה">
+      <div class="view-mode-switch" role="group" aria-label="בחירת תצוגת תחזיות" data-active-mode="live">
+        <button id="view-mode-live" class="view-mode-option is-active" type="button" data-view-mode="live" aria-pressed="true">תוצאות חיות</button>
+        <button id="view-mode-my" class="view-mode-option" type="button" data-view-mode="my" aria-pressed="false">התחזיות שלי</button>
+      </div>
+    </div>
+    <div class="overall-score-actions">
+      <button id="overall-score-submit-button" class="button primary overall-score-submit" type="button">שליחה</button>
+    </div>
+  </aside>
+
+  <div id="clear-all-dialog" class="confirm-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="clear-all-dialog-title">
+    <div class="confirm-dialog-card">
+      <p class="eyebrow">איפוס בחירות</p>
+      <h2 id="clear-all-dialog-title">האם אתם בטוחים?</h2>
+      <p class="panel-note">הפעולה תאפס את דירוג הבתים, בחירות המקום השלישי ומנצחות הפלייאוף.</p>
+      <div class="confirm-dialog-actions">
+        <button id="clear-all-cancel" class="button secondary" type="button">ביטול</button>
+        <button id="clear-all-confirm" class="button secondary" type="button">נקה הכל</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/vendor/supabase/supabase.js"></script>
+  <script type="module" src="/app.js"></script>
+</body>
+
+</html>

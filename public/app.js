@@ -1,5 +1,7 @@
 import { attachClosestEdge, combine, draggable, dropTargetForElements, extractClosestEdge, monitorForElements } from "/vendor/pragmatic-dnd.js";
 
+const APP_LOCALE = detectAppLocale();
+const APP_INTL_LOCALE = APP_LOCALE === "he" ? "he-IL" : "en-US";
 const DEV_PICKS_QUERY_PARAM = "devPicks";
 const DEV_RESULTS_QUERY_PARAM = "devResults";
 const DEV_GROUP_ORDER_PATTERNS = [
@@ -8,6 +10,227 @@ const DEV_GROUP_ORDER_PATTERNS = [
 	[0, 2, 1, 3],
 	[1, 2, 0, 3],
 ];
+const TRANSLATIONS = {
+	en: {
+		authChecking: "Checking auth...",
+		authUnavailable: "Sign in is currently unavailable.",
+		authHintLogin: "Enter your email and password to log in.",
+		authHintRegister: "Enter your display name, email, and password to create an account.",
+		authButtonLogin: "Log in",
+		authButtonRegister: "Sign up",
+		authButtonLoggingIn: "Logging in...",
+		authButtonSigningUp: "Signing up...",
+		authValidationLogin: "Enter a valid email and password with at least 6 characters.",
+		authValidationRegister: "Enter your display name, a valid email, and a password with at least 6 characters.",
+		authFailureLogin: "Could not log in. Check your email and password.",
+		authFailureRegister: "Could not create your account. Please try again.",
+		authCreatingAccount: "Creating your account...",
+		authSigningIn: "Signing you in...",
+		authAccountCreatedSigningIn: "Account created. Signing you in...",
+		authAccountCreatedConfirm: "Account created. Confirm your email if required, then log in.",
+		authSignedIn: "Signed in.",
+		authPleaseSignInAgain: "Please sign in again.",
+		authSigningOut: "Signing out...",
+		authSignOutFailed: "Could not sign out. Please try again.",
+		authSignInFirst: "Sign in first.",
+		authStartPredicting: "Sign in or register to start predicting.",
+		authUnlockPredictions: "Sign in or register to unlock My Predictions.",
+		welcomeBack: "Hi, Welcome back!",
+		welcomeBackNamed: "Hi {name}, Welcome back!",
+		saveStatusDevLive: "Development picks are loaded in My Predictions. Switch to inspect them locally.",
+		saveStatusDevLocal: "Development picks are loaded locally. Changes stay local and do not overwrite saved picks.",
+		saveStatusViewingLive: "Viewing live results. Switch to My Predictions to edit your picks.",
+		saveStatusDefault: "Changes save automatically as you edit your picks. Submit when ready.",
+		saveStatusClearedSaving: "All picks cleared. Saving changes...",
+		saveStatusClearedLocal: "All picks cleared locally.",
+		saveStatusSaving: "Saving changes...",
+		saveStatusSavedOn: "Saved on {date}.",
+		saveStatusNoSaved: "No saved picks yet. Changes will save automatically.",
+		saveStatusLoadedOn: "Loaded saved picks from {date}.",
+		saveStatusSubmitting: "Submitting your picks...",
+		saveStatusSubmitted: "All picks submitted.",
+		saveStatusDevSubmitted: "Development picks submitted locally.",
+		signInToSubmit: "Sign in to submit your picks.",
+		genericCouldNotLoadTournament: "Could not load the tournament right now.",
+		genericCouldNotSavePicks: "Could not save your picks right now.",
+		genericCouldNotLoadPicks: "Could not load your picks right now.",
+		genericCouldNotSubmitPicks: "Could not submit your picks right now.",
+		genericCouldNotScorePicks: "Could not score the current picks.",
+		emptyGroups: "Load data to rank the groups.",
+		emptyThirdPlace: "Third-place ranking will appear here.",
+		emptyPlayoffs: "Projected playoff slots will appear here.",
+		emptyFixtures: "Fixtures will appear here.",
+		loadCalendar: "Load Calendar",
+		noFixtureList: "No fixture list is available yet. Dates and locations will appear here when available.",
+		calendarPrevious: "Previous",
+		calendarNext: "Next",
+		calendarVersus: "vs",
+		calendarSelectedCount: "{count}/8 selected",
+		calendarThirdPlace: "3rd Place",
+		bracketFinals: "Finals",
+		bracketDragHint: "To drag use Ctrl / Cmd + Mouse",
+		overallSubmit: "Submit",
+		overallSubmitted: "Submitted",
+		overallSubmitting: "Submitting...",
+		groupCountry: "Country",
+		groupWins: "W",
+		groupLosses: "L",
+		groupDraws: "D",
+		groupGoalDiff: "GD",
+		groupPoints: "Pts",
+		pointsShort: "pts",
+		goalDiffShort: "GD",
+		tbd: "TBD",
+		match: "Match",
+		teamToBeDetermined: "Team to be determined",
+		liveResults: "Live Results",
+		myPredictions: "My Predictions",
+		predictionsHeadline: "My Predictions",
+		stageGroup: "Group Stage",
+		stageRound32: "Round of 32",
+		stageRound16: "Round of 16",
+		stageQuarter: "Quarter-finals",
+		stageSemi: "Semi-finals",
+		stageFinal: "Final",
+		stageThird: "Third-place play-off",
+		stageGroupShort: "Group Stage",
+		stageRound32Short: "R32",
+		stageRound16Short: "R16",
+		stageQuarterShort: "QF",
+		stageSemiShort: "SF",
+		stageFinalShort: "F",
+		stageThirdShort: "3P",
+		groupSingular: "Group",
+		groupPlural: "Groups",
+		matchWinner: "Winner match {match}",
+		matchLoser: "Loser match {match}",
+	},
+	he: {
+		authChecking: "בודק התחברות...",
+		authUnavailable: "ההתחברות אינה זמינה כרגע.",
+		authHintLogin: "הזינו אימייל וסיסמה כדי להתחבר.",
+		authHintRegister: "הזינו שם תצוגה, אימייל וסיסמה כדי ליצור חשבון.",
+		authButtonLogin: "התחברות",
+		authButtonRegister: "הרשמה",
+		authButtonLoggingIn: "מתחבר...",
+		authButtonSigningUp: "נרשם...",
+		authValidationLogin: "הזינו אימייל תקין וסיסמה באורך 6 תווים לפחות.",
+		authValidationRegister: "הזינו שם תצוגה, אימייל תקין וסיסמה באורך 6 תווים לפחות.",
+		authFailureLogin: "לא ניתן להתחבר כרגע. בדקו את האימייל והסיסמה.",
+		authFailureRegister: "לא ניתן ליצור חשבון כרגע. נסו שוב.",
+		authCreatingAccount: "יוצר את החשבון...",
+		authSigningIn: "מחבר אותך...",
+		authAccountCreatedSigningIn: "החשבון נוצר. מתחבר...",
+		authAccountCreatedConfirm: "החשבון נוצר. אם נדרש, אשרו את האימייל ואז התחברו.",
+		authSignedIn: "התחברתם בהצלחה.",
+		authPleaseSignInAgain: "נא להתחבר שוב.",
+		authSigningOut: "מתנתק...",
+		authSignOutFailed: "לא ניתן להתנתק כרגע. נסו שוב.",
+		authSignInFirst: "יש להתחבר תחילה.",
+		authStartPredicting: "התחברו או הירשמו כדי להתחיל לנבא.",
+		authUnlockPredictions: "התחברו או הירשמו כדי לפתוח את התחזיות שלי.",
+		welcomeBack: "היי, ברוך שובך!",
+		welcomeBackNamed: "היי {name}, ברוך שובך!",
+		saveStatusDevLive: "תחזיות הפיתוח נטענו אל התחזיות שלי. עברו אליהן כדי לבדוק מקומית.",
+		saveStatusDevLocal: "תחזיות הפיתוח נטענו מקומית. השינויים נשמרים רק מקומית ואינם דורסים שמירות קיימות.",
+		saveStatusViewingLive: "מוצגות כעת תוצאות חיות. עברו לתחזיות שלי כדי לערוך את הבחירות שלכם.",
+		saveStatusDefault: "השינויים נשמרים אוטומטית בזמן העריכה. לחצו על שליחה כשתהיו מוכנים.",
+		saveStatusClearedSaving: "כל הבחירות נמחקו. שומר שינויים...",
+		saveStatusClearedLocal: "כל הבחירות נמחקו מקומית.",
+		saveStatusSaving: "שומר שינויים...",
+		saveStatusSavedOn: "נשמר ב-{date}.",
+		saveStatusNoSaved: "עדיין אין שמירה. השינויים יישמרו אוטומטית.",
+		saveStatusLoadedOn: "הבחירות נטענו מ-{date}.",
+		saveStatusSubmitting: "שולח את הבחירות...",
+		saveStatusSubmitted: "כל הבחירות נשלחו.",
+		saveStatusDevSubmitted: "תחזיות הפיתוח נשלחו מקומית.",
+		signInToSubmit: "התחברו כדי לשלוח את הבחירות.",
+		genericCouldNotLoadTournament: "לא ניתן לטעון את הטורניר כרגע.",
+		genericCouldNotSavePicks: "לא ניתן לשמור את הבחירות כרגע.",
+		genericCouldNotLoadPicks: "לא ניתן לטעון את הבחירות כרגע.",
+		genericCouldNotSubmitPicks: "לא ניתן לשלוח את הבחירות כרגע.",
+		genericCouldNotScorePicks: "לא ניתן לחשב את הניקוד כרגע.",
+		emptyGroups: "טענו נתונים כדי לדרג את הבתים.",
+		emptyThirdPlace: "דירוג המקומות השלישיים יופיע כאן.",
+		emptyPlayoffs: "מקומות הפלייאוף יוצגו כאן.",
+		emptyFixtures: "לוח המשחקים יוצג כאן.",
+		loadCalendar: "טען לוח משחקים",
+		noFixtureList: "עדיין אין לוח משחקים זמין. תאריכים יופיעו כאן כשיהיו זמינים.",
+		calendarPrevious: "הקודם",
+		calendarNext: "הבא",
+		calendarVersus: "נגד",
+		calendarSelectedCount: "{count}/8 נבחרו",
+		calendarThirdPlace: "מקום 3",
+		bracketFinals: "גמרים",
+		bracketDragHint: "לגרירה השתמשו ב-Ctrl / Cmd + עכבר",
+		overallSubmit: "שליחה",
+		overallSubmitted: "נשלח",
+		overallSubmitting: "שולח...",
+		groupCountry: "Country",
+		groupWins: "W",
+		groupLosses: "L",
+		groupDraws: "D",
+		groupGoalDiff: "GD",
+		groupPoints: "Pts",
+		pointsShort: "נק׳",
+		goalDiffShort: "הפ׳",
+		tbd: "טרם נקבע",
+		match: "משחק",
+		teamToBeDetermined: "הנבחרת תיקבע בהמשך",
+		liveResults: "תוצאות חיות",
+		myPredictions: "התחזיות שלי",
+		predictionsHeadline: "התחזיות שלי",
+		stageGroup: "שלב הבתים",
+		stageRound32: "32 האחרונות",
+		stageRound16: "שמינית הגמר",
+		stageQuarter: "רבע הגמר",
+		stageSemi: "חצי הגמר",
+		stageFinal: "הגמר",
+		stageThird: "המשחק על המקום השלישי",
+		stageGroupShort: "בתים",
+		stageRound32Short: "32",
+		stageRound16Short: "16",
+		stageQuarterShort: "רבע",
+		stageSemiShort: "חצי",
+		stageFinalShort: "גמר",
+		stageThirdShort: "מקום 3",
+		groupSingular: "בית",
+		groupPlural: "בתים",
+		matchWinner: "מנצחת משחק {match}",
+		matchLoser: "מפסידת משחק {match}",
+	},
+};
+const CALENDAR_WEEKDAYS = {
+	en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+	he: ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"],
+};
+
+document.documentElement.lang = APP_LOCALE;
+document.documentElement.dir = APP_LOCALE === "he" ? "rtl" : "ltr";
+document.documentElement.dataset.locale = APP_LOCALE;
+
+function detectAppLocale() {
+	const path = String(window.location.pathname || "/").replace(/\/+$/, "") || "/";
+	const htmlLang = String(document.documentElement.lang || "").trim().toLowerCase();
+
+	if (htmlLang === "he" || path === "/he" || path.startsWith("/he/")) {
+		return "he";
+	}
+
+	return "en";
+}
+
+function t(key, variables = {}) {
+	const resolve = (catalog) =>
+		key.split(".").reduce((value, part) => (value && typeof value === "object" ? value[part] : undefined), catalog);
+	const template = resolve(TRANSLATIONS[APP_LOCALE]) ?? resolve(TRANSLATIONS.en) ?? key;
+
+	if (typeof template !== "string") {
+		return key;
+	}
+
+	return template.replace(/\{(\w+)\}/g, (_match, name) => String(variables[name] ?? ""));
+}
 
 const state = {
 	worldCup: null,
@@ -21,6 +244,7 @@ const state = {
 	devLiveResultsEnabled: shouldUseDevLiveResults(),
 	devLiveWorldCup: null,
 	playoffDragHintDismissed: getStoredPlayoffDragHintDismissed(),
+	calendarLoaded: false,
 	calendarMonthIndex: null,
 	playoffMatches: [],
 	submittedAt: "",
@@ -91,6 +315,12 @@ const elements = {
 	playoffBoardMy: document.getElementById("playoff-board-my"),
 	viewModeContents: Array.from(document.querySelectorAll("[data-view-content]")),
 	fixturesFeed: document.getElementById("fixtures-feed"),
+	groupsSectionTitle: document.getElementById("groups-section-title"),
+	groupsSectionCopy: document.getElementById("groups-section-copy"),
+	thirdPlaceSectionTitle: document.getElementById("third-place-section-title"),
+	thirdPlaceSectionCopy: document.getElementById("third-place-section-copy"),
+	playoffsSectionTitle: document.getElementById("playoffs-section-title"),
+	playoffsSectionCopy: document.getElementById("playoffs-section-copy"),
 	warningStrip: document.getElementById("warning-strip"),
 	authForm: document.getElementById("auth-form"),
 	authModeSwitch: document.getElementById("auth-mode-switch"),
@@ -121,7 +351,6 @@ const elements = {
 	overallScoreSubmitButton: document.getElementById("overall-score-submit-button"),
 };
 
-const CALENDAR_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const SUBMISSION_SECTIONS = ["groups", "thirdPlace", "playoffs"];
 const AUTH_MODES = {
 	LOGIN: "login",
@@ -130,6 +359,68 @@ const AUTH_MODES = {
 const VIEW_MODES = {
 	MY: "my",
 	LIVE: "live",
+};
+const SECTION_MODE_COPY = {
+	en: {
+		[VIEW_MODES.LIVE]: {
+			groups: {
+				title: "Group Stage Live Results",
+				copy: "Current group standings and live stats from the tournament.",
+			},
+			thirdPlace: {
+				title: "Third-Place Live Results",
+				copy: "Current best third-place standings based on live group results.",
+			},
+			playoffs: {
+				title: "Live Playoff Bracket",
+				copy: "Built from live standings and updated as results come in.",
+			},
+		},
+		[VIEW_MODES.MY]: {
+			groups: {
+				title: "Group Stage My Predictions",
+				copy: "Drag to reorder each group and set your predicted standings.",
+			},
+			thirdPlace: {
+				title: "Third-Place My Predictions",
+				copy: "Choose eight third-place teams to send them into the round of 32. Order of choice determines the placement in the playoff bracket.",
+			},
+			playoffs: {
+				title: "Playoff Bracket My Predictions",
+				copy: "Built from your current group predictions and updated immediately as you change them.",
+			},
+		},
+	},
+	he: {
+		[VIEW_MODES.LIVE]: {
+			groups: {
+				title: "שלב הבתים תוצאות חיות",
+				copy: "טבלת הבתים והסטטיסטיקות החיות של הטורניר.",
+			},
+			thirdPlace: {
+				title: "המקומות השלישיים תוצאות חיות",
+				copy: "דירוג עדכני של הנבחרות שבמקום השלישי לפי התוצאות החיות.",
+			},
+			playoffs: {
+				title: "עץ הפלייאוף תוצאות חיות",
+				copy: "נבנה לפי התוצאות החיות ומתעדכן בזמן אמת.",
+			},
+		},
+		[VIEW_MODES.MY]: {
+			groups: {
+				title: "שלב הבתים התחזיות שלי",
+				copy: "גררו כדי לשנות את סדר הנבחרות בכל בית ולקבוע את התחזית שלכם.",
+			},
+			thirdPlace: {
+				title: "המקומות השלישיים התחזיות שלי",
+				copy: "בחרו שמונה נבחרות מהמקום השלישי שיעלו ל-32 האחרונות. סדר הבחירה קובע את המיקום בעץ הפלייאוף.",
+			},
+			playoffs: {
+				title: "עץ הפלייאוף התחזיות שלי",
+				copy: "נבנה מהתחזיות הנוכחיות שלכם ומתעדכן מיד עם כל שינוי.",
+			},
+		},
+	},
 };
 const PLAYOFF_DRAG_HINT_STORAGE_KEY = "wc2026:playoff-drag-hint-dismissed";
 const TECHNICAL_MESSAGE_PATTERN = /\b(api|server|supabase|request failed|status \d+|unknown error|cache|cached data|environment|documentation|provider|rankings page|odds|predictions|fetch|network|connection|timeout|json|syntaxerror|unexpected token)\b/i;
@@ -273,24 +564,24 @@ function handleMyPlayoffBoardKeyDown(event) {
 
 async function initializeAuth() {
 	state.auth.ready = false;
-	state.auth.status = "Checking auth...";
+	state.auth.status = t("authChecking");
 
 	try {
 		const response = await fetch("/api/auth/config");
 		const config = await response.json();
 
 		if (!response.ok) {
-			throw new Error("Sign in is currently unavailable.");
+			throw new Error(t("authUnavailable"));
 		}
 
 		if (!config.enabled) {
 			state.auth.enabled = false;
-			state.auth.status = "Sign in is currently unavailable.";
+			state.auth.status = t("authUnavailable");
 			return;
 		}
 
 		if (!window.supabase?.createClient) {
-			throw new Error("Sign in is currently unavailable.");
+			throw new Error(t("authUnavailable"));
 		}
 
 		state.auth.enabled = true;
@@ -312,7 +603,7 @@ async function initializeAuth() {
 		state.auth.session = null;
 		state.auth.user = null;
 		state.auth.displayNameDraft = "";
-		state.auth.status = "Sign in is currently unavailable.";
+		state.auth.status = t("authUnavailable");
 	} finally {
 		state.auth.ready = true;
 	}
@@ -347,7 +638,7 @@ async function syncAuthSession(session, event = "SESSION") {
 		elements.passwordInput.value = "";
 		state.viewMode = VIEW_MODES.LIVE;
 		resetPickSyncState();
-		state.auth.status = "Please sign in again.";
+		state.auth.status = t("authPleaseSignInAgain");
 		render();
 		return;
 	}
@@ -362,7 +653,7 @@ async function syncAuthSession(session, event = "SESSION") {
 	if (event === "SIGNED_IN" || isUsingDevPicks()) {
 		state.viewMode = VIEW_MODES.MY;
 	}
-	state.auth.status = "Signed in.";
+	state.auth.status = t("authSignedIn");
 	clearAuthRedirectState();
 
 	if (event === "SIGNED_OUT") {
@@ -419,7 +710,7 @@ function renderAuthState() {
 	elements.clearAllButton.classList.toggle("hidden", !isSignedIn);
 	elements.authButton.classList.toggle("hidden", isSignedIn);
 	elements.signOutButton.classList.toggle("hidden", !isSignedIn);
-	elements.authStatus.textContent = state.auth.status || (!authReady ? "Checking auth..." : getSignedOutAuthMessage());
+	elements.authStatus.textContent = state.auth.status || (!authReady ? t("authChecking") : getSignedOutAuthMessage());
 }
 
 function renderViewModeSwitch() {
@@ -440,10 +731,10 @@ function renderViewModeSwitch() {
 
 function getSignedOutAuthMessage() {
 	if (!state.auth.enabled) {
-		return "Sign in is currently unavailable.";
+		return t("authUnavailable");
 	}
 
-	return isRegisterAuthMode() ? "Enter your display name, email, and password to create an account." : "Enter your email and password to log in.";
+	return isRegisterAuthMode() ? t("authHintRegister") : t("authHintLogin");
 }
 
 function getAuthenticatedEmail() {
@@ -549,29 +840,29 @@ function setAuthMode(nextMode) {
 }
 
 function getAuthButtonLabel() {
-	return isRegisterAuthMode() ? "Sign up" : "Log in";
+	return isRegisterAuthMode() ? t("authButtonRegister") : t("authButtonLogin");
 }
 
 function getPendingAuthButtonLabel() {
-	return isRegisterAuthMode() ? "Signing up..." : "Logging in...";
+	return isRegisterAuthMode() ? t("authButtonSigningUp") : t("authButtonLoggingIn");
 }
 
 function getAuthValidationMessage() {
-	return isRegisterAuthMode() ? "Enter your display name, a valid email, and a password with at least 6 characters." : "Enter a valid email and password with at least 6 characters.";
+	return isRegisterAuthMode() ? t("authValidationRegister") : t("authValidationLogin");
 }
 
 function getAuthFailureMessage() {
-	return isRegisterAuthMode() ? "Could not create your account. Please try again." : "Could not log in. Check your email and password.";
+	return isRegisterAuthMode() ? t("authFailureRegister") : t("authFailureLogin");
 }
 
 function getWelcomeMessage() {
 	const displayName = sanitizeDisplayName(state.auth.displayNameDraft);
 
 	if (displayName) {
-		return `Hi ${displayName}, Welcome back!`;
+		return t("welcomeBackNamed", { name: displayName });
 	}
 
-	return "Hi, Welcome back!";
+	return t("welcomeBack");
 }
 
 function createEmptySectionSubmissionState() {
@@ -673,7 +964,7 @@ function getResponseErrorMessage(data, fallback) {
 
 async function handleAuthRequest() {
 	if (!state.auth.enabled || !state.auth.client) {
-		state.auth.status = "Sign in is currently unavailable.";
+		state.auth.status = t("authUnavailable");
 		renderAuthState();
 		return;
 	}
@@ -691,7 +982,7 @@ async function handleAuthRequest() {
 	}
 
 	state.auth.pending = true;
-	state.auth.status = isRegisterMode ? "Creating your account..." : "Signing you in...";
+	state.auth.status = isRegisterMode ? t("authCreatingAccount") : t("authSigningIn");
 	renderAuthState();
 
 	try {
@@ -711,10 +1002,10 @@ async function handleAuthRequest() {
 			elements.passwordInput.value = "";
 
 			if (data.session?.access_token) {
-				state.auth.status = "Account created. Signing you in...";
+				state.auth.status = t("authAccountCreatedSigningIn");
 			} else {
 				state.auth.mode = AUTH_MODES.LOGIN;
-				state.auth.status = "Account created. Confirm your email if required, then log in.";
+				state.auth.status = t("authAccountCreatedConfirm");
 			}
 		} else {
 			const { error } = await state.auth.client.auth.signInWithPassword({
@@ -727,7 +1018,7 @@ async function handleAuthRequest() {
 			}
 
 			elements.passwordInput.value = "";
-			state.auth.status = "Signed in.";
+			state.auth.status = t("authSignedIn");
 		}
 	} catch (error) {
 		state.auth.status = getAuthFailureMessage();
@@ -743,7 +1034,7 @@ async function handleSignOut() {
 	}
 
 	state.auth.pending = true;
-	state.auth.status = "Signing out...";
+	state.auth.status = t("authSigningOut");
 	renderAuthState();
 
 	try {
@@ -762,7 +1053,7 @@ async function handleSignOut() {
 		resetPickSyncState();
 		state.auth.status = getSignedOutAuthMessage();
 	} catch (error) {
-		state.auth.status = "Could not sign out. Please try again.";
+		state.auth.status = t("authSignOutFailed");
 	} finally {
 		state.auth.pending = false;
 		render();
@@ -783,9 +1074,9 @@ function handleClearAll() {
 	clearSubmittedPicksState();
 
 	if (getAuthenticatedEmail() && !isUsingDevPicks()) {
-		state.saveStatus = "All picks cleared. Saving changes...";
+		state.saveStatus = t("saveStatusClearedSaving");
 	} else {
-		state.saveStatus = "All picks cleared locally.";
+		state.saveStatus = t("saveStatusClearedLocal");
 	}
 
 	renderInteractiveViews();
@@ -862,7 +1153,7 @@ async function loadWorldCup(refresh = false) {
 		const data = await response.json();
 
 		if (!response.ok) {
-			throw new Error("Could not load the tournament right now.");
+			throw new Error(t("genericCouldNotLoadTournament"));
 		}
 
 		state.worldCup = data;
@@ -871,6 +1162,7 @@ async function loadWorldCup(refresh = false) {
 		state.selectedThirdTeamIds = [];
 		state.bracketWinnerSelections = {};
 		state.bracketScorePredictions = {};
+		state.calendarLoaded = false;
 		state.calendarMonthIndex = null;
 		state.submittedAt = "";
 		state.sectionSubmittedAt = createEmptySectionSubmissionState();
@@ -890,11 +1182,12 @@ async function loadWorldCup(refresh = false) {
 		state.selectedThirdTeamIds = [];
 		state.bracketWinnerSelections = {};
 		state.bracketScorePredictions = {};
+		state.calendarLoaded = false;
 		state.calendarMonthIndex = null;
 		state.submittedAt = "";
 		state.sectionSubmittedAt = createEmptySectionSubmissionState();
 		state.submissionPendingSection = "";
-		state.saveStatus = "Could not load the tournament right now.";
+		state.saveStatus = t("genericCouldNotLoadTournament");
 		syncState.lastSavedSnapshot = "";
 		syncState.loadedEmail = "";
 		state.devLiveWorldCup = null;
@@ -910,12 +1203,35 @@ function render() {
 	document.body.dataset.viewMode = state.viewMode;
 	renderWarnings();
 	renderViewModeSwitch();
+	renderSectionHeadings();
 	renderInteractiveViews();
 	syncViewModeContentVisibility();
 	renderAuthState();
 	renderSaveState();
 	renderOverallScore();
 	scheduleOverallScoreRefresh();
+}
+
+function renderSectionHeadings() {
+	const copy = SECTION_MODE_COPY[APP_LOCALE]?.[state.viewMode] || SECTION_MODE_COPY.en[state.viewMode] || SECTION_MODE_COPY.en[VIEW_MODES.LIVE];
+
+	elements.groupsSectionTitle.innerHTML = renderSectionTitleMarkup(copy.groups.title);
+	elements.groupsSectionCopy.textContent = copy.groups.copy;
+	elements.thirdPlaceSectionTitle.innerHTML = renderSectionTitleMarkup(copy.thirdPlace.title);
+	elements.thirdPlaceSectionCopy.textContent = copy.thirdPlace.copy;
+	elements.playoffsSectionTitle.innerHTML = renderSectionTitleMarkup(copy.playoffs.title);
+	elements.playoffsSectionCopy.textContent = copy.playoffs.copy;
+}
+
+function renderSectionTitleMarkup(title) {
+	const predictionSuffix = ` ${t("predictionsHeadline")}`;
+
+	if (!title.endsWith(predictionSuffix)) {
+		return escapeHtml(title);
+	}
+
+	const baseTitle = title.slice(0, -predictionSuffix.length);
+	return `${escapeHtml(baseTitle)} <span class="section-title-my-predictions">${escapeHtml(t("predictionsHeadline"))}</span>`;
 }
 
 function renderInteractiveViews() {
@@ -951,7 +1267,7 @@ function renderGroups() {
 	teardownGroupDragAndDrop();
 
 	if (!state.worldCup) {
-		const emptyMarkup = emptyState("Load data to rank the groups.");
+		const emptyMarkup = emptyState(t("emptyGroups"));
 		elements.groupsGridLive.innerHTML = emptyMarkup;
 		elements.groupsGridMy.innerHTML = emptyMarkup;
 		return;
@@ -973,7 +1289,7 @@ function renderGroupsGrid(container, groups, { mode }) {
 			(group) => `
         <article class="group-card">
           <div class="group-head">
-            <h3>${escapeHtml(group.label)}</h3>
+            <h3>${escapeHtml(formatGroupCardLabel(group))}</h3>
           </div>
           <div class="group-table-wrap">
 			<table class="group-table">
@@ -997,24 +1313,24 @@ function renderGroupTableHeaderCells(isLiveView) {
 	if (isLiveView) {
 		return `
       <th>#</th>
-      <th>Country</th>
-      <th class="group-stat-head">W</th>
-      <th class="group-stat-head">L</th>
-      <th class="group-stat-head">D</th>
-      <th class="group-stat-head">GD</th>
-      <th class="group-stat-head">Pts</th>
+      <th>${escapeHtml(t("groupCountry"))}</th>
+      <th class="group-stat-head">${escapeHtml(t("groupWins"))}</th>
+      <th class="group-stat-head">${escapeHtml(t("groupLosses"))}</th>
+      <th class="group-stat-head">${escapeHtml(t("groupDraws"))}</th>
+      <th class="group-stat-head">${escapeHtml(t("groupGoalDiff"))}</th>
+      <th class="group-stat-head">${escapeHtml(t("groupPoints"))}</th>
     `;
 	}
 
 	return `
     <th>#</th>
-    <th>Country</th>
+    <th>${escapeHtml(t("groupCountry"))}</th>
   `;
 }
 
 function renderThirdPlace() {
 	if (!state.worldCup) {
-		const emptyMarkup = emptyState("Third-place ranking will appear here.");
+		const emptyMarkup = emptyState(t("emptyThirdPlace"));
 		elements.thirdPlaceHeadLive.innerHTML = "";
 		elements.thirdPlaceHeadMy.innerHTML = "";
 		elements.thirdPlaceListLive.innerHTML = emptyMarkup;
@@ -1022,10 +1338,13 @@ function renderThirdPlace() {
 		return;
 	}
 
+	const showEmptyLiveCards = shouldRenderEmptyLiveThirdPlaceCards();
+
 	renderThirdPlaceList({
 		mode: VIEW_MODES.LIVE,
-		ranking: getLiveThirdPlaceRanking(),
-		selectedTeamIds: getLiveSelectedThirdTeamIds(),
+		ranking: showEmptyLiveCards ? [] : getLiveThirdPlaceRanking(),
+		selectedTeamIds: showEmptyLiveCards ? [] : getLiveSelectedThirdTeamIds(),
+		placeholderCount: showEmptyLiveCards ? getLiveThirdPlacePlaceholderCount() : 0,
 		headElement: elements.thirdPlaceHeadLive,
 		listElement: elements.thirdPlaceListLive,
 	});
@@ -1038,17 +1357,39 @@ function renderThirdPlace() {
 	});
 }
 
-function renderThirdPlaceList({ mode, ranking, selectedTeamIds, headElement, listElement }) {
+function renderThirdPlaceList({ mode, ranking, selectedTeamIds, headElement, listElement, placeholderCount = 0 }) {
 	const selectedCount = getSelectedBestThirdTeams(selectedTeamIds, ranking).length;
-	const cards = ranking.map((team) => renderThirdPlaceSelectionCard(team, { mode, ranking, selectedTeamIds })).join("");
+	const cards = placeholderCount
+		? Array.from({ length: placeholderCount }, () => renderEmptyThirdPlaceCard()).join("")
+		: ranking.map((team) => renderThirdPlaceSelectionCard(team, { mode, ranking, selectedTeamIds })).join("");
 
-	headElement.innerHTML = `<span class="status-pill">${selectedCount}/8 selected</span>`;
+	headElement.innerHTML = `<span class="status-pill">${escapeHtml(t("calendarSelectedCount", { count: selectedCount }))}</span>`;
 	listElement.innerHTML = cards;
+}
+
+function renderEmptyThirdPlaceCard() {
+	return `
+    <article class="third-choice-card third-choice-card-static third-choice-card-empty" aria-hidden="true">
+      <div class="third-choice-head">
+        <div class="team-name">
+          <span class="team-mark team-mark-placeholder" aria-hidden="true">
+            <span class="team-logo-fallback team-logo-placeholder"></span>
+          </span>
+        </div>
+        <span class="third-choice-group">-</span>
+      </div>
+      <p class="third-choice-name">---</p>
+      <div class="third-choice-stats">
+        <span>0 pts</span>
+        <span>0 GD</span>
+      </div>
+    </article>
+  `;
 }
 
 function renderPlayoffBoard() {
 	if (!state.worldCup) {
-		const emptyMarkup = emptyState("Projected playoff slots will appear here.");
+		const emptyMarkup = emptyState(t("emptyPlayoffs"));
 		elements.playoffBoardLive.innerHTML = emptyMarkup;
 		elements.playoffBoardMy.innerHTML = emptyMarkup;
 		return;
@@ -1086,7 +1427,7 @@ function renderPlayoffBoardForMode(container, { mode, projectedMatches, liveWinn
 	container.innerHTML = `
     <div class="playoff-bracket-scroll">
       <div class="playoff-drag-overlay" aria-hidden="true">
-        <span class="playoff-drag-overlay-copy">To drag use Ctrl / Cmd + Mouse</span>
+        <span class="playoff-drag-overlay-copy">${escapeHtml(t("bracketDragHint"))}</span>
       </div>
       <div class="playoff-bracket-shell">
         <svg class="bracket-lines" aria-hidden="true"></svg>
@@ -1094,7 +1435,7 @@ function renderPlayoffBoardForMode(container, { mode, projectedMatches, liveWinn
           ${renderBracketHalf("left", bracket.left, mode, liveWinnerTeamIdsByMatch)}
           <section class="bracket-center">
             <div class="bracket-stage-head">
-              <h3>Finals</h3>
+              <h3>${escapeHtml(t("bracketFinals"))}</h3>
             </div>
             <div class="bracket-center-stack">
               ${bracket.final ? renderBracketMatch(bracket.final, mode, "featured", liveWinnerTeamIdsByMatch) : ""}
@@ -1130,14 +1471,23 @@ function restorePlayoffScrollSnapshot(container, snapshot) {
 
 function renderFixtures() {
 	if (!state.worldCup) {
-		elements.fixturesFeed.innerHTML = emptyState("Fixtures will appear here.");
+		elements.fixturesFeed.innerHTML = emptyState(t("emptyFixtures"));
+		return;
+	}
+
+	if (!state.calendarLoaded) {
+		elements.fixturesFeed.innerHTML = `
+      <div class="calendar-load-state">
+        <button class="button secondary" type="button" data-load-calendar="true">${escapeHtml(t("loadCalendar"))}</button>
+      </div>
+    `;
 		return;
 	}
 
 	const fixtures = buildCalendarFixtures();
 
 	if (!fixtures.length) {
-		elements.fixturesFeed.innerHTML = emptyState("No fixture list is available yet. Dates and locations will appear here when available.");
+		elements.fixturesFeed.innerHTML = emptyState(t("noFixtureList"));
 		return;
 	}
 
@@ -1154,7 +1504,7 @@ function renderFixtures() {
           data-calendar-step="-1"
           ${monthIndex <= 0 ? "disabled" : ""}
         >
-          Previous
+          ${escapeHtml(t("calendarPrevious"))}
         </button>
         <div class="calendar-controls-copy">
           <strong>${escapeHtml(formatCalendarMonthLabel(activeMonth.year, activeMonth.month))}</strong>
@@ -1166,7 +1516,7 @@ function renderFixtures() {
           data-calendar-step="1"
           ${monthIndex >= months.length - 1 ? "disabled" : ""}
         >
-          Next
+          ${escapeHtml(t("calendarNext"))}
         </button>
       </div>
       ${renderCalendarMonth(activeMonth, false)}
@@ -1323,7 +1673,7 @@ function renderCalendarMonth(month, showHeader = true) {
 						}
       <div class="calendar-month-body">
         <div class="calendar-weekdays">
-          ${CALENDAR_WEEKDAYS.map((day) => `<span>${escapeHtml(day)}</span>`).join("")}
+          ${(CALENDAR_WEEKDAYS[APP_LOCALE] || CALENDAR_WEEKDAYS.en).map((day) => `<span>${escapeHtml(day)}</span>`).join("")}
         </div>
         <div class="calendar-grid">
           ${month.cells.map(renderCalendarCell).join("")}
@@ -1399,7 +1749,7 @@ function renderCalendarMatch(fixture) {
       </div>
       <div class="calendar-match-teams">
         ${renderCalendarSide(fixture.homeSide)}
-        <span class="muted">vs</span>
+        <span class="muted">${escapeHtml(t("calendarVersus"))}</span>
         ${renderCalendarSide(fixture.awaySide)}
       </div>
     </article>
@@ -1420,7 +1770,7 @@ function formatFixtureTime(fixture) {
 	const timestamp = fixture?.timestamp;
 
 	if (timestamp === null || timestamp === undefined || timestamp === "" || !Number.isFinite(Number(timestamp))) {
-		return "TBD";
+		return t("tbd");
 	}
 
 	return formatTime(getFixtureDate(fixture));
@@ -1428,7 +1778,7 @@ function formatFixtureTime(fixture) {
 
 function renderCalendarSide(side) {
 	if (!side) {
-		return `<span class="calendar-side-label">TBD</span>`;
+		return `<span class="calendar-side-label">${escapeHtml(t("tbd"))}</span>`;
 	}
 
 	if (side.type === "team" && side.team) {
@@ -1441,7 +1791,7 @@ function renderCalendarSide(side) {
 	}
 
 	if (side.type === "team") {
-		return `<span class="calendar-side-label">${escapeHtml(side.groupSlot || side.label || "TBD")}</span>`;
+		return `<span class="calendar-side-label">${escapeHtml(side.groupSlot || side.label || t("tbd"))}</span>`;
 	}
 
 	return `<span class="calendar-side-label">${escapeHtml(formatCalendarSideLabel(side))}</span>`;
@@ -1449,14 +1799,14 @@ function renderCalendarSide(side) {
 
 function formatCalendarSideLabel(side) {
 	if (side.type === "thirdEligible") {
-		return side.label || "3rd Place";
+		return side.label || t("calendarThirdPlace");
 	}
 
 	if (side.type === "matchLink") {
-		return side.label.replace("match ", "");
+		return side.label;
 	}
 
-	return side.label || "TBD";
+	return side.label || t("tbd");
 }
 
 function parseFixtureDateValue(value) {
@@ -1484,29 +1834,35 @@ function renderOverallScore() {
 	}
 
 	elements.overallScoreValue.textContent = state.overallScore === null ? "--" : String(state.overallScore);
-	elements.overallScoreSubmitButton.textContent = isSubmissionPending() ? "Submitting..." : hasSubmittedAllPicks() ? "Submitted" : "Submit";
-	elements.overallScoreSubmitButton.disabled = state.loading || !state.worldCup || isSubmissionPending() || hasSubmittedAllPicks();
-	elements.overallScoreSubmitButton.classList.toggle("hidden", isShowingLiveResults() || !canAccessRankings());
+	const shouldShowSubmitAction = !isShowingLiveResults() && canAccessRankings();
+	elements.overallScoreSubmitButton.textContent = isSubmissionPending()
+		? t("overallSubmitting")
+		: hasSubmittedAllPicks()
+			? t("overallSubmitted")
+			: t("overallSubmit");
+	elements.overallScoreSubmitButton.disabled = !shouldShowSubmitAction || state.loading || !state.worldCup || isSubmissionPending() || hasSubmittedAllPicks();
+	elements.overallScoreSubmitButton.classList.toggle("is-inert", !shouldShowSubmitAction);
+	elements.overallScoreSubmitButton.setAttribute("aria-hidden", shouldShowSubmitAction ? "false" : "true");
 }
 
 function getDefaultSaveStatus() {
 	if (!state.auth.enabled) {
-		return "Sign in is currently unavailable.";
+		return t("authUnavailable");
 	}
 
 	if (!canAccessRankings()) {
-		return isShowingLiveResults() ? "Sign in or register to unlock My Rankings." : "Sign in or register to start ranking.";
+		return isShowingLiveResults() ? t("authUnlockPredictions") : t("authStartPredicting");
 	}
 
 	if (isUsingDevPicks()) {
-		return isShowingLiveResults() ? "Development picks are loaded in My Rankings. Switch to inspect them locally." : "Development picks are loaded locally. Changes stay local and do not overwrite saved picks.";
+		return isShowingLiveResults() ? t("saveStatusDevLive") : t("saveStatusDevLocal");
 	}
 
 	if (isShowingLiveResults()) {
-		return "Viewing live results. Switch to My Rankings to edit your picks.";
+		return t("saveStatusViewingLive");
 	}
 
-	return "Changes save automatically as you edit your picks. Submit when ready.";
+	return t("saveStatusDefault");
 }
 
 function scheduleOverallScoreRefresh() {
@@ -1553,7 +1909,7 @@ async function flushOverallScoreRefresh() {
 		const data = await response.json().catch(() => ({}));
 
 		if (!response.ok || !Number.isFinite(Number(data?.totalPoints))) {
-			throw new Error("Could not score the current picks.");
+			throw new Error(t("genericCouldNotScorePicks"));
 		}
 
 		state.overallScore = Number(data.totalPoints);
@@ -1809,7 +2165,7 @@ function getStageWinnerTeamId(matches, stage) {
 
 async function fetchWithAuth(input, init = {}) {
 	if (!state.auth.client || !state.auth.enabled) {
-		throw new Error("Sign in is currently unavailable.");
+		throw new Error(t("authUnavailable"));
 	}
 
 	const { data, error } = await state.auth.client.auth.getSession();
@@ -1819,7 +2175,7 @@ async function fetchWithAuth(input, init = {}) {
 	}
 
 	if (!data.session?.access_token) {
-		throw new Error("Sign in first.");
+		throw new Error(t("authSignInFirst"));
 	}
 
 	const headers = new Headers(init.headers || {});
@@ -1897,14 +2253,14 @@ async function saveCurrentPicks(preparedState = null) {
 	const data = await response.json();
 
 	if (!response.ok) {
-		throw new Error(getResponseErrorMessage(data, "Could not save your picks right now."));
+		throw new Error(getResponseErrorMessage(data, t("genericCouldNotSavePicks")));
 	}
 
 	state.sectionSubmittedAt = normalizeSectionSubmissionState(data.sectionSubmittedAt, data.submittedAt);
 	state.submittedAt = getLatestSubmittedAt();
 	syncState.lastSavedSnapshot = current.snapshot;
 	syncState.loadedEmail = current.email;
-	state.saveStatus = `Saved on ${formatDateTime(data.savedAt)}.`;
+	state.saveStatus = t("saveStatusSavedOn", { date: formatDateTime(data.savedAt) });
 	renderSaveState();
 	return true;
 }
@@ -1929,26 +2285,26 @@ async function loadSavedPicks({ silentMissing = false, silentSuccess = false } =
 			syncState.loadedEmail = email;
 			syncState.lastSavedSnapshot = buildCurrentSaveState()?.snapshot || "";
 			if (!silentMissing) {
-				state.saveStatus = "No saved picks yet. Changes will save automatically.";
+			state.saveStatus = t("saveStatusNoSaved");
 				renderSaveState();
 			}
 			return false;
 		}
 
 		if (!response.ok) {
-			throw new Error(getResponseErrorMessage(data, "Could not load your picks right now."));
+			throw new Error(getResponseErrorMessage(data, t("genericCouldNotLoadPicks")));
 		}
 
 		applySavedPicks(data);
 		syncState.loadedEmail = email;
 		syncState.lastSavedSnapshot = buildCurrentSaveState()?.snapshot || "";
 		if (!silentSuccess) {
-			state.saveStatus = `Loaded saved picks from ${formatDateTime(data.savedAt)}.`;
+			state.saveStatus = t("saveStatusLoadedOn", { date: formatDateTime(data.savedAt) });
 		}
 		render();
 		return true;
 	} catch (error) {
-		state.saveStatus = sanitizeUserFacingMessage(error instanceof Error ? error.message : "", "Could not load your picks right now.");
+		state.saveStatus = sanitizeUserFacingMessage(error instanceof Error ? error.message : "", t("genericCouldNotLoadPicks"));
 		renderSaveState();
 		return false;
 	} finally {
@@ -1997,13 +2353,13 @@ async function flushAutoSave() {
 
 	syncState.autoSaveInFlight = true;
 	syncState.autoSaveQueued = false;
-	state.saveStatus = "Saving changes...";
+	state.saveStatus = t("saveStatusSaving");
 	renderSaveState();
 
 	try {
 		await saveCurrentPicks(current);
 	} catch (error) {
-		state.saveStatus = sanitizeUserFacingMessage(error instanceof Error ? error.message : "", "Could not save your picks right now.");
+		state.saveStatus = sanitizeUserFacingMessage(error instanceof Error ? error.message : "", t("genericCouldNotSavePicks"));
 		renderSaveState();
 	} finally {
 		syncState.autoSaveInFlight = false;
@@ -2023,7 +2379,7 @@ async function handleSubmitAllPicks() {
 	}
 
 	if (!getAuthenticatedEmail()) {
-		state.saveStatus = "Sign in to submit your picks.";
+		state.saveStatus = t("signInToSubmit");
 		renderSaveState();
 		return;
 	}
@@ -2039,25 +2395,25 @@ async function handleSubmitAllPicks() {
 	state.submissionPendingSection = "all";
 	state.sectionSubmittedAt = createSubmittedSectionState(submittedAt);
 	state.submittedAt = submittedAt;
-	state.saveStatus = "Submitting your picks...";
+	state.saveStatus = t("saveStatusSubmitting");
 	render();
 
 	try {
 		await waitForAutoSaveToSettle();
 
 		if (isUsingDevPicks()) {
-			state.saveStatus = "Development picks submitted locally.";
+			state.saveStatus = t("saveStatusDevSubmitted");
 			render();
 			return;
 		}
 
 		await saveCurrentPicks(buildCurrentSaveState());
-		state.saveStatus = "All picks submitted.";
+		state.saveStatus = t("saveStatusSubmitted");
 		render();
 	} catch (error) {
 		state.sectionSubmittedAt = previousSectionSubmittedAt;
 		state.submittedAt = previousSubmittedAt;
-		const message = sanitizeUserFacingMessage(error instanceof Error ? error.message : "", "Could not submit your picks right now.");
+		const message = sanitizeUserFacingMessage(error instanceof Error ? error.message : "", t("genericCouldNotSubmitPicks"));
 
 		state.saveStatus = message;
 		render();
@@ -2111,6 +2467,14 @@ function handleMoveClick(event) {
 
 	if (calendarButton) {
 		changeCalendarMonth(Number(calendarButton.dataset.calendarStep));
+		return;
+	}
+
+	const loadCalendarButton = event.target.closest("[data-load-calendar]");
+
+	if (loadCalendarButton) {
+		state.calendarLoaded = true;
+		renderFixtures();
 		return;
 	}
 
@@ -3348,7 +3712,7 @@ function resolveLinkedMatchSide(source, projectedMatchMap, winnerSelections) {
 function createMatchLinkSide(source) {
 	return {
 		type: "matchLink",
-		label: `${source.type === "matchLoser" ? "Loser" : "Winner"} match ${source.match}`,
+		label: source.type === "matchLoser" ? t("matchLoser", { match: source.match }) : t("matchWinner", { match: source.match }),
 		match: source.match,
 	};
 }
@@ -3512,7 +3876,7 @@ function renderBracketRound(round, mode, liveWinnerTeamIdsByMatch = new Map()) {
 	return `
     <div class="bracket-round-column ${escapeHtml(round.className)}">
       <div class="bracket-stage-head">
-        <h3>${escapeHtml(round.stage)}</h3>
+        <h3>${escapeHtml(translateStageLabel(round.stage))}</h3>
       </div>
       <div class="bracket-stage-matches">
         ${round.matches.map((match) => renderBracketMatch(match, mode, "", liveWinnerTeamIdsByMatch)).join("")}
@@ -3526,14 +3890,6 @@ function renderBracketMatch(match, mode, extraClass = "", liveWinnerTeamIdsByMat
     <article class="bracket-match ${escapeHtml(extraClass)}" data-match-id="${match.match}">
       <div class="bracket-match-meta">
         <span class="bracket-match-date">${escapeHtml(formatDate(match.date))}</span>
-        <a
-          class="bracket-match-venue"
-          href="${escapeHtml(getVenueMapsUrl(match.venue))}"
-          target="_blank"
-          rel="noreferrer noopener"
-        >
-          ${escapeHtml(match.venue)}
-        </a>
       </div>
       <div class="bracket-sides">
         ${renderBracketSide(match, match.home, match.homeSource, mode, liveWinnerTeamIdsByMatch)}
@@ -3595,7 +3951,7 @@ function renderBracketSide(match, side, source, mode, liveWinnerTeamIdsByMatch =
           data-match="${match.match}"
           data-team-id="${escapeHtml(teamId)}"
           aria-pressed="${isSelected ? "true" : "false"}"
-          aria-label="Pick ${escapeHtml(getTeamDisplayName(side.team))} to win ${escapeHtml(match.stage)}"
+          aria-label="${escapeHtml(getTeamDisplayName(side.team))}"
         >
           ${renderBracketTeamRow(side.team, side.groupSlot, {
 									goalInput: {
@@ -3665,7 +4021,7 @@ function renderBracketTeamRow(team, groupSlot, { goals = null, goalInput = null,
 	const metaContent = goalInput
 		? renderBracketGoalInput(goalInput)
 		: showGroupSlot
-			? `<span class="bracket-team-group">${escapeHtml(groupSlot || team?.groupLetter || "TBD")}</span>`
+			? `<span class="bracket-team-group">${escapeHtml(groupSlot || team?.groupLetter || t("tbd"))}</span>`
 			: "";
 
 	return `
@@ -3692,7 +4048,7 @@ function renderBracketGoalInput({ matchId, side, value, teamName, stage }) {
         data-bracket-goals-input="true"
         data-match="${escapeHtml(String(matchId))}"
         data-side="${escapeHtml(side)}"
-        aria-label="Predicted goals for ${escapeHtml(teamName)} in ${escapeHtml(stage)}"
+        aria-label="${escapeHtml(teamName)}"
       />
     `;
 }
@@ -3723,8 +4079,8 @@ function renderThirdPlaceSelectionCard(team, { mode = state.viewMode, selectedTe
       </div>
       <p class="third-choice-name">${escapeHtml(team.name)}</p>
       <div class="third-choice-stats">
-        <span>${escapeHtml(points)} pts</span>
-        <span>${escapeHtml(goalDifference)} GD</span>
+        <span>${escapeHtml(points)} ${escapeHtml(t("pointsShort"))}</span>
+        <span>${escapeHtml(goalDifference)} ${escapeHtml(t("goalDiffShort"))}</span>
       </div>
     </article>
   `;
@@ -3747,8 +4103,8 @@ function renderThirdPlaceSelectionCard(team, { mode = state.viewMode, selectedTe
       </div>
       <p class="third-choice-name">${escapeHtml(team.name)}</p>
       <div class="third-choice-stats">
-        <span>${escapeHtml(points)} pts</span>
-        <span>${escapeHtml(goalDifference)} GD</span>
+        <span>${escapeHtml(points)} ${escapeHtml(t("pointsShort"))}</span>
+        <span>${escapeHtml(goalDifference)} ${escapeHtml(t("goalDiffShort"))}</span>
       </div>
     </button>
   `;
@@ -3853,7 +4209,7 @@ function renderTeamLogo(team) {
 	const tooltip = getTeamDisplayName(team);
 
 	if (!team) {
-		return renderTeamTooltip(`<span class="team-logo-fallback">TBD</span>`, tooltip, "team-mark");
+		return renderTeamTooltip(`<span class="team-logo-fallback">${escapeHtml(t("tbd"))}</span>`, tooltip, "team-mark");
 	}
 
 	if (team.logo) {
@@ -3865,7 +4221,7 @@ function renderTeamLogo(team) {
 
 function getTeamCode(team) {
 	if (!team) {
-		return "TBD";
+		return t("tbd");
 	}
 
 	const code = String(team.code || "")
@@ -3876,7 +4232,7 @@ function getTeamCode(team) {
 		return code;
 	}
 
-	return deriveFallbackCode(team.name || team.country || "TBD");
+	return deriveFallbackCode(team.name || team.country || t("tbd"));
 }
 
 function getTeamIdKey(teamId) {
@@ -3896,7 +4252,7 @@ function renderTeamCode(team, className = "") {
 
 function getTeamDisplayName(team) {
 	if (!team) {
-		return "Team to be determined";
+		return t("teamToBeDetermined");
 	}
 
 	return team.country || team.name || getTeamCode(team);
@@ -4076,7 +4432,7 @@ function setViewMode(nextMode) {
 
 	if (nextMode === VIEW_MODES.MY && !canAccessRankings()) {
 		state.viewMode = VIEW_MODES.LIVE;
-		state.auth.status = "Sign in or register to start ranking.";
+		state.auth.status = t("authStartPredicting");
 		hideFloatingTooltip();
 		render();
 		return;
@@ -4089,7 +4445,7 @@ function setViewMode(nextMode) {
 
 function ensureEditableRankingsView() {
 	if (!canAccessRankings()) {
-		state.auth.status = "Sign in or register to start ranking.";
+		state.auth.status = t("authStartPredicting");
 		renderAuthState();
 		return false;
 	}
@@ -4123,6 +4479,14 @@ function getLiveSelectedThirdTeamIds() {
 	return liveAdvancers.map((team) => getTeamIdKey(team.id)).filter(Boolean);
 }
 
+function shouldRenderEmptyLiveThirdPlaceCards() {
+	return !hasLiveTournamentStarted();
+}
+
+function getLiveThirdPlacePlaceholderCount() {
+	return Math.max(getLiveGroups().length || state.worldCup?.groups?.length || 0, 8);
+}
+
 function hasLiveTournamentStarted() {
 	return getLiveFixtures().some((fixture) => isGroupStageStage(fixture.stage) && hasFixtureStarted(fixture));
 }
@@ -4144,15 +4508,19 @@ function isGroupStageStage(stage) {
 }
 
 function formatThirdEligibleLabel(candidates, groups) {
-	return `3rd, ${groups.length === 1 ? "Group" : "Groups"} ${groups.join("/")}`;
+	return `${formatOrdinalPlacement(3)}, ${groups.length === 1 ? t("groupSingular") : t("groupPlural")} ${groups.join("/")}`;
 }
 
 function formatGroupPlacementLabel(group, placement) {
-	return `${formatOrdinalPlacement(placement)}, Group ${group}`;
+	return `${formatOrdinalPlacement(placement)}, ${t("groupSingular")} ${group}`;
 }
 
 function formatOrdinalPlacement(value) {
 	const number = Number(value);
+
+	if (APP_LOCALE === "he") {
+		return `מקום ${number}`;
+	}
 
 	if (number === 1) {
 		return "1st";
@@ -4176,7 +4544,7 @@ function deriveFallbackCode(value) {
 		.trim();
 
 	if (!text) {
-		return "TBD";
+		return t("tbd");
 	}
 
 	const parts = text.split(/\s+/).filter(Boolean);
@@ -4196,8 +4564,42 @@ function deriveFallbackCode(value) {
 	return parts[0].slice(0, 3).toUpperCase();
 }
 
-function getVenueMapsUrl(venue) {
-	return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${venue} stadium`)}`;
+function formatGroupCardLabel(group) {
+	return `${t("groupSingular")} ${group?.letter || ""}`.trim();
+}
+
+function translateStageLabel(stage) {
+	const label = String(stage || "").toLowerCase();
+
+	if (label.includes("group")) {
+		return t("stageGroup");
+	}
+
+	if (label.includes("round of 32")) {
+		return t("stageRound32");
+	}
+
+	if (label.includes("round of 16")) {
+		return t("stageRound16");
+	}
+
+	if (label.includes("quarter")) {
+		return t("stageQuarter");
+	}
+
+	if (label.includes("semi")) {
+		return t("stageSemi");
+	}
+
+	if (label.includes("third")) {
+		return t("stageThird");
+	}
+
+	if (label.includes("final")) {
+		return t("stageFinal");
+	}
+
+	return stage || t("match");
 }
 
 function getPlayoffBoardElement(mode = state.viewMode) {
@@ -4734,12 +5136,12 @@ function animateMovedRows(previousRects, root, selector = ".group-table-row[data
 function formatDate(value) {
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) {
-		return "TBD";
+		return t("tbd");
 	}
 
 	const includeYear = date.getFullYear() !== 2026;
 
-	return new Intl.DateTimeFormat(undefined, {
+	return new Intl.DateTimeFormat(APP_INTL_LOCALE, {
 		month: "short",
 		day: "numeric",
 		...(includeYear ? { year: "numeric" } : {}),
@@ -4747,7 +5149,7 @@ function formatDate(value) {
 }
 
 function formatCalendarMonthLabel(year, month) {
-	return new Intl.DateTimeFormat(undefined, {
+	return new Intl.DateTimeFormat(APP_INTL_LOCALE, {
 		month: "long",
 		year: "numeric",
 	}).format(new Date(year, month, 1));
@@ -4756,10 +5158,10 @@ function formatCalendarMonthLabel(year, month) {
 function formatDateTime(value) {
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) {
-		return "TBD";
+		return t("tbd");
 	}
 
-	return new Intl.DateTimeFormat(undefined, {
+	return new Intl.DateTimeFormat(APP_INTL_LOCALE, {
 		month: "short",
 		day: "numeric",
 		year: "numeric",
@@ -4771,10 +5173,10 @@ function formatDateTime(value) {
 function formatTime(value) {
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) {
-		return "TBD";
+		return t("tbd");
 	}
 
-	return new Intl.DateTimeFormat(undefined, {
+	return new Intl.DateTimeFormat(APP_INTL_LOCALE, {
 		hour: "numeric",
 		minute: "2-digit",
 	}).format(date);
@@ -4784,34 +5186,34 @@ function formatStageShortLabel(stage) {
 	const label = String(stage || "").toLowerCase();
 
 	if (label.includes("group")) {
-		return "Group Stage";
+		return t("stageGroupShort");
 	}
 
 	if (label.includes("round of 32")) {
-		return "R32";
+		return t("stageRound32Short");
 	}
 
 	if (label.includes("round of 16")) {
-		return "R16";
+		return t("stageRound16Short");
 	}
 
 	if (label.includes("quarter")) {
-		return "QF";
+		return t("stageQuarterShort");
 	}
 
 	if (label.includes("semi")) {
-		return "SF";
+		return t("stageSemiShort");
 	}
 
 	if (label.includes("third")) {
-		return "3P";
+		return t("stageThirdShort");
 	}
 
 	if (label.includes("final")) {
-		return "F";
+		return t("stageFinalShort");
 	}
 
-	return stage || "Match";
+	return stage || t("match");
 }
 
 function formatSignedValue(value) {
