@@ -183,7 +183,7 @@ const TRANSLATIONS = {
 		myPredictions: "התחזיות שלי",
 		predictionsHeadline: "התחזיות שלי",
 		stageGroup: "שלב הבתים",
-		stageRound32: "32 האחרונות",
+		stageRound32: "שלב 32",
 		stageRound16: "שמינית הגמר",
 		stageQuarter: "רבע הגמר",
 		stageSemi: "חצי הגמר",
@@ -213,7 +213,9 @@ document.documentElement.dataset.locale = APP_LOCALE;
 
 function detectAppLocale() {
 	const path = String(window.location.pathname || "/").replace(/\/+$/, "") || "/";
-	const htmlLang = String(document.documentElement.lang || "").trim().toLowerCase();
+	const htmlLang = String(document.documentElement.lang || "")
+		.trim()
+		.toLowerCase();
 
 	if (htmlLang === "he" || path === "/he" || path.startsWith("/he/")) {
 		return "he";
@@ -223,8 +225,7 @@ function detectAppLocale() {
 }
 
 function t(key, variables = {}) {
-	const resolve = (catalog) =>
-		key.split(".").reduce((value, part) => (value && typeof value === "object" ? value[part] : undefined), catalog);
+	const resolve = (catalog) => key.split(".").reduce((value, part) => (value && typeof value === "object" ? value[part] : undefined), catalog);
 	const template = resolve(TRANSLATIONS[APP_LOCALE]) ?? resolve(TRANSLATIONS.en) ?? key;
 
 	if (typeof template !== "string") {
@@ -415,7 +416,7 @@ const SECTION_MODE_COPY = {
 			},
 			thirdPlace: {
 				title: "המקומות השלישיים התחזיות שלי",
-				copy: "בחרו שמונה נבחרות מהמקום השלישי שיעלו ל-32 האחרונות. סדר הבחירה קובע את המיקום בעץ הפלייאוף.",
+				copy: "בחרו שמונה נבחרות מהמקום השלישי שיעלו לשלב 32. סדר הבחירה קובע את המיקום בעץ הפלייאוף.",
 			},
 			playoffs: {
 				title: "עץ הפלייאוף התחזיות שלי",
@@ -1361,9 +1362,7 @@ function renderThirdPlace() {
 
 function renderThirdPlaceList({ mode, ranking, selectedTeamIds, headElement, listElement, placeholderCount = 0 }) {
 	const selectedCount = getSelectedBestThirdTeams(selectedTeamIds, ranking).length;
-	const cards = placeholderCount
-		? Array.from({ length: placeholderCount }, () => renderEmptyThirdPlaceCard()).join("")
-		: ranking.map((team) => renderThirdPlaceSelectionCard(team, { mode, ranking, selectedTeamIds })).join("");
+	const cards = placeholderCount ? Array.from({ length: placeholderCount }, () => renderEmptyThirdPlaceCard()).join("") : ranking.map((team) => renderThirdPlaceSelectionCard(team, { mode, ranking, selectedTeamIds })).join("");
 
 	headElement.innerHTML = `<span class="status-pill">${escapeHtml(t("calendarSelectedCount", { count: selectedCount }))}</span>`;
 	listElement.innerHTML = cards;
@@ -1837,11 +1836,7 @@ function renderOverallScore() {
 
 	elements.overallScoreValue.textContent = state.overallScore === null ? "--" : String(state.overallScore);
 	const shouldShowSubmitAction = !isShowingLiveResults() && canAccessRankings();
-	elements.overallScoreSubmitButton.textContent = isSubmissionPending()
-		? t("overallSubmitting")
-		: hasSubmittedAllPicks()
-			? t("overallSubmitted")
-			: t("overallSubmit");
+	elements.overallScoreSubmitButton.textContent = isSubmissionPending() ? t("overallSubmitting") : hasSubmittedAllPicks() ? t("overallSubmitted") : t("overallSubmit");
 	elements.overallScoreSubmitButton.disabled = !shouldShowSubmitAction || state.loading || !state.worldCup || isSubmissionPending() || hasSubmittedAllPicks();
 	elements.overallScoreSubmitButton.classList.toggle("is-inert", !shouldShowSubmitAction);
 	elements.overallScoreSubmitButton.setAttribute("aria-hidden", shouldShowSubmitAction ? "false" : "true");
@@ -1954,10 +1949,7 @@ function buildOverallScoreRequest() {
 	}
 
 	const playoffScoreData = buildPlayoffScoreDataForScoring();
-	const predictions = [
-		...buildTournamentScorePredictions(),
-		...playoffScoreData.predictions,
-	];
+	const predictions = [...buildTournamentScorePredictions(), ...playoffScoreData.predictions];
 	const tournamentResults = buildTournamentScoreResults();
 	const payload = {
 		predictions,
@@ -2287,7 +2279,7 @@ async function loadSavedPicks({ silentMissing = false, silentSuccess = false } =
 			syncState.loadedEmail = email;
 			syncState.lastSavedSnapshot = buildCurrentSaveState()?.snapshot || "";
 			if (!silentMissing) {
-			state.saveStatus = t("saveStatusNoSaved");
+				state.saveStatus = t("saveStatusNoSaved");
 				renderSaveState();
 			}
 			return false;
@@ -3956,14 +3948,14 @@ function renderBracketSide(match, side, source, mode, liveWinnerTeamIdsByMatch =
           aria-label="${escapeHtml(getTeamDisplayName(side.team))}"
         >
           ${renderBracketTeamRow(side.team, side.groupSlot, {
-									goalInput: {
-										matchId: match.match,
-										side: sideKey,
-										value: getBracketScorePredictionValue(match.match, sideKey),
-										teamName: getTeamDisplayName(side.team),
-										stage: match.stage,
-									},
-								})}
+											goalInput: {
+												matchId: match.match,
+												side: sideKey,
+												value: getBracketScorePredictionValue(match.match, sideKey),
+												teamName: getTeamDisplayName(side.team),
+												stage: match.stage,
+											},
+										})}
         </div>
         ${
 									canClear
@@ -4020,11 +4012,7 @@ function getBracketSideGoals(match, sideKey) {
 }
 
 function renderBracketTeamRow(team, groupSlot, { goals = null, goalInput = null, showGroupSlot = true } = {}) {
-	const metaContent = goalInput
-		? renderBracketGoalInput(goalInput)
-		: showGroupSlot
-			? `<span class="bracket-team-group">${escapeHtml(groupSlot || team?.groupLetter || t("tbd"))}</span>`
-			: "";
+	const metaContent = goalInput ? renderBracketGoalInput(goalInput) : showGroupSlot ? `<span class="bracket-team-group">${escapeHtml(groupSlot || team?.groupLetter || t("tbd"))}</span>` : "";
 
 	return `
     <div class="bracket-team-row">
@@ -4834,9 +4822,7 @@ function drawBracketLines() {
 			const fallbackFromElement = fromElement.querySelector(".bracket-sides") || fromElement;
 			const fallbackToElement = getBracketSideShell(toElement, targetSideKey) || toElement.querySelector(".bracket-sides") || toElement;
 			const sourceAnchorSideKey = getSourceAnchorSideKey(sourceMatch, source.type);
-			const sourceAnchorElement = sourceAnchorSideKey
-				? getBracketSideShell(fromElement, sourceAnchorSideKey) || fallbackFromElement
-				: fallbackFromElement;
+			const sourceAnchorElement = sourceAnchorSideKey ? getBracketSideShell(fromElement, sourceAnchorSideKey) || fallbackFromElement : fallbackFromElement;
 			const fromRect = sourceAnchorElement.getBoundingClientRect();
 			const toRect = fallbackToElement.getBoundingClientRect();
 			const sourceOnLeft = fromRect.left < toRect.left;
