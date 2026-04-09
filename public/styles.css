@@ -1895,7 +1895,8 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 	}
 
 	.top-navbar {
-		padding: 0.6rem 0.8rem;
+		padding: 0.5rem;
+		border-radius: 0.5rem;
 	}
 
 	.groups-grid,
@@ -1989,12 +1990,6 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 }
 
 @media (max-width: 480px) {
-	.top-navbar {
-		flex-direction: column;
-		align-items: stretch;
-		border-radius: 1rem;
-	}
-
 	.top-navbar-brand,
 	.top-navbar-actions {
 		justify-content: space-between;
