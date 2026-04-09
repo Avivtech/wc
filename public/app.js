@@ -295,6 +295,7 @@ const tooltipState = {
 };
 const playoffPanState = {
 	active: false,
+	touchMode: false,
 	pointerId: null,
 	scroller: null,
 	startX: 0,
@@ -466,6 +467,10 @@ function bindEvents() {
 	document.addEventListener("pointermove", handlePlayoffPanMove);
 	document.addEventListener("pointerup", handlePlayoffPanEnd);
 	document.addEventListener("pointercancel", handlePlayoffPanEnd);
+	document.addEventListener("touchstart", handlePlayoffTouchStart, { passive: true });
+	document.addEventListener("touchmove", handlePlayoffTouchMove, { passive: false });
+	document.addEventListener("touchend", handlePlayoffTouchEnd, { passive: true });
+	document.addEventListener("touchcancel", handlePlayoffTouchEnd, { passive: true });
 	window.addEventListener("resize", scheduleBracketLineDraw);
 	window.addEventListener("resize", handleTooltipViewportChange);
 	elements.clearAllDialog.addEventListener("click", handleClearAllDialogBackdrop);
@@ -2593,7 +2598,7 @@ function scrollPlayoffByWheel(scroller, event) {
 function handlePlayoffPanStart(event) {
 	const scroller = event.target.closest(".playoff-bracket-scroll");
 
-	if (!scroller || event.isPrimary === false) {
+	if (!scroller || event.pointerType === "touch" || event.isPrimary === false) {
 		return;
 	}
 
@@ -2617,6 +2622,43 @@ function handlePlayoffPanStart(event) {
 	playoffPanState.scroller = scroller;
 	playoffPanState.startX = event.clientX;
 	playoffPanState.startY = event.clientY;
+	playoffPanState.startScrollLeft = scroller.scrollLeft;
+	playoffPanState.startScrollTop = scroller.scrollTop;
+	playoffPanState.canPanHorizontally = canPanHorizontally;
+	playoffPanState.canPanVertically = canPanVertically;
+	playoffPanState.moved = false;
+}
+
+function handlePlayoffTouchStart(event) {
+	if (!(event.target instanceof Element)) {
+		return;
+	}
+
+	const scroller = event.target.closest(".playoff-bracket-scroll");
+
+	if (!scroller || playoffPanState.active || event.touches.length !== 2) {
+		return;
+	}
+
+	const canPanHorizontally = scroller.scrollWidth > scroller.clientWidth + 1;
+	const canPanVertically = scroller.scrollHeight > scroller.clientHeight + 1;
+
+	if (!canPanHorizontally && !canPanVertically) {
+		return;
+	}
+
+	const centroid = getTouchCentroid(event.touches);
+
+	if (!centroid) {
+		return;
+	}
+
+	playoffPanState.active = true;
+	playoffPanState.touchMode = true;
+	playoffPanState.pointerId = null;
+	playoffPanState.scroller = scroller;
+	playoffPanState.startX = centroid.x;
+	playoffPanState.startY = centroid.y;
 	playoffPanState.startScrollLeft = scroller.scrollLeft;
 	playoffPanState.startScrollTop = scroller.scrollTop;
 	playoffPanState.canPanHorizontally = canPanHorizontally;
@@ -2674,12 +2716,89 @@ function handlePlayoffPanMove(event) {
 	}
 }
 
+function handlePlayoffTouchMove(event) {
+	if (!playoffPanState.active || !playoffPanState.touchMode || !playoffPanState.scroller) {
+		return;
+	}
+
+	if (event.touches.length < 2) {
+		clearPlayoffPanState(playoffPanState.moved);
+		return;
+	}
+
+	const centroid = getTouchCentroid(event.touches);
+
+	if (!centroid) {
+		return;
+	}
+
+	const deltaX = centroid.x - playoffPanState.startX;
+	const deltaY = centroid.y - playoffPanState.startY;
+
+	if (!playoffPanState.moved) {
+		if (Math.abs(deltaX) < 8 && Math.abs(deltaY) < 8) {
+			return;
+		}
+
+		playoffPanState.moved = true;
+		playoffPanState.scroller.classList.add("is-panning");
+	}
+
+	if (event.cancelable) {
+		event.preventDefault();
+	}
+
+	hideFloatingTooltip();
+
+	if (playoffPanState.canPanHorizontally) {
+		playoffPanState.scroller.scrollLeft = playoffPanState.startScrollLeft - deltaX;
+	}
+
+	if (playoffPanState.canPanVertically) {
+		playoffPanState.scroller.scrollTop = playoffPanState.startScrollTop - deltaY;
+	}
+}
+
 function handlePlayoffPanEnd(event) {
 	if (!playoffPanState.active || event.pointerId !== playoffPanState.pointerId) {
 		return;
 	}
 
 	clearPlayoffPanState(playoffPanState.moved);
+}
+
+function handlePlayoffTouchEnd(event) {
+	if (!playoffPanState.active || !playoffPanState.touchMode) {
+		return;
+	}
+
+	if (event.touches.length >= 2 && playoffPanState.scroller) {
+		const centroid = getTouchCentroid(event.touches);
+
+		if (centroid) {
+			playoffPanState.startX = centroid.x;
+			playoffPanState.startY = centroid.y;
+			playoffPanState.startScrollLeft = playoffPanState.scroller.scrollLeft;
+			playoffPanState.startScrollTop = playoffPanState.scroller.scrollTop;
+			return;
+		}
+	}
+
+	clearPlayoffPanState(playoffPanState.moved);
+}
+
+function getTouchCentroid(touches) {
+	if (!touches || touches.length < 2) {
+		return null;
+	}
+
+	const first = touches[0];
+	const second = touches[1];
+
+	return {
+		x: (first.clientX + second.clientX) / 2,
+		y: (first.clientY + second.clientY) / 2,
+	};
 }
 
 function shouldSuppressPlayoffPanClick(event) {
@@ -2704,6 +2823,7 @@ function clearPlayoffPanState(suppressClick = false) {
 	}
 
 	playoffPanState.active = false;
+	playoffPanState.touchMode = false;
 	playoffPanState.pointerId = null;
 	playoffPanState.scroller = null;
 	playoffPanState.startX = 0;
@@ -4621,6 +4741,7 @@ function syncPlayoffPanAvailability() {
 	const canPanVertically = scroller.scrollHeight > scroller.clientHeight + 1;
 	const isDragScrollable = canPanHorizontally || canPanVertically;
 	scroller.classList.toggle("is-drag-scrollable", isDragScrollable);
+	scroller.classList.toggle("is-touch-pan-surface", deviceSupportsTouchInput());
 	scroller.classList.toggle("shows-drag-overlay", shouldShowPlayoffDragOverlay(isDragScrollable));
 }
 

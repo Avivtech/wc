@@ -177,7 +177,7 @@ p {
 	z-index: 1;
 	max-width: 112rem;
 	margin: 0 auto;
-	padding: 2rem 1.2rem 4rem;
+	padding: 2rem 1.2rem 11rem;
 }
 
 .top-navbar {
@@ -788,7 +788,6 @@ body.dialog-open {
 
 .page-grid {
 	display: grid;
-	gap: 1.4rem;
 }
 
 .section-heading {
@@ -1474,7 +1473,13 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 
 .playoff-bracket-scroll.is-drag-scrollable {
 	cursor: grab;
-	touch-action: none;
+	touch-action: auto;
+}
+
+.playoff-bracket-scroll.is-touch-pan-surface {
+	overflow: hidden;
+	overscroll-behavior: auto;
+	-webkit-overflow-scrolling: auto;
 }
 
 .playoff-bracket-scroll.shows-drag-overlay .playoff-drag-overlay {
