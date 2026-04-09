@@ -1729,6 +1729,7 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 	background: rgba(255, 255, 255, 0.04);
 	color: var(--text);
 	font: inherit;
+	font-size: 1rem;
 	font-weight: 700;
 	text-align: center;
 	-moz-appearance: textfield;
