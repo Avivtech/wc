@@ -326,6 +326,7 @@ const elements = {
 	playoffsSectionTitle: document.getElementById("playoffs-section-title"),
 	playoffsSectionCopy: document.getElementById("playoffs-section-copy"),
 	warningStrip: document.getElementById("warning-strip"),
+	savePanel: document.getElementById("save-panel"),
 	authForm: document.getElementById("auth-form"),
 	authModeSwitch: document.getElementById("auth-mode-switch"),
 	authModeButtons: Array.from(document.querySelectorAll("[data-auth-mode]")),
@@ -715,6 +716,7 @@ function renderAuthState() {
 	elements.authButton.disabled = !authReady || !authAvailable || state.auth.pending || isSignedIn || !hasRequiredFields;
 	elements.clearAllButton.disabled = state.loading || !state.worldCup || isSubmissionPending() || isShowingLiveResults();
 	elements.signOutButton.disabled = !authReady || state.auth.pending;
+	elements.savePanel.classList.toggle("is-signed-out", authReady && authAvailable && !isSignedIn);
 	elements.clearAllButton.classList.toggle("hidden", !isSignedIn);
 	elements.authButton.classList.toggle("hidden", isSignedIn);
 	elements.signOutButton.classList.toggle("hidden", !isSignedIn);
