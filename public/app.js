@@ -73,6 +73,7 @@ const TRANSLATIONS = {
 		overallSubmitted: "Submitted",
 		overallSubmitting: "Submitting...",
 		groupCountry: "Country",
+		groupCountryPrediction: "Country",
 		groupWins: "W",
 		groupLosses: "L",
 		groupDraws: "D",
@@ -167,6 +168,7 @@ const TRANSLATIONS = {
 		overallSubmitted: "נשלח",
 		overallSubmitting: "שולח...",
 		groupCountry: "Country",
+		groupCountryPrediction: "מדינה",
 		groupWins: "W",
 		groupLosses: "L",
 		groupDraws: "D",
@@ -1324,7 +1326,7 @@ function renderGroupTableHeaderCells(isLiveView) {
 
 	return `
     <th>#</th>
-    <th>${escapeHtml(t("groupCountry"))}</th>
+    <th>${escapeHtml(t("groupCountryPrediction"))}</th>
   `;
 }
 
