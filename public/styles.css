@@ -941,6 +941,11 @@ body.dialog-open {
 
 .group-row-drag-indicator {
 	margin-inline-start: auto;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	min-width: 1.4rem;
 	color: var(--muted);
 	font-size: 0.9rem;
 	line-height: 1;
@@ -1928,6 +1933,14 @@ html[dir="rtl"] #groups-grid-my .group-row-drag-indicator {
 		gap: 0.5rem;
 	}
 
+	.playoff-board {
+		max-height: 100vh;
+	}
+
+	.playoff-bracket-scroll {
+		max-height: 100vh;
+	}
+
 	.calendar-match-teams {
 		gap: 0.25rem;
 	}
@@ -2048,5 +2061,20 @@ html[dir="rtl"] #groups-grid-my .group-row-drag-indicator {
 @media (hover: none), (pointer: coarse) {
 	.group-table-row.is-draggable .group-row-drag-indicator {
 		opacity: 1;
+	}
+
+	.group-row-drag-indicator {
+		min-width: 1.8rem;
+		min-height: 1.8rem;
+		touch-action: none;
+	}
+
+	.group-table-row.is-draggable,
+	.group-table-row.is-draggable *,
+	.playoff-bracket-scroll,
+	.playoff-bracket-scroll * {
+		-webkit-user-select: none;
+		user-select: none;
+		-webkit-touch-callout: none;
 	}
 }

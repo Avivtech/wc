@@ -3025,7 +3025,8 @@ function handleGroupTouchDragStart(event) {
 		return;
 	}
 
-	const row = event.target.closest(".group-table-row.is-draggable[data-team-id]");
+	const handle = event.target.closest("[data-group-drag-handle='true']");
+	const row = handle?.closest(".group-table-row.is-draggable[data-team-id]") ?? null;
 
 	if (!row) {
 		return;
@@ -4354,7 +4355,7 @@ function renderGroupTableRow(team, index, groupLetter, { mode = state.viewMode, 
 	const rankLabel = getGroupRankLabel(team, index);
 	const rowClasses = ["group-table-row"];
 	const matchesLiveGroupPosition = mode === VIEW_MODES.MY && doesGroupPickMatchLive(team, index, groupLetter);
-	const dragIndicator = canDrag ? `<span class="group-row-drag-indicator" aria-hidden="true">↕</span>` : "";
+	const dragIndicator = canDrag ? `<span class="group-row-drag-indicator" data-group-drag-handle="true" aria-hidden="true">↕</span>` : "";
 
 	if (canDrag) {
 		rowClasses.push("is-draggable");
