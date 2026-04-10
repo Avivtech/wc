@@ -37,6 +37,11 @@ const TRANSLATIONS = {
 		authUnlockPredictions: "Sign in or register to unlock My Predictions.",
 		welcomeBack: "Hi, Welcome back!",
 		welcomeBackNamed: "Hi {name}, Welcome back!",
+		homeTeamEmpty: "No home team selected yet.",
+		homeTeamLiveEmpty: "Choose your home team in My Predictions to personalize the app theme.",
+		homeTeamSelected: "Selected home team",
+		homeTeamSearchPlaceholder: "Search by country or code",
+		homeTeamNoResults: "No teams match this search.",
 		saveStatusDevLive: "Development picks are loaded in My Predictions. Switch to inspect them locally.",
 		saveStatusDevLocal: "Development picks are loaded locally. Changes stay local and do not overwrite saved picks.",
 		saveStatusViewingLive: "Viewing live results. Switch to My Predictions to edit your picks.",
@@ -132,6 +137,11 @@ const TRANSLATIONS = {
 		authUnlockPredictions: "התחברו או הירשמו כדי לפתוח את התחזיות שלי.",
 		welcomeBack: "היי, ברוך שובך!",
 		welcomeBackNamed: "היי {name}, ברוך שובך!",
+		homeTeamEmpty: "עדיין לא נבחרה נבחרת בית.",
+		homeTeamLiveEmpty: "בחרו את נבחרת הבית שלכם בהתחזיות שלי כדי להתאים את צבעי האפליקציה.",
+		homeTeamSelected: "נבחרת הבית שנבחרה",
+		homeTeamSearchPlaceholder: "חפשו לפי מדינה או קוד",
+		homeTeamNoResults: "אין נבחרות שתואמות לחיפוש הזה.",
 		saveStatusDevLive: "תחזיות הפיתוח נטענו אל התחזיות שלי. עברו אליהן כדי לבדוק מקומית.",
 		saveStatusDevLocal: "תחזיות הפיתוח נטענו מקומית. השינויים נשמרים רק מקומית ואינם דורסים שמירות קיימות.",
 		saveStatusViewingLive: "מוצגות כעת תוצאות חיות. עברו לתחזיות שלי כדי לערוך את הבחירות שלכם.",
@@ -206,6 +216,156 @@ const CALENDAR_WEEKDAYS = {
 	en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
 	he: ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"],
 };
+const HOME_TEAM_THEMES = {
+	ALG: { primary: "#0f8f56", secondary: "#f4f7f8", accent: "#d43f3f" },
+	ARG: { primary: "#6fb9ef", secondary: "#f8fbff", accent: "#f4c54a" },
+	AUS: { primary: "#173a82", secondary: "#f6c95b", accent: "#d84545" },
+	AUT: { primary: "#d92d37", secondary: "#fbfcfd", accent: "#d92d37" },
+	BEL: { primary: "#111111", secondary: "#f2c230", accent: "#d73d3d" },
+	BIH: { primary: "#1554a5", secondary: "#f0c443", accent: "#fbfcfd" },
+	BOS: { primary: "#1554a5", secondary: "#f0c443", accent: "#fbfcfd" },
+	BRA: { primary: "#1c8b51", secondary: "#f3c63f", accent: "#2c5fb8" },
+	CAN: { primary: "#d63f47", secondary: "#fbfcfd", accent: "#d63f47" },
+	CPV: { primary: "#2158a8", secondary: "#f8fafc", accent: "#d84545" },
+	CAP: { primary: "#2158a8", secondary: "#f8fafc", accent: "#d84545" },
+	CIV: { primary: "#e48b2f", secondary: "#fbfcfd", accent: "#2f8f55" },
+	IVO: { primary: "#e48b2f", secondary: "#fbfcfd", accent: "#2f8f55" },
+	COD: { primary: "#56a6df", secondary: "#f0c43f", accent: "#d94d59" },
+	CON: { primary: "#56a6df", secondary: "#f0c43f", accent: "#d94d59" },
+	COL: { primary: "#f3ce41", secondary: "#1f56a5", accent: "#d94a4a" },
+	CUW: { primary: "#2158a8", secondary: "#f2c94b", accent: "#fbfcfd" },
+	CZE: { primary: "#f7f8f9", secondary: "#d63f47", accent: "#2158a8" },
+	ECU: { primary: "#f0c73f", secondary: "#2158a8", accent: "#d94a4a" },
+	EGY: { primary: "#d6454b", secondary: "#f7f8f9", accent: "#161616" },
+	ENG: { primary: "#f7f9fb", secondary: "#d63f47", accent: "#2757a8" },
+	ESP: { primary: "#d64646", secondary: "#f1c940", accent: "#8f1f1f" },
+	SPA: { primary: "#d64646", secondary: "#f1c940", accent: "#8f1f1f" },
+	FRA: { primary: "#2351a3", secondary: "#f8fafc", accent: "#d84d59" },
+	GER: { primary: "#171717", secondary: "#d73d3d", accent: "#f1c243" },
+	GHA: { primary: "#d84a4a", secondary: "#f0c53f", accent: "#2e8a4e" },
+	HAI: { primary: "#2157a8", secondary: "#d64751", accent: "#f2c74a" },
+	IRN: { primary: "#279054", secondary: "#f8fafc", accent: "#d7484f" },
+	IRA: { primary: "#279054", secondary: "#f8fafc", accent: "#d7484f" },
+	IRQ: { primary: "#d7484f", secondary: "#f7f8f9", accent: "#1c1c1c" },
+	JPN: { primary: "#f8fafc", secondary: "#d8454f", accent: "#233c78" },
+	JAP: { primary: "#f8fafc", secondary: "#d8454f", accent: "#233c78" },
+	JOR: { primary: "#171717", secondary: "#f7f8f9", accent: "#2f8f54" },
+	KOR: { primary: "#f8fafc", secondary: "#d8454f", accent: "#2757a8" },
+	KSA: { primary: "#17874d", secondary: "#f8fafc", accent: "#17874d" },
+	SAU: { primary: "#17874d", secondary: "#f8fafc", accent: "#17874d" },
+	MAR: { primary: "#b7333b", secondary: "#2b8c54", accent: "#f7f8f9" },
+	MEX: { primary: "#1f8a53", secondary: "#f8fafc", accent: "#d6484f" },
+	MOR: { primary: "#b7333b", secondary: "#2b8c54", accent: "#f7f8f9" },
+	NED: { primary: "#e58b2f", secondary: "#f8fafc", accent: "#2b5cae" },
+	NET: { primary: "#e58b2f", secondary: "#f8fafc", accent: "#2b5cae" },
+	NOR: { primary: "#c83743", secondary: "#f8fafc", accent: "#214f9d" },
+	NZL: { primary: "#18386f", secondary: "#f8fafc", accent: "#d74652" },
+	PAN: { primary: "#d84a4a", secondary: "#f8fafc", accent: "#2a5cab" },
+	PAR: { primary: "#d84a4a", secondary: "#f8fafc", accent: "#2a5cab" },
+	POR: { primary: "#1f8a53", secondary: "#c63b46", accent: "#f1c13f" },
+	QAT: { primary: "#7a2942", secondary: "#f7f4f6", accent: "#7a2942" },
+	RSA: { primary: "#2f8f54", secondary: "#f1c53f", accent: "#d84852" },
+	SCO: { primary: "#2b5db0", secondary: "#f8fafc", accent: "#2b5db0" },
+	SEN: { primary: "#2f8f54", secondary: "#f1c53f", accent: "#d84852" },
+	SOU: { primary: "#2f8f54", secondary: "#f1c53f", accent: "#d84852" },
+	SUI: { primary: "#d6454f", secondary: "#f8fafc", accent: "#d6454f" },
+	SWI: { primary: "#d6454f", secondary: "#f8fafc", accent: "#d6454f" },
+	SWE: { primary: "#2158a8", secondary: "#f2c43f", accent: "#2158a8" },
+	TUN: { primary: "#d6464f", secondary: "#f8fafc", accent: "#d6464f" },
+	TUR: { primary: "#c63a44", secondary: "#f8fafc", accent: "#c63a44" },
+	URU: { primary: "#6eb8ec", secondary: "#f8fafc", accent: "#f3c54a" },
+	USA: { primary: "#244f9d", secondary: "#f8fafc", accent: "#d74652" },
+	UZB: { primary: "#2695d1", secondary: "#f8fafc", accent: "#2d8d56" },
+	ZEA: { primary: "#18386f", secondary: "#f8fafc", accent: "#d74652" }
+};
+const HOME_TEAM_FLAG_ICON_BASE_URL = "https://cdn.jsdelivr.net/npm/flag-icons@7.3.2/flags/4x3";
+const HOME_TEAM_FLAG_CODES = {
+	ALG: "dz",
+	ARG: "ar",
+	AUT: "at",
+	BEL: "be",
+	BRA: "br",
+	CAB: "cv",
+	CAN: "ca",
+	COL: "co",
+	COT: "ci",
+	CRO: "hr",
+	CUR: "cw",
+	ECU: "ec",
+	EGY: "eg",
+	ENG: "gb-eng",
+	FRA: "fr",
+	GER: "de",
+	GHA: "gh",
+	HAI: "ht",
+	IRI: "ir",
+	JAP: "jp",
+	JOR: "jo",
+	KOR: "kr",
+	MEX: "mx",
+	MOR: "ma",
+	NET: "nl",
+	NEW: "nz",
+	NOR: "no",
+	PAN: "pa",
+	PAR: "py",
+	POR: "pt",
+	QAT: "qa",
+	SAU: "sa",
+	SCO: "gb-sct",
+	SEN: "sn",
+	SOU: "za",
+	SPA: "es",
+	SWI: "ch",
+	TUN: "tn",
+	URU: "uy",
+	USA: "us",
+	UZB: "uz",
+};
+const HOME_TEAM_FLAG_CODES_BY_NAME = {
+	"algeria": "dz",
+	"argentina": "ar",
+	"australia": "au",
+	"austria": "at",
+	"belgium": "be",
+	"brazil": "br",
+	"cabo verde": "cv",
+	"canada": "ca",
+	"colombia": "co",
+	"cote d ivoire": "ci",
+	"croatia": "hr",
+	"curacao": "cw",
+	"ecuador": "ec",
+	"egypt": "eg",
+	"england": "gb-eng",
+	"france": "fr",
+	"germany": "de",
+	"ghana": "gh",
+	"haiti": "ht",
+	"ir iran": "ir",
+	"japan": "jp",
+	"jordan": "jo",
+	"korea republic": "kr",
+	"mexico": "mx",
+	"morocco": "ma",
+	"netherlands": "nl",
+	"new zealand": "nz",
+	"norway": "no",
+	"panama": "pa",
+	"paraguay": "py",
+	"portugal": "pt",
+	"qatar": "qa",
+	"saudi arabia": "sa",
+	"scotland": "gb-sct",
+	"senegal": "sn",
+	"south africa": "za",
+	"spain": "es",
+	"switzerland": "ch",
+	"tunisia": "tn",
+	"uruguay": "uy",
+	"usa": "us",
+	"uzbekistan": "uz",
+};
 
 document.documentElement.lang = APP_LOCALE;
 document.documentElement.dir = APP_LOCALE === "he" ? "rtl" : "ltr";
@@ -237,6 +397,8 @@ function t(key, variables = {}) {
 
 const state = {
 	worldCup: null,
+	homeTeamId: "",
+	homeTeamSearchQuery: "",
 	groups: [],
 	thirdPlaceRanking: [],
 	selectedThirdTeamIds: [],
@@ -265,6 +427,7 @@ const state = {
 		status: "",
 	},
 	overallScore: null,
+	overallBonusPoints: null,
 	saveStatus: "",
 	loading: true,
 };
@@ -317,6 +480,8 @@ const playoffPanState = {
 };
 
 const elements = {
+	homeTeamPaneLive: document.getElementById("home-team-pane-live"),
+	homeTeamPaneMy: document.getElementById("home-team-pane-my"),
 	groupsGridLive: document.getElementById("groups-grid-live"),
 	groupsGridMy: document.getElementById("groups-grid-my"),
 	thirdPlaceHeadLive: document.getElementById("third-place-head-live"),
@@ -327,6 +492,8 @@ const elements = {
 	playoffBoardMy: document.getElementById("playoff-board-my"),
 	viewModeContents: Array.from(document.querySelectorAll("[data-view-content]")),
 	fixturesFeed: document.getElementById("fixtures-feed"),
+	homeTeamSectionTitle: document.getElementById("home-team-section-title"),
+	homeTeamSectionCopy: document.getElementById("home-team-section-copy"),
 	groupsSectionTitle: document.getElementById("groups-section-title"),
 	groupsSectionCopy: document.getElementById("groups-section-copy"),
 	thirdPlaceSectionTitle: document.getElementById("third-place-section-title"),
@@ -361,6 +528,7 @@ const elements = {
 	saveStatus: document.getElementById("save-status"),
 	overallScoreCard: document.getElementById("overall-score-card"),
 	overallScoreValue: document.getElementById("overall-score-value"),
+	overallScoreBonusValue: document.getElementById("overall-score-bonus-value"),
 	overallScoreSubmitButton: document.getElementById("overall-score-submit-button"),
 };
 
@@ -376,6 +544,10 @@ const VIEW_MODES = {
 const SECTION_MODE_COPY = {
 	en: {
 		[VIEW_MODES.LIVE]: {
+			homeTeam: {
+				title: "Home Team Live Results",
+				copy: "Your selected home team keeps a soft flag-inspired theme across the app.",
+			},
 			groups: {
 				title: "Group Stage Live Results",
 				copy: "Current group standings and live stats from the tournament.",
@@ -390,6 +562,10 @@ const SECTION_MODE_COPY = {
 			},
 		},
 		[VIEW_MODES.MY]: {
+			homeTeam: {
+				title: "Home Team My Predictions",
+				copy: "Choose one team you believe will win the World Cup. Its colors softly personalize the experience.",
+			},
 			groups: {
 				title: "Group Stage My Predictions",
 				copy: "Drag to reorder each group and set your predicted standings.",
@@ -406,6 +582,10 @@ const SECTION_MODE_COPY = {
 	},
 	he: {
 		[VIEW_MODES.LIVE]: {
+			homeTeam: {
+				title: "נבחרת הבית תוצאות חיות",
+				copy: "נבחרת הבית שבחרתם מוסיפה לאפליקציה שכבת צבע רכה בהשראת הדגל שלה.",
+			},
 			groups: {
 				title: "שלב הבתים תוצאות חיות",
 				copy: "טבלת הבתים והסטטיסטיקות החיות של הטורניר.",
@@ -420,6 +600,10 @@ const SECTION_MODE_COPY = {
 			},
 		},
 		[VIEW_MODES.MY]: {
+			homeTeam: {
+				title: "נבחרת הבית התחזיות שלי",
+				copy: "בחרו נבחרת אחת שאתם מאמינים שתזכה במונדיאל. הצבעים שלה יתנו חותמת עדינה לכל החוויה.",
+			},
 			groups: {
 				title: "שלב הבתים התחזיות שלי",
 				copy: "גררו כדי לשנות את סדר הנבחרות בכל בית ולקבוע את התחזית שלכם.",
@@ -460,6 +644,8 @@ function bindEvents() {
 	elements.displayNameInput.addEventListener("input", handleAuthFieldInput);
 	elements.emailInput.addEventListener("input", handleAuthFieldInput);
 	elements.passwordInput.addEventListener("input", handleAuthFieldInput);
+	elements.homeTeamPaneMy.addEventListener("input", handleMyHomeTeamInput);
+	elements.homeTeamPaneMy.addEventListener("click", handleMyHomeTeamClick);
 	elements.thirdPlaceListMy.addEventListener("click", handleMyThirdPlaceClick);
 	elements.playoffBoardMy.addEventListener("click", handleMyPlayoffBoardClick);
 	elements.playoffBoardMy.addEventListener("input", handleMyPlayoffBoardInput);
@@ -487,6 +673,34 @@ function bindEvents() {
 	window.addEventListener("resize", scheduleBracketLineDraw);
 	window.addEventListener("resize", handleTooltipViewportChange);
 	elements.clearAllDialog.addEventListener("click", handleClearAllDialogBackdrop);
+}
+
+function handleMyHomeTeamClick(event) {
+	const homeTeamCard = event.target.closest("[data-select-home-team]");
+
+	if (!homeTeamCard) {
+		return;
+	}
+
+	event.preventDefault();
+	event.stopPropagation();
+
+	if (!ensureEditableRankingsView()) {
+		return;
+	}
+
+	toggleHomeTeamSelection(homeTeamCard.dataset.teamId);
+}
+
+function handleMyHomeTeamInput(event) {
+	const searchInput = event.target.closest("[data-home-team-search]");
+
+	if (!searchInput) {
+		return;
+	}
+
+	state.homeTeamSearchQuery = String(searchInput.value || "");
+	applyHomeTeamSearchFilter();
 }
 
 function handleMyThirdPlaceClick(event) {
@@ -638,6 +852,7 @@ async function syncAuthSession(session, event = "SESSION") {
 		state.auth.mode = AUTH_MODES.LOGIN;
 		state.auth.user = null;
 		state.auth.displayNameDraft = "";
+		state.homeTeamId = "";
 		elements.passwordInput.value = "";
 		state.viewMode = VIEW_MODES.LIVE;
 		resetPickSyncState();
@@ -656,6 +871,7 @@ async function syncAuthSession(session, event = "SESSION") {
 		state.auth.mode = AUTH_MODES.LOGIN;
 		state.auth.user = null;
 		state.auth.displayNameDraft = "";
+		state.homeTeamId = "";
 		elements.passwordInput.value = "";
 		state.viewMode = VIEW_MODES.LIVE;
 		resetPickSyncState();
@@ -763,6 +979,65 @@ function getAuthenticatedEmail() {
 	return String(state.auth.user?.email || "")
 		.trim()
 		.toLowerCase();
+}
+
+function getTournamentTeams() {
+	if (!state.worldCup?.groups?.length) {
+		return [];
+	}
+
+	const seen = new Set();
+
+	return state.worldCup.groups
+		.flatMap((group) =>
+			(group.teams || []).map((team) => ({
+				...team,
+				groupLetter: team.groupLetter || group.letter,
+			})),
+		)
+		.filter((team) => {
+			const teamKey = getTeamIdKey(team.id);
+
+			if (!teamKey || seen.has(teamKey)) {
+				return false;
+			}
+
+			seen.add(teamKey);
+			return true;
+		});
+}
+
+function findTournamentTeamById(teamId) {
+	const teamKey = getTeamIdKey(teamId);
+	return getTournamentTeams().find((team) => getTeamIdKey(team.id) === teamKey) || null;
+}
+
+function resolveSavedHomeTeamId(savedHomeTeam) {
+	if (!savedHomeTeam || typeof savedHomeTeam !== "object") {
+		return "";
+	}
+
+	const byId = findTournamentTeamById(savedHomeTeam.teamId);
+
+	if (byId) {
+		return getTeamIdKey(byId.id);
+	}
+
+	const savedCode = String(savedHomeTeam.teamCode || "").trim().toUpperCase();
+	const savedName = String(savedHomeTeam.teamName || "").trim().toLowerCase();
+	const matchedTeam = getTournamentTeams().find((team) => {
+		if (savedCode && getTeamCode(team) === savedCode) {
+			return true;
+		}
+
+		return savedName && getTeamDisplayName(team).toLowerCase() === savedName;
+	});
+
+	return matchedTeam ? getTeamIdKey(matchedTeam.id) : "";
+}
+
+function getSelectedHomeTeam() {
+	return findTournamentTeamById(state.homeTeamId);
 }
 
 function shouldUseDevPicks() {
@@ -1070,6 +1345,7 @@ async function handleSignOut() {
 		state.auth.mode = AUTH_MODES.LOGIN;
 		state.auth.user = null;
 		state.auth.displayNameDraft = "";
+		state.homeTeamId = "";
 		elements.passwordInput.value = "";
 		state.viewMode = VIEW_MODES.LIVE;
 		resetPickSyncState();
@@ -1088,6 +1364,7 @@ function handleClearAll() {
 	}
 
 	closeClearAllDialog();
+	state.homeTeamId = "";
 	state.groups = cloneGroups(state.worldCup.groups || []);
 	state.thirdPlaceRanking = deriveThirdPlaceRanking(state.groups);
 	state.selectedThirdTeamIds = [];
@@ -1179,6 +1456,7 @@ async function loadWorldCup(refresh = false) {
 		}
 
 		state.worldCup = data;
+		state.homeTeamId = "";
 		state.groups = cloneGroups(data.groups || []);
 		state.thirdPlaceRanking = deriveThirdPlaceRanking(state.groups);
 		state.selectedThirdTeamIds = [];
@@ -1199,6 +1477,7 @@ async function loadWorldCup(refresh = false) {
 		}
 	} catch (error) {
 		state.worldCup = null;
+		state.homeTeamId = "";
 		state.groups = [];
 		state.thirdPlaceRanking = [];
 		state.selectedThirdTeamIds = [];
@@ -1223,6 +1502,7 @@ async function loadWorldCup(refresh = false) {
 function render() {
 	hideFloatingTooltip();
 	document.body.dataset.viewMode = state.viewMode;
+	applyHomeTeamTheme();
 	renderWarnings();
 	renderViewModeSwitch();
 	renderSectionHeadings();
@@ -1237,6 +1517,8 @@ function render() {
 function renderSectionHeadings() {
 	const copy = SECTION_MODE_COPY[APP_LOCALE]?.[state.viewMode] || SECTION_MODE_COPY.en[state.viewMode] || SECTION_MODE_COPY.en[VIEW_MODES.LIVE];
 
+	elements.homeTeamSectionTitle.innerHTML = renderSectionTitleMarkup(copy.homeTeam.title);
+	elements.homeTeamSectionCopy.textContent = copy.homeTeam.copy;
 	elements.groupsSectionTitle.innerHTML = renderSectionTitleMarkup(copy.groups.title);
 	elements.groupsSectionCopy.textContent = copy.groups.copy;
 	elements.thirdPlaceSectionTitle.innerHTML = renderSectionTitleMarkup(copy.thirdPlace.title);
@@ -1257,6 +1539,7 @@ function renderSectionTitleMarkup(title) {
 }
 
 function renderInteractiveViews() {
+	renderHomeTeam();
 	renderGroups();
 	renderThirdPlace();
 	renderPlayoffBoard();
@@ -1283,6 +1566,251 @@ function setModeContentVisibility(element, isVisible) {
 	element.hidden = !isVisible;
 	element.inert = !isVisible;
 	element.setAttribute("aria-hidden", isVisible ? "false" : "true");
+}
+
+function renderHomeTeam() {
+	if (!state.worldCup) {
+		const emptyMarkup = emptyState(t("homeTeamEmpty"));
+		elements.homeTeamPaneLive.innerHTML = emptyMarkup;
+		elements.homeTeamPaneMy.innerHTML = emptyMarkup;
+		return;
+	}
+
+	const selectedTeam = getSelectedHomeTeam();
+
+	elements.homeTeamPaneLive.innerHTML = renderHomeTeamSummary(selectedTeam);
+	elements.homeTeamPaneMy.innerHTML = `
+		<div class="home-team-picker">
+			<div class="home-team-search">
+				<input
+					class="field-input home-team-search-input"
+					type="search"
+					inputmode="search"
+					data-home-team-search="true"
+					value="${escapeHtml(state.homeTeamSearchQuery)}"
+					placeholder="${escapeHtml(t("homeTeamSearchPlaceholder"))}"
+					aria-label="${escapeHtml(t("homeTeamSearchPlaceholder"))}"
+				/>
+			</div>
+			<div class="home-team-grid">
+				${getTournamentTeams().map((team) => renderHomeTeamSelectionCard(team)).join("")}
+			</div>
+			<div class="home-team-search-empty hidden">${escapeHtml(t("homeTeamNoResults"))}</div>
+		</div>
+	`;
+	applyHomeTeamSearchFilter();
+}
+
+function renderHomeTeamSummary(team) {
+	if (!team) {
+		return `
+			<article class="home-team-summary-card home-team-summary-card-empty">
+				<p class="status-pill">${escapeHtml(t("homeTeamSelected"))}</p>
+				<p class="panel-note">${escapeHtml(t("homeTeamLiveEmpty"))}</p>
+			</article>
+		`;
+	}
+
+	return `
+		<article class="home-team-summary-card" ${renderHomeTeamThemeStyle(team)}>
+			<p class="status-pill">${escapeHtml(t("homeTeamSelected"))}</p>
+			<div class="home-team-summary-head">
+				<div class="team-name">
+					${renderTeamLogo(team)}
+					${renderTeamCode(team, "home-team-code")}
+				</div>
+				<span class="home-team-summary-group">${escapeHtml(formatGroupCardLabel({ letter: team.groupLetter }))}</span>
+			</div>
+			<p class="home-team-summary-name">${escapeHtml(getTeamDisplayName(team))}</p>
+		</article>
+	`;
+}
+
+function renderHomeTeamSelectionCard(team) {
+	const isSelected = getTeamIdKey(team.id) === state.homeTeamId;
+	const cardClasses = ["home-team-card"];
+
+	if (isSelected) {
+		cardClasses.push("is-selected");
+	}
+
+	return `
+		<button
+			class="${cardClasses.join(" ")}"
+			type="button"
+			data-select-home-team="true"
+			data-home-team-card="true"
+			data-team-id="${escapeHtml(String(team.id))}"
+			data-home-team-search-index="${escapeHtml(buildHomeTeamSearchIndex(team))}"
+			aria-pressed="${isSelected ? "true" : "false"}"
+			${renderHomeTeamThemeStyle(team)}
+		>
+			<div class="home-team-card-head">
+				<div class="team-name">
+					${renderTeamLogo(team)}
+					${renderTeamCode(team, "home-team-code")}
+				</div>
+				<span class="home-team-card-group">${escapeHtml(formatGroupCardLabel({ letter: team.groupLetter }))}</span>
+			</div>
+			<p class="home-team-card-name">${escapeHtml(getTeamDisplayName(team))}</p>
+		</button>
+	`;
+}
+
+function buildHomeTeamSearchIndex(team) {
+	return normalizeSearchText([getTeamDisplayName(team), getTeamCode(team), team?.groupLetter].filter(Boolean).join(" "));
+}
+
+function applyHomeTeamSearchFilter(root = elements.homeTeamPaneMy) {
+	if (!root) {
+		return;
+	}
+
+	const normalizedQuery = normalizeSearchText(state.homeTeamSearchQuery);
+	const homeTeamCards = Array.from(root.querySelectorAll("[data-home-team-card]"));
+	const emptyStateElement = root.querySelector(".home-team-search-empty");
+	let visibleCount = 0;
+
+	homeTeamCards.forEach((card) => {
+		const searchIndex = String(card.dataset.homeTeamSearchIndex || "");
+		const isVisible = !normalizedQuery || searchIndex.includes(normalizedQuery);
+		card.hidden = !isVisible;
+
+		if (isVisible) {
+			visibleCount += 1;
+		}
+	});
+
+	if (emptyStateElement) {
+		emptyStateElement.classList.toggle("hidden", visibleCount > 0);
+	}
+}
+
+function normalizeSearchText(value) {
+	return String(value || "")
+		.trim()
+		.toLowerCase()
+		.normalize("NFKD")
+		replace(/[^\p{L}\p{N}\s]+/gu, " ")
+		replace(/\s+/g, " ");
+}
+
+function renderHomeTeamThemeStyle(team) {
+	const theme = resolveHomeTeamTheme(team);
+
+	if (!theme) {
+		return "";
+	}
+
+	return `style="--team-theme-primary: ${escapeHtml(theme.primary)}; --team-theme-secondary: ${escapeHtml(theme.secondary)}; --team-theme-accent: ${escapeHtml(theme.accent)};"`;
+}
+
+function applyHomeTeamTheme() {
+	const selectedTeam = getSelectedHomeTeam();
+	const theme = resolveHomeTeamTheme(selectedTeam);
+	const body = document.body;
+
+	body.dataset.homeTeamSelected = theme ? "true" : "false";
+
+	setBodyThemeVariable("--home-team-primary", theme?.primary || "transparent");
+	setBodyThemeVariable("--home-team-secondary", theme?.secondary || "transparent");
+	setBodyThemeVariable("--home-team-accent", theme?.accent || "transparent");
+	setBodyThemeVariable("--home-team-outline", theme ? hexToRgba(theme.primary, 0.16) : "transparent");
+	setBodyThemeVariable("--home-team-glow", theme ? hexToRgba(theme.primary, 0.14) : "transparent");
+	setBodyThemeVariable("--home-team-wash-start", theme ? hexToRgba(theme.primary, 0.16) : "transparent");
+	setBodyThemeVariable("--home-team-wash-end", theme ? hexToRgba(theme.secondary, 0.12) : "transparent");
+	setBodyThemeVariable("--home-team-mark-image", getHomeTeamMarkImage(selectedTeam));
+}
+
+function setBodyThemeVariable(name, value) {
+	document.body.style.setProperty(name, value);
+}
+
+function getHomeTeamMarkImage(team) {
+	const flagCode = resolveHomeTeamFlagCode(team);
+
+	if (!flagCode) {
+		return "none";
+	}
+
+	return `url(${JSON.stringify(`${HOME_TEAM_FLAG_ICON_BASE_URL}/${flagCode}.svg`)})`;
+}
+
+function resolveHomeTeamFlagCode(team) {
+	if (!team) {
+		return "";
+	}
+
+	const normalizedName = normalizeSearchText(getTeamDisplayName(team));
+
+	if (HOME_TEAM_FLAG_CODES_BY_NAME[normalizedName]) {
+		return HOME_TEAM_FLAG_CODES_BY_NAME[normalizedName];
+	}
+
+	const teamCode = String(getTeamCode(team) || "").trim().toUpperCase();
+	return HOME_TEAM_FLAG_CODES[teamCode] || "";
+}
+
+function resolveHomeTeamTheme(team) {
+	if (!team) {
+		return null;
+	}
+
+	const teamCode = String(getTeamCode(team) || "").trim().toUpperCase();
+	const theme = HOME_TEAM_THEMES[teamCode];
+
+	if (theme) {
+		return theme;
+	}
+
+	return buildDerivedHomeTeamTheme(teamCode || getTeamDisplayName(team));
+}
+
+function buildDerivedHomeTeamTheme(seed) {
+	const source = String(seed || "WC");
+	let hash = 0;
+
+	for (const character of source) {
+		hash = (hash << 5) - hash + character.charCodeAt(0);
+		hash |= 0;
+	}
+
+	const hue = Math.abs(hash) % 360;
+	return {
+		primary: `hsl(${hue} 62% 58%)`,
+		secondary: `hsl(${(hue + 38) % 360} 42% 76%)`,
+		accent: `hsl(${(hue + 12) % 360} 72% 84%)`,
+	};
+}
+
+function hexToRgba(color, alpha) {
+	const value = String(color || "").trim();
+
+	if (!value) {
+		return `rgba(0, 0, 0, ${alpha})`;
+	}
+
+	if (value.startsWith("hsl(") || value.startsWith("hsla(") || value.startsWith("rgb(") || value.startsWith("rgba(")) {
+		return value;
+	}
+
+	const normalized = value.replace("#", "");
+	const hex = normalized.length === 3
+		? normalized
+				.split("")
+				.map((character) => character + character)
+				.join("")
+		: normalized;
+
+	if (!/^[\da-fA-F]{6}$/.test(hex)) {
+		return value;
+	}
+
+	const red = Number.parseInt(hex.slice(0, 2), 16);
+	const green = Number.parseInt(hex.slice(2, 4), 16);
+	const blue = Number.parseInt(hex.slice(4, 6), 16);
+
+	return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
 function renderGroups() {
@@ -1854,6 +2382,7 @@ function renderOverallScore() {
 	}
 
 	elements.overallScoreValue.textContent = state.overallScore === null ? "--" : String(state.overallScore);
+	elements.overallScoreBonusValue.textContent = state.overallBonusPoints === null ? "--" : String(state.overallBonusPoints);
 	const shouldShowSubmitAction = !isShowingLiveResults() && canAccessRankings();
 	elements.overallScoreSubmitButton.textContent = isSubmissionPending() ? t("overallSubmitting") : hasSubmittedAllPicks() ? t("overallSubmitted") : t("overallSubmit");
 	elements.overallScoreSubmitButton.disabled = !shouldShowSubmitAction || state.loading || !state.worldCup || isSubmissionPending() || hasSubmittedAllPicks();
@@ -1924,11 +2453,23 @@ async function flushOverallScoreRefresh() {
 		});
 		const data = await response.json().catch(() => ({}));
 
-		if (!response.ok || !Number.isFinite(Number(data?.totalPoints))) {
+		const resolvedCurrentScore = Number.isFinite(Number(data?.currentScore))
+			? Number(data.currentScore)
+			: Number.isFinite(Number(data?.totalPoints))
+				? Number(data.totalPoints) - Number(data?.timingPoints || 0)
+				: Number.NaN;
+		const resolvedBonusPoints = Number.isFinite(Number(data?.predictedBonusPoints))
+			? Number(data.predictedBonusPoints)
+			: Number.isFinite(Number(data?.bonusPoints))
+				? Number(data.bonusPoints)
+				: 0;
+
+		if (!response.ok || !Number.isFinite(resolvedCurrentScore)) {
 			throw new Error(t("genericCouldNotScorePicks"));
 		}
 
-		state.overallScore = Number(data.totalPoints);
+		state.overallScore = resolvedCurrentScore;
+		state.overallBonusPoints = resolvedBonusPoints;
 		renderOverallScore();
 	} catch (_error) {
 		// Keep score failures silent in the UI.
@@ -1959,6 +2500,7 @@ function resetOverallScore() {
 	scoreSyncState.pendingPayload = null;
 	scoreSyncState.lastResolvedSnapshot = "";
 	state.overallScore = null;
+	state.overallBonusPoints = null;
 	renderOverallScore();
 }
 
@@ -3506,6 +4048,23 @@ function chooseThirdPlaceSelections(preferredIds, thirdPlaceRanking = state.thir
 	const availableIds = new Set(availableTeams.map((team) => getTeamIdKey(team.id)));
 
 	return Array.from(new Set((preferredIds || []).map(getTeamIdKey).filter((teamId) => availableIds.has(teamId)))).slice(0, 8);
+}
+
+function toggleHomeTeamSelection(teamId) {
+	if (!canAccessRankings() || isSubmissionPending()) {
+		return;
+	}
+
+	const teamKey = getTeamIdKey(teamId);
+
+	if (!teamKey) {
+		return;
+	}
+
+	state.homeTeamId = state.homeTeamId === teamKey ? "" : teamKey;
+	invalidateSubmittedPicks();
+	render();
+	scheduleAutoSave();
 }
 
 function toggleThirdPlaceSelection(teamId) {
@@ -5099,6 +5658,7 @@ function buildSavePayload(email) {
 		source: state.worldCup.source,
 		competition: state.worldCup.competition,
 		summary: state.worldCup.summary,
+		homeTeam: serializeHomeTeam(getSelectedHomeTeam()),
 		groupRankings: state.groups.map((group) => ({
 			group: group.letter,
 			label: group.label,
@@ -5156,6 +5716,19 @@ function buildSavePayload(email) {
 			})
 			.filter(Boolean),
 		projectedRoundOf32,
+	};
+}
+
+function serializeHomeTeam(team) {
+	if (!team) {
+		return null;
+	}
+
+	return {
+		teamId: team.id,
+		teamCode: getTeamCode(team),
+		teamName: getTeamDisplayName(team),
+		teamLogo: team.logo || null,
 	};
 }
 
@@ -5217,6 +5790,7 @@ function applySavedPicks(saved) {
 		state.groups,
 		(saved.thirdPlaceRanking || []).map((entry) => entry.teamId),
 	);
+	state.homeTeamId = resolveSavedHomeTeamId(saved?.homeTeam);
 	state.selectedThirdTeamIds = chooseThirdPlaceSelections(Array.isArray(saved.bestThirdAdvancers) ? saved.bestThirdAdvancers.map((entry) => entry.teamId) : []);
 	state.bracketWinnerSelections = Object.fromEntries((Array.isArray(saved.knockoutWinners) ? saved.knockoutWinners : []).map((entry) => [String(entry.match || ""), getTeamIdKey(entry.teamId)]).filter(([matchId, teamId]) => matchId && teamId));
 	state.bracketScorePredictions = Object.fromEntries(

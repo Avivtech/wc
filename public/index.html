@@ -25,6 +25,10 @@
       </div>
     </div>
     <div class="view-mode-panel" aria-label="Prediction view">
+      <div class="overall-score-meta">
+        <span class="overall-score-meta-label">Bonus points</span>
+        <strong id="overall-score-bonus-value" class="overall-score-meta-value">0</strong>
+      </div>
       <div class="view-mode-switch" role="group" aria-label="Prediction view switch" data-active-mode="live">
         <button id="view-mode-live" class="view-mode-option is-active" type="button" data-view-mode="live" aria-pressed="true">Live Results</button>
         <button id="view-mode-my" class="view-mode-option" type="button" data-view-mode="my" aria-pressed="false">My Predictions</button>
@@ -39,6 +43,10 @@
     <nav class="top-navbar" aria-label="Primary">
       <div class="top-navbar-brand">
         <span class="top-navbar-kicker">WC 2026</span>
+      </div>
+      <div class="top-navbar-links">
+        <a class="top-navbar-link is-active" href="/">Predictor</a>
+        <a class="top-navbar-link" href="/high-scores">High Scores</a>
       </div>
       <div class="top-navbar-actions">
         <div class="language-menu" aria-label="Language switcher">
@@ -95,6 +103,18 @@
     <section id="warning-strip" class="warning-strip hidden"></section>
 
     <main class="page-grid">
+      <section class="section-block">
+        <div class="section-heading">
+          <p class="eyebrow">My Home Team</p>
+          <h2 id="home-team-section-title">Home Team Live Results</h2>
+          <p id="home-team-section-copy" class="section-copy">Your selected home team keeps a soft flag-inspired theme across the app.</p>
+        </div>
+        <div class="view-mode-stack">
+          <div id="home-team-pane-live" data-view-content="live" aria-hidden="false"></div>
+          <div id="home-team-pane-my" class="hidden" data-view-content="my" hidden aria-hidden="true"></div>
+        </div>
+      </section>
+
       <section class="section-block">
         <div class="section-heading">
           <p class="eyebrow">Groups</p>

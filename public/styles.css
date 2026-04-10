@@ -27,6 +27,14 @@
 	--mode-toggle-start: rgba(241, 178, 74, 0.28);
 	--mode-toggle-end: rgba(255, 211, 124, 0.18);
 	--mode-logo-wash: rgba(241, 178, 74, 0.14);
+	--home-team-primary: transparent;
+	--home-team-secondary: transparent;
+	--home-team-accent: transparent;
+	--home-team-outline: transparent;
+	--home-team-glow: transparent;
+	--home-team-wash-start: transparent;
+	--home-team-wash-end: transparent;
+	--home-team-mark-image: none;
 	--scrollbar-track: rgba(7, 19, 29, 0.94);
 	--scrollbar-thumb: rgba(125, 183, 255, 0.42);
 	--scrollbar-thumb-hover: rgba(102, 226, 187, 0.52);
@@ -77,7 +85,9 @@ html {
 body {
 	position: relative;
 	overflow-x: hidden;
-	background: radial-gradient(circle at top left, var(--mode-bg-top-left), transparent 28%), radial-gradient(circle at bottom right, var(--mode-bg-bottom-right), transparent 28%), linear-gradient(180deg, var(--mode-bg-top) 0%, var(--mode-bg-mid) 45%, var(--mode-bg-bottom) 100%);
+	background:
+		radial-gradient(circle at 14% 10%, var(--home-team-wash-start), transparent 24%), radial-gradient(circle at 88% 16%, var(--home-team-wash-end), transparent 26%), radial-gradient(circle at top left, var(--mode-bg-top-left), transparent 28%),
+		radial-gradient(circle at bottom right, var(--mode-bg-bottom-right), transparent 28%), linear-gradient(180deg, var(--mode-bg-top) 0%, var(--mode-bg-mid) 45%, var(--mode-bg-bottom) 100%);
 	transition: background 220ms ease;
 }
 
@@ -191,10 +201,14 @@ p {
 	border-radius: 999px;
 	background: var(--mode-surface-panel-soft);
 	backdrop-filter: blur(18px);
-	box-shadow: var(--shadow);
+	box-shadow:
+		var(--shadow),
+		0 0 0 1px var(--home-team-outline),
+		0 0 1.8rem var(--home-team-glow);
 }
 
 .top-navbar-brand,
+.top-navbar-links,
 .top-navbar-actions {
 	display: flex;
 	align-items: center;
@@ -211,6 +225,29 @@ p {
 	font-weight: 700;
 	letter-spacing: 0.16em;
 	text-transform: uppercase;
+}
+
+.top-navbar-links {
+	gap: 0.9rem;
+	flex: 1;
+	justify-content: center;
+}
+
+.top-navbar-link {
+	color: var(--muted);
+	text-decoration: none;
+	font-size: 0.92rem;
+	font-weight: 700;
+	transition: color 140ms ease;
+}
+
+.top-navbar-link:hover,
+.top-navbar-link:focus-visible {
+	color: var(--text);
+}
+
+.top-navbar-link.is-active {
+	color: var(--mode-accent-strong);
 }
 
 .top-navbar-title {
@@ -277,9 +314,13 @@ p {
 	padding: 0.8rem 0.9rem;
 	border: 1px solid var(--mode-score-border);
 	border-radius: 1rem;
+	overflow: hidden;
 	background: linear-gradient(180deg, var(--mode-surface-panel), rgba(7, 18, 28, 0.54));
 	backdrop-filter: blur(18px);
-	box-shadow: 0 18px 36px rgba(0, 0, 0, 0.24);
+	box-shadow:
+		0 18px 36px rgba(0, 0, 0, 0.24),
+		0 0 0 1px var(--home-team-outline),
+		0 0 2rem var(--home-team-glow);
 	pointer-events: auto;
 	transition: none;
 }
@@ -289,6 +330,8 @@ p {
 	display: flex;
 	flex-direction: column;
 	gap: 0.1rem;
+	position: relative;
+	z-index: 1;
 }
 
 .overall-score-label,
@@ -312,11 +355,39 @@ p {
 	display: flex;
 	min-height: 2.5rem;
 	align-items: stretch;
+	position: relative;
+	z-index: 1;
 }
 
 .overall-score-card .view-mode-panel {
 	display: grid;
 	gap: 0.4rem;
+	position: relative;
+	z-index: 1;
+}
+
+.overall-score-meta {
+	display: flex;
+	align-items: baseline;
+	justify-content: flex-end;
+	gap: 0.4rem;
+	min-height: 1rem;
+}
+
+.overall-score-meta-label {
+	color: var(--muted);
+	font-size: 0.7rem;
+	line-height: 1.2;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+}
+
+.overall-score-meta-value {
+	font-family: "Bebas Neue", sans-serif;
+	font-size: 1.5rem;
+	line-height: 0.9;
+	letter-spacing: 0.04em;
+	color: var(--mode-score-color);
 }
 
 .overall-score-card .view-mode-switch {
@@ -356,7 +427,10 @@ p {
 	border: 1px solid var(--mode-surface-border);
 	background: var(--mode-surface-panel);
 	backdrop-filter: blur(18px);
-	box-shadow: var(--shadow);
+	box-shadow:
+		var(--shadow),
+		0 0 0 1px var(--home-team-outline),
+		0 0 2rem var(--home-team-glow);
 	transition:
 		border-color 220ms ease,
 		background 220ms ease,
@@ -731,6 +805,125 @@ body.dialog-open {
 	min-width: 0;
 }
 
+.home-team-grid {
+	display: grid;
+	gap: 0.75rem;
+	grid-template-columns: repeat(8, minmax(0, 1fr));
+}
+
+.home-team-picker {
+	display: grid;
+	gap: 0.9rem;
+}
+
+.home-team-search {
+	max-width: 22rem;
+}
+
+.home-team-search-input {
+	width: 100%;
+}
+
+.home-team-search-empty {
+	color: var(--muted);
+	font-size: 0.9rem;
+}
+
+.home-team-card,
+.home-team-summary-card {
+	position: relative;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 1rem;
+	background: rgba(16, 32, 45, 0.88);
+	overflow: hidden;
+}
+
+.home-team-card::before,
+.home-team-summary-card::before {
+	content: "";
+	position: absolute;
+	inset: 0 0 auto;
+	height: 0.22rem;
+	background: linear-gradient(90deg, var(--team-theme-primary, rgba(255, 255, 255, 0.08)), var(--team-theme-secondary, rgba(255, 255, 255, 0.08)));
+}
+
+.home-team-card {
+	width: 100%;
+	appearance: none;
+	padding: 0.9rem;
+	display: grid;
+	gap: 0.45rem;
+	text-align: start;
+	color: var(--text);
+	font: inherit;
+	cursor: pointer;
+	transition:
+		background 140ms ease,
+		border-color 140ms ease,
+		transform 140ms ease,
+		box-shadow 140ms ease;
+}
+
+.home-team-card:hover {
+	background: rgba(23, 48, 65, 0.9);
+	border-color: rgba(125, 183, 255, 0.24);
+	transform: translateY(-1px);
+}
+
+.home-team-card.is-selected {
+	border-color: color-mix(in srgb, var(--team-theme-primary, var(--mode-accent)) 58%, white 14%);
+	background: linear-gradient(180deg, rgba(16, 34, 47, 0.98), rgba(16, 32, 45, 0.92));
+	box-shadow:
+		0 0 0 1px color-mix(in srgb, var(--team-theme-primary, var(--mode-accent)) 26%, transparent),
+		0 0 1.4rem color-mix(in srgb, var(--team-theme-primary, var(--mode-accent)) 14%, transparent);
+}
+
+.home-team-card-head,
+.home-team-summary-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.8rem;
+}
+
+.home-team-card-group,
+.home-team-summary-group {
+	color: var(--muted);
+	font-size: 0.74rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+.home-team-card-name,
+.home-team-summary-name {
+	margin: 0;
+	color: var(--text);
+	font-size: 0.9rem;
+	line-height: 1.3;
+}
+
+.home-team-summary-card {
+	padding: 1rem;
+	display: grid;
+	gap: 0.55rem;
+	max-width: 22rem;
+	background: linear-gradient(180deg, color-mix(in srgb, var(--team-theme-primary, transparent) 8%, rgba(16, 32, 45, 0.94)), rgba(16, 32, 45, 0.9)), rgba(16, 32, 45, 0.88);
+}
+
+.home-team-summary-card-empty {
+	max-width: 28rem;
+}
+
+.home-team-summary-card-empty::before {
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.home-team-code {
+	font-size: 0.95rem;
+}
+
 .source-badge,
 .chip,
 .status-pill {
@@ -984,11 +1177,6 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy {
 html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 	direction: ltr;
 	unicode-bidi: plaintext;
-}
-
-html[dir="rtl"] #groups-grid-my .group-row-drag-indicator {
-	margin-inline-start: 0;
-	margin-inline-end: auto;
 }
 
 .team-cell-copy {
@@ -1871,6 +2059,101 @@ html[dir="rtl"] #groups-grid-my .group-row-drag-indicator {
 	background: rgba(255, 255, 255, 0.02);
 }
 
+.leaderboard-header {
+	display: grid;
+	gap: 0.4rem;
+	margin-bottom: 1rem;
+}
+
+.leaderboard-list {
+	display: grid;
+	gap: 0.7rem;
+}
+
+.leaderboard-row {
+	display: grid;
+	grid-template-columns: 3rem minmax(0, 1.4fr) minmax(0, 1fr) auto auto;
+	align-items: center;
+	gap: 0.9rem;
+	padding: 0.9rem 1rem;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 1rem;
+	background: rgba(255, 255, 255, 0.03);
+}
+
+.leaderboard-rank {
+	font-family: "Bebas Neue", sans-serif;
+	font-size: 2rem;
+	line-height: 0.9;
+	letter-spacing: 0.04em;
+	color: var(--mode-accent);
+}
+
+.leaderboard-user,
+.leaderboard-home-team {
+	min-width: 0;
+	display: grid;
+	gap: 0.2rem;
+}
+
+.leaderboard-label {
+	color: var(--muted);
+	font-size: 0.72rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.leaderboard-name {
+	font-size: 1rem;
+	font-weight: 700;
+	line-height: 1.2;
+}
+
+.leaderboard-home-team-line {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45rem;
+	font-size: 0.92rem;
+	font-weight: 700;
+	min-width: 0;
+}
+
+.leaderboard-empty-team {
+	color: var(--muted);
+}
+
+.leaderboard-score {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.3rem;
+	justify-self: end;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+.leaderboard-score .leaderboard-label {
+	width: 100%;
+	text-align: end;
+}
+
+.leaderboard-score-value {
+	font-family: "Bebas Neue", sans-serif;
+	font-size: 2.3rem;
+	line-height: 0.9;
+	letter-spacing: 0.04em;
+	color: var(--mode-score-color);
+}
+
+.leaderboard-score-unit {
+	color: var(--muted);
+	font-size: 0.78rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+}
+
 .stats-table {
 	display: grid;
 	gap: 0.5rem;
@@ -1890,6 +2173,7 @@ html[dir="rtl"] #groups-grid-my .group-row-drag-indicator {
 
 @media (max-width: 1920px) {
 	.groups-grid,
+	.home-team-grid,
 	.venues-grid,
 	.stats-grid {
 		grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -1898,6 +2182,7 @@ html[dir="rtl"] #groups-grid-my .group-row-drag-indicator {
 
 @media (max-width: 1440px) {
 	.groups-grid,
+	.home-team-grid,
 	.venues-grid,
 	.stats-grid {
 		grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1926,7 +2211,18 @@ html[dir="rtl"] #groups-grid-my .group-row-drag-indicator {
 		border-radius: 0.5rem;
 	}
 
+	.top-navbar {
+		flex-wrap: wrap;
+	}
+
+	.top-navbar-links {
+		order: 3;
+		width: 100%;
+		justify-content: flex-start;
+	}
+
 	.groups-grid,
+	.home-team-grid,
 	.venues-grid,
 	.stats-grid {
 		grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2001,6 +2297,38 @@ html[dir="rtl"] #groups-grid-my .group-row-drag-indicator {
 		min-height: 2.25rem;
 	}
 
+	.leaderboard-row {
+		grid-template-columns: 2.5rem minmax(0, 1fr) auto auto;
+		grid-template-areas:
+			"rank user bonus score"
+			"rank team bonus score";
+		align-items: start;
+	}
+
+	.leaderboard-rank {
+		grid-area: rank;
+	}
+
+	.leaderboard-user {
+		grid-area: user;
+	}
+
+	.leaderboard-home-team {
+		grid-area: team;
+	}
+
+	.leaderboard-score {
+		align-self: center;
+	}
+
+	.leaderboard-score-bonus {
+		grid-area: bonus;
+	}
+
+	.leaderboard-score-current {
+		grid-area: score;
+	}
+
 	.group-table-wrap {
 		overflow: auto;
 	}
@@ -2047,9 +2375,18 @@ html[dir="rtl"] #groups-grid-my .group-row-drag-indicator {
 	}
 
 	.groups-grid,
+	.home-team-grid,
 	.venues-grid,
 	.stats-grid {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.leaderboard-row {
+		grid-template-columns: 1fr auto auto;
+		grid-template-areas:
+			"rank bonus score"
+			"user bonus score"
+			"team bonus score";
 	}
 
 	.group-table th,

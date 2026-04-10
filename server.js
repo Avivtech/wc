@@ -9,7 +9,14 @@ import {
   calculatePredictionScore,
   settlePredictions
 } from "./src/scoring/index.js";
-import { loadPicksForUser, migrateStoredPicksOutOfUserMetadata, savePicksForUser, validateEmail } from "./src/saveStore.js";
+import {
+  buildSavedPicksSettlementRequest,
+  calculateCurrentScoreFromSettlement,
+  calculatePredictedBonusPoints,
+  calculatePredictedBonusPointsForSavedPicks,
+  resolveSavedHomeTeam
+} from "./src/savedPicksSettlement.js";
+import { listSavedPicksForAllUsers, loadPicksForUser, migrateStoredPicksOutOfUserMetadata, savePicksForUser, validateEmail } from "./src/saveStore.js";
 import { getBearerToken, getSupabasePublicConfig, isSupabaseAuthConfigured, verifySupabaseAccessToken } from "./src/supabaseAuth.js";
 import { getWorldCupData } from "./src/worldCupService.js";
 
@@ -27,6 +34,14 @@ app.use(express.json({ limit: "1mb" }));
 
 app.get("/he", (_req, res) => {
   res.sendFile(path.join(publicDir, "he", "index.html"));
+});
+
+app.get("/high-scores", (_req, res) => {
+  res.sendFile(path.join(publicDir, "high-scores", "index.html"));
+});
+
+app.get("/he/high-scores", (_req, res) => {
+  res.sendFile(path.join(publicDir, "he", "high-scores", "index.html"));
 });
 
 app.use(express.static(publicDir));
@@ -75,6 +90,54 @@ app.get("/api/world-cup", async (req, res) => {
   } catch (error) {
     logServerError("Failed to load World Cup data.", error);
     res.status(500).json({ error: "Could not load the tournament right now." });
+  }
+});
+
+app.get("/api/high-scores", async (_req, res) => {
+  try {
+    if (!isSupabaseAuthConfigured()) {
+      return res.status(503).json({ error: "High scores are not available right now." });
+    }
+
+    const worldCup = await getWorldCupData();
+    const scoringContext = {
+      hostCountries: worldCup.summary?.hostCountries ?? [],
+      tournamentStartAt: worldCup.summary?.dateRange?.start ?? null
+    };
+    const savedEntries = await listSavedPicksForAllUsers();
+    const entries = savedEntries
+      .map(({ user, picks }) => {
+        const settlementRequest = buildSavedPicksSettlementRequest(picks, worldCup);
+        const settlement = settlePredictions({
+          ...settlementRequest,
+          context: scoringContext
+        });
+        const homeTeam = resolveSavedHomeTeam(picks, worldCup);
+        const bonusPoints = calculatePredictedBonusPointsForSavedPicks(picks, worldCup);
+        const currentScore = calculateCurrentScoreFromSettlement(settlement);
+
+        return {
+          displayName: getLeaderboardDisplayName(user),
+          homeTeam,
+          bonusPoints,
+          currentScore,
+          savedAt: picks?.savedAt ?? null
+        };
+      })
+      .sort(
+        (left, right) =>
+          right.currentScore - left.currentScore ||
+          right.bonusPoints - left.bonusPoints ||
+          left.displayName.localeCompare(right.displayName, "en", { sensitivity: "base" })
+      );
+
+    return res.json({
+      entries,
+      updatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    logServerError("Failed to build high scores.", error);
+    return res.status(500).json({ error: "High scores are not available right now." });
   }
 });
 
@@ -167,7 +230,11 @@ app.post("/api/scoring/settle", async (req, res) => {
       context: scoringContext
     });
 
-    return res.json(settlement);
+    return res.json({
+      ...settlement,
+      currentScore: calculateCurrentScoreFromSettlement(settlement),
+      predictedBonusPoints: calculatePredictedBonusPoints(predictions, req.body?.config)
+    });
   } catch (error) {
     logServerError("Failed to settle predictions.", error);
     return res.status(500).json({ error: "Could not settle predictions right now." });
@@ -222,7 +289,12 @@ app.post("/api/picks", requireSupabaseAuth, async (req, res) => {
       return res.status(400).json({ error: "Group rankings are required." });
     }
 
-    const saved = await savePicksForUser(req.authUser, payload);
+    const worldCup = await getWorldCupData();
+    const enrichedPayload = {
+      ...payload,
+      bonusPoints: calculatePredictedBonusPointsForSavedPicks(payload, worldCup)
+    };
+    const saved = await savePicksForUser(req.authUser, enrichedPayload);
 
     return res.status(201).json({
       ok: true,
@@ -297,6 +369,16 @@ function requireMatchingEmailParam(req, res, next) {
 
 function getAuthenticatedEmail(req) {
   return String(req.authUser?.email || "").trim().toLowerCase();
+}
+
+function getLeaderboardDisplayName(user) {
+  const rawDisplayName = typeof user?.user_metadata?.display_name === "string" ? user.user_metadata.display_name.trim() : "";
+
+  if (rawDisplayName) {
+    return rawDisplayName.slice(0, 60);
+  }
+
+  return "Player";
 }
 
 let scheduledWorldCupRefreshTimer = null;

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>World Cup 2026 High Scores</title>
+  <link rel="icon" type="image/png" href="/assets/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Heebo:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+
+<body data-view-mode="live">
+  <div class="bg-orb bg-orb-one"></div>
+  <div class="bg-orb bg-orb-two"></div>
+
+  <div class="page-shell">
+    <nav class="top-navbar" aria-label="Primary">
+      <div class="top-navbar-brand">
+        <span class="top-navbar-kicker">WC 2026</span>
+      </div>
+      <div class="top-navbar-links">
+        <a class="top-navbar-link" href="/">Predictor</a>
+        <a class="top-navbar-link is-active" href="/high-scores">High Scores</a>
+      </div>
+      <div class="top-navbar-actions">
+        <div class="language-menu" aria-label="Language switcher">
+          <a class="language-link is-active" href="/high-scores">English</a>
+          <span class="language-menu-divider" aria-hidden="true">/</span>
+          <a class="language-link" href="/he/high-scores" lang="he" dir="rtl">עברית</a>
+        </div>
+      </div>
+    </nav>
+
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">High Scores</p>
+        <h1>See how every player is doing right now.</h1>
+        <p id="leaderboard-status" class="panel-note">Loading high scores...</p>
+      </div>
+      <div class="save-panel">
+        <div class="leaderboard-header">
+          <p class="eyebrow">Leaderboard</p>
+          <h2>Current Standings</h2>
+          <p class="panel-note">Display name, home team, and current score are shown for every saved player.</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-grid">
+      <section class="section-block">
+        <div id="leaderboard-list" class="leaderboard-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="/high-scores.js"></script>
+</body>
+
+</html>

@@ -16,43 +16,7 @@ export function validateEmail(email) {
 
 export async function loadPicksForUser(user) {
   const authUser = await getAuthUserById(user?.id);
-  const remoteStored = await loadRemotePicks(authUser);
-
-  if (remoteStored) {
-    await clearPicksMetadata(authUser);
-    return remoteStored;
-  }
-
-  const metadataStored = authUser?.user_metadata?.[PICKS_METADATA_KEY];
-
-  if (metadataStored && typeof metadataStored === "object" && !Array.isArray(metadataStored)) {
-    const normalized = normalizeStoredPayload(authUser, metadataStored, {
-      savedAt:
-        typeof metadataStored.savedAt === "string" && metadataStored.savedAt.trim()
-          ? metadataStored.savedAt.trim()
-          : new Date().toISOString(),
-    });
-
-    await writeRemotePicks(authUser, normalized);
-    await clearPicksMetadata(authUser);
-    return normalized;
-  }
-
-  const legacyStored = await loadLegacyPicksByEmail(authUser.email);
-
-  if (!legacyStored) {
-    return null;
-  }
-
-  const normalized = normalizeStoredPayload(authUser, legacyStored, {
-    savedAt:
-      typeof legacyStored.savedAt === "string" && legacyStored.savedAt.trim()
-        ? legacyStored.savedAt.trim()
-        : new Date().toISOString(),
-  });
-
-  await writeRemotePicks(authUser, normalized);
-  return normalized;
+  return loadStoredPicksForAuthUser(authUser);
 }
 
 export async function savePicksForUser(user, payload, options = {}) {
@@ -121,6 +85,54 @@ export async function migrateStoredPicksOutOfUserMetadata() {
   return { migratedUsers, clearedUsers };
 }
 
+export async function listSavedPicksForAllUsers() {
+  if (!isSupabaseAuthConfigured()) {
+    return [];
+  }
+
+  await ensurePicksBucket();
+
+  const client = getServerSupabaseAdminClient();
+  const entries = [];
+  let page = 1;
+
+  while (true) {
+    const { data, error } = await client.auth.admin.listUsers({ page, perPage: 100 });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const users = Array.isArray(data?.users) ? data.users : [];
+
+    if (!users.length) {
+      break;
+    }
+
+    for (const user of users) {
+      if (!user?.email || !validateEmail(user.email)) {
+        continue;
+      }
+
+      const picks = await loadStoredPicksForAuthUser(user);
+
+      if (!picks) {
+        continue;
+      }
+
+      entries.push({ user, picks });
+    }
+
+    if (users.length < 100) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return entries;
+}
+
 async function getAuthUserById(userId) {
   if (!isSupabaseAuthConfigured()) {
     throw new Error("Supabase Auth is not configured.");
@@ -176,12 +188,36 @@ function normalizeStoredPayload(user, payload, options = {}) {
     competition: payload?.competition ?? null,
     source: payload?.source ?? null,
     summary: payload?.summary ?? null,
+    bonusPoints: Number.isFinite(Number(payload?.bonusPoints)) ? Number(payload.bonusPoints) : 0,
+    homeTeam: normalizeHomeTeamPayload(payload?.homeTeam),
     groupRankings: Array.isArray(payload?.groupRankings) ? payload.groupRankings : [],
     thirdPlaceRanking: Array.isArray(payload?.thirdPlaceRanking) ? payload.thirdPlaceRanking : [],
     bestThirdAdvancers: Array.isArray(payload?.bestThirdAdvancers) ? payload.bestThirdAdvancers : [],
     knockoutWinners: Array.isArray(payload?.knockoutWinners) ? payload.knockoutWinners : [],
     knockoutScorePredictions: Array.isArray(payload?.knockoutScorePredictions) ? payload.knockoutScorePredictions : [],
     projectedRoundOf32: Array.isArray(payload?.projectedRoundOf32) ? payload.projectedRoundOf32 : [],
+  };
+}
+
+function normalizeHomeTeamPayload(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const teamId = value.teamId != null ? String(value.teamId).trim() : "";
+  const teamCode = typeof value.teamCode === "string" ? value.teamCode.trim().toUpperCase() : "";
+  const teamName = typeof value.teamName === "string" ? value.teamName.trim() : "";
+  const teamLogo = typeof value.teamLogo === "string" ? value.teamLogo.trim() : "";
+
+  if (!teamId && !teamCode && !teamName) {
+    return null;
+  }
+
+  return {
+    teamId: teamId || null,
+    teamCode: teamCode || null,
+    teamName: teamName || null,
+    teamLogo: teamLogo || null
   };
 }
 
@@ -246,6 +282,46 @@ async function loadRemotePicks(user) {
         ? parsed.savedAt.trim()
         : new Date().toISOString(),
   });
+}
+
+async function loadStoredPicksForAuthUser(authUser) {
+  const remoteStored = await loadRemotePicks(authUser);
+
+  if (remoteStored) {
+    await clearPicksMetadata(authUser);
+    return remoteStored;
+  }
+
+  const metadataStored = authUser?.user_metadata?.[PICKS_METADATA_KEY];
+
+  if (metadataStored && typeof metadataStored === "object" && !Array.isArray(metadataStored)) {
+    const normalized = normalizeStoredPayload(authUser, metadataStored, {
+      savedAt:
+        typeof metadataStored.savedAt === "string" && metadataStored.savedAt.trim()
+          ? metadataStored.savedAt.trim()
+          : new Date().toISOString(),
+    });
+
+    await writeRemotePicks(authUser, normalized);
+    await clearPicksMetadata(authUser);
+    return normalized;
+  }
+
+  const legacyStored = await loadLegacyPicksByEmail(authUser.email);
+
+  if (!legacyStored) {
+    return null;
+  }
+
+  const normalized = normalizeStoredPayload(authUser, legacyStored, {
+    savedAt:
+      typeof legacyStored.savedAt === "string" && legacyStored.savedAt.trim()
+        ? legacyStored.savedAt.trim()
+        : new Date().toISOString(),
+  });
+
+  await writeRemotePicks(authUser, normalized);
+  return normalized;
 }
 
 async function writeRemotePicks(user, normalized) {

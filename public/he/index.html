@@ -18,7 +18,11 @@
   <div class="page-shell">
     <nav class="top-navbar" aria-label="ראשי">
       <div class="top-navbar-brand">
-        <span class="top-navbar-kicker">WC 2026</span>
+        <span class="top-navbar-kicker">מונדיאל 2026</span>
+      </div>
+      <div class="top-navbar-links">
+        <a class="top-navbar-link is-active" href="/he">המשחק</a>
+        <a class="top-navbar-link" href="/he/high-scores">טבלת שיא</a>
       </div>
       <div class="top-navbar-actions">
         <div class="language-menu" aria-label="בחירת שפה">
@@ -75,6 +79,18 @@
     <section id="warning-strip" class="warning-strip hidden"></section>
 
     <main class="page-grid">
+      <section class="section-block">
+        <div class="section-heading">
+          <p class="eyebrow">נבחרת הבית שלי</p>
+          <h2 id="home-team-section-title">נבחרת הבית תוצאות חיות</h2>
+          <p id="home-team-section-copy" class="section-copy">נבחרת הבית שבחרתם מוסיפה לאפליקציה שכבת צבע רכה בהשראת הדגל שלה.</p>
+        </div>
+        <div class="view-mode-stack">
+          <div id="home-team-pane-live" data-view-content="live" aria-hidden="false"></div>
+          <div id="home-team-pane-my" class="hidden" data-view-content="my" hidden aria-hidden="true"></div>
+        </div>
+      </section>
+
       <section class="section-block">
         <div class="section-heading">
           <p class="eyebrow">בתים</p>
@@ -145,6 +161,10 @@
       </div>
     </div>
     <div class="view-mode-panel" aria-label="בחירת תצוגה">
+      <div class="overall-score-meta">
+        <span class="overall-score-meta-label">נקודות בונוס</span>
+        <strong id="overall-score-bonus-value" class="overall-score-meta-value">0</strong>
+      </div>
       <div class="view-mode-switch" role="group" aria-label="בחירת תצוגת תחזיות" data-active-mode="live">
         <button id="view-mode-live" class="view-mode-option is-active" type="button" data-view-mode="live" aria-pressed="true">תוצאות חיות</button>
         <button id="view-mode-my" class="view-mode-option" type="button" data-view-mode="my" aria-pressed="false">התחזיות שלי</button>
