@@ -14,7 +14,7 @@ RAPIDAPI_KEY=...
 If the provider search does not return the World Cup league, set the league id manually:
 
 ```env
-RAPIDAPI_WORLD_CUP_LEAGUE_ID=...
+RAPIDAPI_WORLD_CUP_LEAGUE_ID=77
 ```
 
 3. Add your Supabase keys:
@@ -133,6 +133,10 @@ Live tournament data is pulled from RapidAPI's `Free API Live Football Data` API
 - `GET /football-get-list-all-team`
 - `GET /football-get-all-matches-by-league`
 - `GET /football-get-all-rounds`
+
+If RapidAPI does not expose future World Cup fixtures yet, the app fills the calendar from the public World Cup 2026 JSON schedule:
+
+- https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json
 
 Documentation:
 

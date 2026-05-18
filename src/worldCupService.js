@@ -8,6 +8,7 @@ const API_BASE_URL = `https://${RAPIDAPI_HOST}`;
 const DOCUMENTATION_URL = "https://rapidapi.com/Creativesdev/api/free-api-live-football-data";
 const FIFA_SCHEDULE_URL =
   "https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/articles/match-schedule-fixtures-results-teams-stadiums";
+const OPENFOOTBALL_2026_URL = "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json";
 const WORLD_CUP_SEASON = 2026;
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const HOST_COUNTRIES = ["Canada", "Mexico", "United States"];
@@ -50,6 +51,7 @@ const TEAM_NAME_TO_FIFA_CODE = new Map(
     "cape verde islands": "CPV",
     colombia: "COL",
     "congo dr": "COD",
+    "dr congo": "COD",
     curacao: "CUW",
     "czech republic": "CZE",
     ecuador: "ECU",
@@ -155,21 +157,38 @@ async function fetchLiveWorldCupBase({ apiKey, timezone }) {
     optionalApiRequest(RAPIDAPI_ENDPOINTS.rounds, leagueQueryParams(leagueId), apiKey)
   ]);
 
+  const fallbackWarnings = [];
   const teamLookup = buildTeamLookup(extractApiRows(teamsResult));
   const rawFixtures = extractApiRows(fixturesResult);
   const venueLookup = new Map();
 
-  const normalizedFixtures = rawFixtures.map((fixture) =>
+  let normalizedFixtures = rawFixtures.map((fixture) =>
     normalizeFixture(fixture, teamLookup, venueLookup, timezone)
   ).filter(Boolean);
-  const normalizedVenues = collectVenues(normalizedFixtures, venueLookup);
 
-  const groups = buildGroups({
+  let groups = buildGroups({
     standingsResponse: extractApiRows(standingsResult),
     teamLookup,
     fixtures: normalizedFixtures
   });
 
+  if (!normalizedFixtures.length || !groups.length) {
+    const fallback = await fetchOpenFootballWorldCup2026();
+
+    if (!normalizedFixtures.length) {
+      normalizedFixtures = fallback.fixtures;
+    }
+
+    if (!groups.length) {
+      groups = fallback.groups;
+    }
+
+    fallbackWarnings.push(
+      "RapidAPI Free API Live Football Data did not return World Cup 2026 fixtures/groups yet, so the calendar is using the public World Cup 2026 schedule template."
+    );
+  }
+
+  const normalizedVenues = collectVenues(normalizedFixtures, venueLookup);
   const normalizedRounds = normalizeRounds(extractApiRows(roundsResult));
   const [featuredStats, fifaRankingsResult, teamSignalsResult] = await Promise.all([
     fetchFeaturedStats({
@@ -192,8 +211,9 @@ async function fetchLiveWorldCupBase({ apiKey, timezone }) {
       documentation: DOCUMENTATION_URL,
       scheduleSource: FIFA_SCHEDULE_URL,
       rankingsSource: FIFA_MENS_RANKING_URL,
+      scheduleTemplateSource: OPENFOOTBALL_2026_URL,
       fetchedAt: new Date().toISOString(),
-      warnings: [...fifaRankingsResult.warnings, ...teamSignalsResult.warnings],
+      warnings: [...fallbackWarnings, ...fifaRankingsResult.warnings, ...teamSignalsResult.warnings],
       enrichment: {
         fifaRankings: fifaRankingsResult.meta,
         teamScores: teamSignalsResult.meta
@@ -281,34 +301,52 @@ function createRapidApiCoverage() {
 }
 
 function extractApiRows(data) {
-  if (Array.isArray(data)) {
-    return data;
+  const rows = extractFirstArray(data);
+  return rows ?? (data && typeof data === "object" ? [data] : []);
+}
+
+function extractFirstArray(value, depth = 0, visited = new Set()) {
+  if (Array.isArray(value)) {
+    return value;
   }
 
-  for (const value of [
-    data?.response,
-    data?.data,
-    data?.results,
-    data?.result,
-    data?.events,
-    data?.matches,
-    data?.teams,
-    data?.leagues,
-    data?.standings,
-    data?.rows
+  if (!value || typeof value !== "object" || depth > 4 || visited.has(value)) {
+    return null;
+  }
+
+  visited.add(value);
+
+  for (const key of [
+    "response",
+    "data",
+    "results",
+    "result",
+    "matches",
+    "events",
+    "teams",
+    "leagues",
+    "standings",
+    "rows",
+    "list",
+    "suggestions",
+    "popular"
   ]) {
-    if (Array.isArray(value)) {
-      return value;
+    const rows = extractFirstArray(value[key], depth + 1, visited);
+
+    if (rows) {
+      return rows;
     }
   }
 
-  for (const value of Object.values(data ?? {})) {
-    if (Array.isArray(value)) {
-      return value;
+  for (const nestedValue of Object.values(value)) {
+    const rows = extractFirstArray(nestedValue, depth + 1, visited);
+
+    if (rows) {
+      return rows;
     }
   }
 
-  return data && typeof data === "object" ? [data] : [];
+  return null;
 }
 
 async function mapWithConcurrency(items, limit, mapper) {
@@ -1002,6 +1040,202 @@ function normalizeRounds(roundsResponse = []) {
       dates
     };
   });
+}
+
+async function fetchOpenFootballWorldCup2026() {
+  const response = await fetch(OPENFOOTBALL_2026_URL, {
+    headers: {
+      Accept: "application/json"
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`World Cup 2026 schedule template request failed with status ${response.status}.`);
+  }
+
+  const data = await response.json();
+  const matches = Array.isArray(data?.matches) ? data.matches : [];
+  const groupMatches = matches.filter((match) => extractGroupLetter(match?.group));
+  const teamsByName = buildOpenFootballTeamLookup(groupMatches);
+  const fixtures = groupMatches.map((match, index) => normalizeOpenFootballFixture(match, index, teamsByName));
+
+  return {
+    groups: buildOpenFootballGroups(groupMatches, teamsByName, fixtures),
+    fixtures
+  };
+}
+
+function buildOpenFootballTeamLookup(matches) {
+  const lookup = new Map();
+
+  for (const match of matches) {
+    for (const teamName of [match.team1, match.team2]) {
+      const key = normalizeLookupKey(teamName);
+
+      if (!key || lookup.has(key)) {
+        continue;
+      }
+
+      lookup.set(key, {
+        id: `template-${key}`,
+        name: teamName,
+        code: resolveTemplateTeamCode(teamName),
+        country: teamName,
+        national: true,
+        logo: null
+      });
+    }
+  }
+
+  return lookup;
+}
+
+function normalizeOpenFootballFixture(match, index, teamsByName) {
+  const home = getOpenFootballTeam(match.team1, teamsByName);
+  const away = getOpenFootballTeam(match.team2, teamsByName);
+  const date = parseOpenFootballDate(match.date, match.time);
+  const groupLetter = extractGroupLetter(match.group);
+
+  return {
+    id: `template-group-${index + 1}`,
+    date: date ? date.toISOString() : match.date,
+    timestamp: date ? Math.floor(date.getTime() / 1000) : 0,
+    timezone: "UTC",
+    referee: null,
+    stage: "Group Stage",
+    round: match.group ?? match.round ?? "Group Stage",
+    groupLetter,
+    status: {
+      long: "Not Started",
+      short: "NS",
+      elapsed: null
+    },
+    venue: {
+      id: null,
+      name: match.ground ?? "TBD",
+      city: match.ground ?? null,
+      country: null,
+      capacity: null,
+      image: null
+    },
+    teams: {
+      home,
+      away
+    },
+    goals: {
+      home: null,
+      away: null
+    },
+    score: {
+      halftime: { home: null, away: null },
+      fulltime: { home: null, away: null },
+      extratime: { home: null, away: null },
+      penalty: { home: null, away: null }
+    }
+  };
+}
+
+function buildOpenFootballGroups(matches, teamsByName, fixtures) {
+  const groups = new Map();
+
+  for (const match of matches) {
+    const letter = extractGroupLetter(match.group);
+
+    if (!letter) {
+      continue;
+    }
+
+    if (!groups.has(letter)) {
+      groups.set(letter, {
+        id: `group-${letter.toLowerCase()}`,
+        letter,
+        label: `Group ${letter}`,
+        teams: [],
+        fixtures: []
+      });
+    }
+
+    const group = groups.get(letter);
+
+    for (const teamName of [match.team1, match.team2]) {
+      const team = getOpenFootballTeam(teamName, teamsByName);
+
+      if (!group.teams.some((entry) => entry.id === team.id)) {
+        group.teams.push({
+          ...team,
+          groupLetter: letter,
+          ...createDefaultTeamMetrics(),
+          standing: {
+            rank: group.teams.length + 1,
+            points: null,
+            goalDifference: null,
+            form: null,
+            played: null,
+            wins: null,
+            draws: null,
+            losses: null,
+            goalsFor: null,
+            goalsAgainst: null,
+            description: null,
+            update: null
+          }
+        });
+      }
+    }
+  }
+
+  for (const fixture of fixtures) {
+    const group = groups.get(fixture.groupLetter);
+
+    if (group) {
+      group.fixtures.push(fixture);
+    }
+  }
+
+  return [...groups.values()].sort((left, right) => left.letter.localeCompare(right.letter));
+}
+
+function getOpenFootballTeam(teamName, teamsByName) {
+  const key = normalizeLookupKey(teamName);
+  return teamsByName.get(key) ?? {
+    id: `template-${key}`,
+    name: teamName,
+    code: resolveTemplateTeamCode(teamName),
+    country: teamName,
+    national: true,
+    logo: null
+  };
+}
+
+function parseOpenFootballDate(dateValue, timeValue) {
+  const date = String(dateValue || "").trim();
+  const time = String(timeValue || "").trim();
+  const timeMatch = time.match(/^(\d{1,2}):(\d{2})(?:\s+UTC([+-]\d{1,2}))?$/i);
+
+  if (!date) {
+    return null;
+  }
+
+  if (!timeMatch) {
+    const parsedDate = Date.parse(`${date}T00:00:00Z`);
+    return Number.isFinite(parsedDate) ? new Date(parsedDate) : null;
+  }
+
+  const [, hours, minutes, rawOffset = "+0"] = timeMatch;
+  const offsetNumber = Number(rawOffset);
+  const sign = offsetNumber < 0 ? "-" : "+";
+  const offset = `${sign}${String(Math.abs(offsetNumber)).padStart(2, "0")}:00`;
+  const parsedDate = Date.parse(`${date}T${hours.padStart(2, "0")}:${minutes}:00${offset}`);
+
+  return Number.isFinite(parsedDate) ? new Date(parsedDate) : null;
+}
+
+function resolveTemplateTeamCode(teamName) {
+  return TEAM_NAME_TO_FIFA_CODE.get(normalizeLookupKey(teamName)) ??
+    String(teamName || "")
+      .replace(/[^A-Za-z]/g, "")
+      .slice(0, 3)
+      .toUpperCase();
 }
 
 async function fetchFeaturedStats({ fixtures, apiKey, enabled }) {
