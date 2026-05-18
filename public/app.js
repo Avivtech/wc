@@ -72,6 +72,7 @@ const TRANSLATIONS = {
 		calendarVersus: "vs",
 		calendarSelectedCount: "{count}/8 selected",
 		calendarThirdPlace: "3rd Place",
+		calendarTimezoneLabel: "Time zone",
 		bracketFinals: "Finals",
 		bracketDragHint: "To drag use two fingers or Ctrl / Cmd + drag",
 		overallSubmit: "Submit",
@@ -172,6 +173,7 @@ const TRANSLATIONS = {
 		calendarVersus: "נגד",
 		calendarSelectedCount: "{count}/8 נבחרו",
 		calendarThirdPlace: "מקום 3",
+		calendarTimezoneLabel: "אזור זמן",
 		bracketFinals: "גמרים",
 		bracketDragHint: "לגרירה השתמשו בשתי אצבעות או ב-Ctrl / Cmd + גרירה",
 		overallSubmit: "שליחה",
@@ -216,6 +218,13 @@ const CALENDAR_WEEKDAYS = {
 	en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
 	he: ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"],
 };
+const CALENDAR_TIME_ZONES = [
+	{ label: "Israel", value: "Asia/Jerusalem" },
+	{ label: "Greece", value: "Europe/Athens" },
+	{ label: "UK", value: "Europe/London" },
+	{ label: "New York", value: "America/New_York" },
+	{ label: "LA", value: "America/Los_Angeles" },
+];
 const HOME_TEAM_THEMES = {
 	ALG: { primary: "#0f8f56", secondary: "#f4f7f8", accent: "#d43f3f" },
 	ARG: { primary: "#6fb9ef", secondary: "#f8fbff", accent: "#f4c54a" },
@@ -411,6 +420,7 @@ const state = {
 	playoffDragHintDismissed: getStoredPlayoffDragHintDismissed(),
 	calendarLoaded: false,
 	calendarMonthIndex: null,
+	calendarTimeZone: CALENDAR_TIME_ZONES[0].value,
 	playoffMatches: [],
 	submittedAt: "",
 	sectionSubmittedAt: createEmptySectionSubmissionState(),
@@ -491,6 +501,7 @@ const elements = {
 	playoffBoardLive: document.getElementById("playoff-board-live"),
 	playoffBoardMy: document.getElementById("playoff-board-my"),
 	viewModeContents: Array.from(document.querySelectorAll("[data-view-content]")),
+	calendarTimezoneControl: document.getElementById("calendar-timezone-control"),
 	fixturesFeed: document.getElementById("fixtures-feed"),
 	homeTeamSectionTitle: document.getElementById("home-team-section-title"),
 	homeTeamSectionCopy: document.getElementById("home-team-section-copy"),
@@ -670,6 +681,7 @@ function bindEvents() {
 	document.addEventListener("touchmove", handlePlayoffTouchMove, { passive: false });
 	document.addEventListener("touchend", handlePlayoffTouchEnd, { passive: true });
 	document.addEventListener("touchcancel", handlePlayoffTouchEnd, { passive: true });
+	elements.calendarTimezoneControl?.addEventListener("change", handleCalendarTimezoneChange);
 	window.addEventListener("resize", scheduleBracketLineDraw);
 	window.addEventListener("resize", handleTooltipViewportChange);
 	elements.clearAllDialog.addEventListener("click", handleClearAllDialogBackdrop);
@@ -2018,6 +2030,8 @@ function restorePlayoffScrollSnapshot(container, snapshot) {
 }
 
 function renderFixtures() {
+	renderCalendarTimezoneControl();
+
 	if (!state.worldCup) {
 		elements.fixturesFeed.innerHTML = emptyState(t("emptyFixtures"));
 		return;
@@ -2069,6 +2083,23 @@ function renderFixtures() {
       </div>
       ${renderCalendarMonth(activeMonth, false)}
     </div>
+  `;
+}
+
+function renderCalendarTimezoneControl() {
+	if (!elements.calendarTimezoneControl) {
+		return;
+	}
+
+	elements.calendarTimezoneControl.innerHTML = `
+    <label class="calendar-timezone-label" for="calendar-timezone-select">${escapeHtml(t("calendarTimezoneLabel"))}</label>
+    <select id="calendar-timezone-select" class="calendar-timezone-select">
+      ${CALENDAR_TIME_ZONES.map((entry) => `
+        <option value="${escapeHtml(entry.value)}" ${entry.value === state.calendarTimeZone ? "selected" : ""}>
+          ${escapeHtml(entry.label)}
+        </option>
+      `).join("")}
+    </select>
   `;
 }
 
@@ -2127,7 +2158,8 @@ function hasLiveFixtureEquivalent(match, liveFixtures) {
 }
 
 function getCalendarDateKey(date) {
-	return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+	const parts = getCalendarDatePartsFromDate(date);
+	return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
 function buildCalendarMonths(fixtures) {
@@ -2140,13 +2172,14 @@ function buildCalendarMonths(fixtures) {
 			continue;
 		}
 
-		const key = `${date.getFullYear()}-${date.getMonth()}`;
+		const parts = getFixtureCalendarDateParts(fixture);
+		const key = `${parts.year}-${parts.month}`;
 
 		if (!months.has(key)) {
 			months.set(key, {
 				key,
-				year: date.getFullYear(),
-				month: date.getMonth(),
+				year: parts.year,
+				month: parts.month,
 				fixtures: [],
 			});
 		}
@@ -2168,11 +2201,17 @@ function buildCalendarMonthCells(year, month, fixtures) {
 	for (const fixture of fixtures) {
 		const date = getFixtureDate(fixture);
 
-		if (date.getFullYear() !== year || date.getMonth() !== month) {
+		if (Number.isNaN(date.getTime())) {
 			continue;
 		}
 
-		const day = date.getDate();
+		const parts = getFixtureCalendarDateParts(fixture);
+
+		if (parts.year !== year || parts.month !== month) {
+			continue;
+		}
+
+		const day = parts.day;
 
 		if (!fixturesByDay.has(day)) {
 			fixturesByDay.set(day, []);
@@ -2185,8 +2224,8 @@ function buildCalendarMonthCells(year, month, fixtures) {
 		dayFixtures.sort((left, right) => getFixtureDate(left).getTime() - getFixtureDate(right).getTime());
 	}
 
-	const firstDay = new Date(year, month, 1).getDay();
-	const daysInMonth = new Date(year, month + 1, 0).getDate();
+	const firstDay = new Date(Date.UTC(year, month, 1)).getUTCDay();
+	const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
 	const cells = [];
 
 	for (let index = 0; index < firstDay; index += 1) {
@@ -2314,6 +2353,51 @@ function getFixtureDate(fixture) {
 	return parseFixtureDateValue(fixture?.date);
 }
 
+function getFixtureCalendarDateParts(fixture) {
+	const timestamp = fixture?.timestamp;
+
+	if (timestamp !== null && timestamp !== undefined && timestamp !== "" && Number.isFinite(Number(timestamp))) {
+		return getCalendarDatePartsFromDate(getFixtureDate(fixture));
+	}
+
+	const dateOnlyMatch = String(fixture?.date || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+	if (dateOnlyMatch) {
+		const [, year, month, day] = dateOnlyMatch;
+		return {
+			year: Number(year),
+			month: Number(month) - 1,
+			day: Number(day),
+		};
+	}
+
+	return getCalendarDatePartsFromDate(getFixtureDate(fixture));
+}
+
+function getCalendarDatePartsFromDate(date) {
+	if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+		return {
+			year: Number.NaN,
+			month: Number.NaN,
+			day: Number.NaN,
+		};
+	}
+
+	const parts = new Intl.DateTimeFormat("en-US", {
+		timeZone: state.calendarTimeZone,
+		year: "numeric",
+		month: "numeric",
+		day: "numeric",
+	}).formatToParts(date);
+	const partLookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+	return {
+		year: Number(partLookup.year),
+		month: Number(partLookup.month) - 1,
+		day: Number(partLookup.day),
+	};
+}
+
 function formatFixtureTime(fixture) {
 	const timestamp = fixture?.timestamp;
 
@@ -2321,7 +2405,7 @@ function formatFixtureTime(fixture) {
 		return t("tbd");
 	}
 
-	return formatTime(getFixtureDate(fixture));
+	return formatTime(getFixtureDate(fixture), state.calendarTimeZone);
 }
 
 function renderCalendarSide(side) {
@@ -3080,6 +3164,18 @@ function handleMoveClick(event) {
 		reorderGroup(button.dataset.group, index, index + direction);
 		return;
 	}
+}
+
+function handleCalendarTimezoneChange(event) {
+	const nextTimeZone = event.target.value;
+
+	if (!CALENDAR_TIME_ZONES.some((entry) => entry.value === nextTimeZone)) {
+		return;
+	}
+
+	state.calendarTimeZone = nextTimeZone;
+	state.calendarMonthIndex = null;
+	renderFixtures();
 }
 
 function handlePlayoffPanClickCapture(event) {
@@ -5971,15 +6067,17 @@ function formatDateTime(value) {
 	}).format(date);
 }
 
-function formatTime(value) {
+function formatTime(value, timeZone) {
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) {
 		return t("tbd");
 	}
 
 	return new Intl.DateTimeFormat(APP_INTL_LOCALE, {
-		hour: "numeric",
+		...(timeZone ? { timeZone } : {}),
+		hour: "2-digit",
 		minute: "2-digit",
+		hour12: false,
 	}).format(date);
 }
 

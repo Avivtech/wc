@@ -1500,11 +1500,29 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 }
 
 .calendar-timezone {
-	margin: 0;
-	grid-column: 1 / -1;
+	display: flex;
+	align-items: center;
+	gap: 0.65rem;
+	flex-wrap: wrap;
+	margin: -0.35rem 0 1rem;
+}
+
+.calendar-timezone-label {
 	color: var(--muted);
-	font-size: 0.82rem;
-	margin: 0.5rem 0;
+	font-size: 0.86rem;
+	font-weight: 700;
+}
+
+.calendar-timezone-select {
+	min-width: 11rem;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: var(--panel-strong);
+	color: var(--text);
+	font: inherit;
+	font-size: 0.9rem;
+	font-weight: 700;
+	padding: 0.55rem 0.75rem;
 }
 
 .calendar-month {
