@@ -3011,7 +3011,7 @@ function resetPickSyncState() {
 }
 
 function handleMoveClick(event) {
-	const viewModeButton = event.target.closest("[data-view-mode]");
+	const viewModeButton = event.target.closest("button[data-view-mode]");
 
 	if (viewModeButton) {
 		setViewMode(viewModeButton.dataset.viewMode);
