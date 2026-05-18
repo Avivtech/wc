@@ -5,7 +5,18 @@ A small full-stack app for ranking FIFA World Cup 2026 groups, projecting the pl
 ## Run
 
 1. Copy `.env.example` to `.env`
-2. Add your `API_FOOTBALL_KEY`
+2. Add your RapidAPI key for `Free API Live Football Data`:
+
+```env
+RAPIDAPI_KEY=...
+```
+
+If the provider search does not return the World Cup league, set the league id manually:
+
+```env
+RAPIDAPI_WORLD_CUP_LEAGUE_ID=...
+```
+
 3. Add your Supabase keys:
 
 ```env
@@ -75,7 +86,8 @@ The trigger uses Cloud Build's Developer Connect trigger flow and points at `clo
 After the first deploy, configure these runtime env vars on Cloud Run:
 
 ```text
-API_FOOTBALL_KEY
+RAPIDAPI_KEY
+RAPIDAPI_WORLD_CUP_LEAGUE_ID
 SUPABASE_URL
 SUPABASE_PUBLISHABLE_KEY
 SUPABASE_SECRET_KEY
@@ -113,27 +125,26 @@ Notes:
 
 ## What It Uses
 
-Live tournament data is pulled from API-Football using the documented endpoints below:
+Live tournament data is pulled from RapidAPI's `Free API Live Football Data` API using the endpoints below:
 
-- `GET /leagues`
-- `GET /standings`
-- `GET /teams`
-- `GET /fixtures`
-- `GET /fixtures/rounds`
-- `GET /venues`
-- `GET /fixtures/statistics`
+- `GET /football-leagues-search`
+- `GET /football-get-all-leagues`
+- `GET /football-get-standing-all`
+- `GET /football-get-list-all-team`
+- `GET /football-get-all-matches-by-league`
+- `GET /football-get-all-rounds`
 
 Documentation:
 
-- https://www.api-football.com/documentation-v3
+- https://rapidapi.com/Creativesdev/api/free-api-live-football-data
 
 ## Important Note About Knockout Matches
 
-API-Football documents that cup fixtures are added when both participants are known. Because of that, future knockout placeholders may not exist yet in the live feed.
+Live football data providers usually add cup fixtures as participants become known. Because of that, future knockout placeholders may not exist yet in the live feed.
 
 The app therefore uses:
 
-- API-Football for live groups, teams, fixtures, locations, and stats
+- RapidAPI Free API Live Football Data for live groups, teams, fixtures, locations, and standings
 - FIFA's published 2026 knockout schedule template for fixed round-of-32 onward slot metadata
 
 Schedule reference:
@@ -257,6 +268,6 @@ Recommended integration points:
 
 ## Demo Mode
 
-If `API_FOOTBALL_KEY` is missing or the live request fails without a cache, the UI falls back to a clearly marked demo field so the drag-and-save flow still works locally.
+If `RAPIDAPI_KEY` is missing or the live request fails without a cache, the UI falls back to a clearly marked demo field so the drag-and-save flow still works locally.
 
 If `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, or `SUPABASE_SECRET_KEY` is missing, the app still loads in read-only mode, but auth, save, and load are disabled.

@@ -3,8 +3,9 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { buildDemoWorldCupBase } from "./data/demoWorldCup.js";
 import { KNOCKOUT_TEMPLATE } from "./data/knockoutTemplate.js";
 
-const API_BASE_URL = "https://v3.football.api-sports.io";
-const DOCUMENTATION_URL = "https://www.api-football.com/documentation-v3";
+const RAPIDAPI_HOST = "free-api-live-football-data.p.rapidapi.com";
+const API_BASE_URL = `https://${RAPIDAPI_HOST}`;
+const DOCUMENTATION_URL = "https://rapidapi.com/Creativesdev/api/free-api-live-football-data";
 const FIFA_SCHEDULE_URL =
   "https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/articles/match-schedule-fixtures-results-teams-stadiums";
 const WORLD_CUP_SEASON = 2026;
@@ -15,6 +16,14 @@ const FIFA_MENS_RANKING_URL = "https://inside.fifa.com/fifa-world-ranking/men";
 const MAX_FIFA_RANK = 211;
 const EXTERNAL_FETCH_CONCURRENCY = 6;
 const AMBIGUOUS_API_CODES = new Set(["AUS", "IRA", "SOU"]);
+const RAPIDAPI_ENDPOINTS = {
+  leaguesSearch: "football-leagues-search",
+  leaguesAll: "football-get-all-leagues",
+  standings: "football-get-standing-all",
+  teams: "football-get-list-all-team",
+  fixtures: "football-get-all-matches-by-league",
+  rounds: "football-get-all-rounds"
+};
 const FIFA_CODE_FIXUPS = {
   BOS: "BIH",
   CAP: "CPV",
@@ -96,10 +105,10 @@ export async function getWorldCupData({ refresh = false, timezone = "Asia/Jerusa
       return cache.payload;
     }
 
-    const apiKey = String(process.env.API_FOOTBALL_KEY || "").trim();
+    const apiKey = String(process.env.RAPIDAPI_KEY || process.env.RAPID_API_KEY || "").trim();
 
     if (!apiKey) {
-      return finalizeWorldCupData(buildDemoWorldCupBase("No API_FOOTBALL_KEY was found in the environment."));
+      return finalizeWorldCupData(buildDemoWorldCupBase("No RAPIDAPI_KEY was found in the environment."));
     }
 
     try {
@@ -137,44 +146,36 @@ export async function getWorldCupData({ refresh = false, timezone = "Asia/Jerusa
 async function fetchLiveWorldCupBase({ apiKey, timezone }) {
   const leagueEntry = await findWorldCupLeague(apiKey);
   const leagueId = leagueEntry.league.id;
-  const seasonCoverage = leagueEntry.season.coverage ?? {};
+  const seasonCoverage = leagueEntry.season.coverage ?? createRapidApiCoverage();
 
   const [standingsResult, teamsResult, fixturesResult, roundsResult] = await Promise.all([
-    optionalApiRequest("standings", { league: leagueId, season: WORLD_CUP_SEASON }, apiKey),
-    optionalApiRequest("teams", { league: leagueId, season: WORLD_CUP_SEASON }, apiKey),
-    optionalApiRequest(
-      "fixtures",
-      { league: leagueId, season: WORLD_CUP_SEASON, timezone },
-      apiKey
-    ),
-    optionalApiRequest(
-      "fixtures/rounds",
-      { league: leagueId, season: WORLD_CUP_SEASON, dates: "true", timezone },
-      apiKey
-    )
+    optionalApiRequest(RAPIDAPI_ENDPOINTS.standings, leagueQueryParams(leagueId), apiKey),
+    optionalApiRequest(RAPIDAPI_ENDPOINTS.teams, leagueQueryParams(leagueId), apiKey),
+    optionalApiRequest(RAPIDAPI_ENDPOINTS.fixtures, leagueQueryParams(leagueId), apiKey),
+    optionalApiRequest(RAPIDAPI_ENDPOINTS.rounds, leagueQueryParams(leagueId), apiKey)
   ]);
 
-  const teamLookup = buildTeamLookup(teamsResult.response);
-  const rawFixtures = Array.isArray(fixturesResult.response) ? fixturesResult.response : [];
-  const venueLookup = await fetchVenueLookup(rawFixtures, apiKey);
+  const teamLookup = buildTeamLookup(extractApiRows(teamsResult));
+  const rawFixtures = extractApiRows(fixturesResult);
+  const venueLookup = new Map();
 
   const normalizedFixtures = rawFixtures.map((fixture) =>
-    normalizeFixture(fixture, teamLookup, venueLookup)
-  );
+    normalizeFixture(fixture, teamLookup, venueLookup, timezone)
+  ).filter(Boolean);
   const normalizedVenues = collectVenues(normalizedFixtures, venueLookup);
 
   const groups = buildGroups({
-    standingsResponse: standingsResult.response,
+    standingsResponse: extractApiRows(standingsResult),
     teamLookup,
     fixtures: normalizedFixtures
   });
 
-  const normalizedRounds = normalizeRounds(roundsResult.response);
+  const normalizedRounds = normalizeRounds(extractApiRows(roundsResult));
   const [featuredStats, fifaRankingsResult, teamSignalsResult] = await Promise.all([
     fetchFeaturedStats({
       fixtures: normalizedFixtures,
       apiKey,
-      enabled: Boolean(seasonCoverage?.fixtures?.statistics_fixtures)
+      enabled: false
     }),
     fetchFifaRankings(collectUniqueTeams(groups)),
     fetchTeamStrengthSignals({
@@ -187,7 +188,7 @@ async function fetchLiveWorldCupBase({ apiKey, timezone }) {
   return {
     source: {
       mode: "live",
-      provider: "API-Football",
+      provider: "RapidAPI Free API Live Football Data",
       documentation: DOCUMENTATION_URL,
       scheduleSource: FIFA_SCHEDULE_URL,
       rankingsSource: FIFA_MENS_RANKING_URL,
@@ -226,7 +227,8 @@ async function apiRequest(endpoint, params, apiKey) {
 
   const response = await fetch(url, {
     headers: {
-      "x-apisports-key": apiKey,
+      "x-rapidapi-key": apiKey,
+      "x-rapidapi-host": RAPIDAPI_HOST,
       Accept: "application/json"
     }
   });
@@ -236,14 +238,14 @@ async function apiRequest(endpoint, params, apiKey) {
   }
 
   if (!response.ok) {
-    throw new Error(`API-Football ${endpoint} request failed with status ${response.status}.`);
+    throw new Error(`RapidAPI football ${endpoint} request failed with status ${response.status}.`);
   }
 
   const data = await response.json();
   const errors = formatApiErrors(data?.errors);
 
-  if (errors) {
-    throw new Error(`API-Football ${endpoint} returned errors: ${errors}`);
+  if (errors || data?.message) {
+    throw new Error(`RapidAPI football ${endpoint} returned errors: ${errors || data.message}`);
   }
 
   return data;
@@ -255,6 +257,58 @@ async function optionalApiRequest(endpoint, params, apiKey) {
   } catch {
     return { response: [] };
   }
+}
+
+function leagueQueryParams(leagueId) {
+  return {
+    leagueid: leagueId
+  };
+}
+
+function createRapidApiCoverage() {
+  return {
+    standings: true,
+    fixtures: {
+      events: true,
+      lineups: true,
+      statistics_fixtures: true,
+      statistics_players: false
+    },
+    players: true,
+    predictions: false,
+    odds: true
+  };
+}
+
+function extractApiRows(data) {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  for (const value of [
+    data?.response,
+    data?.data,
+    data?.results,
+    data?.result,
+    data?.events,
+    data?.matches,
+    data?.teams,
+    data?.leagues,
+    data?.standings,
+    data?.rows
+  ]) {
+    if (Array.isArray(value)) {
+      return value;
+    }
+  }
+
+  for (const value of Object.values(data ?? {})) {
+    if (Array.isArray(value)) {
+      return value;
+    }
+  }
+
+  return data && typeof data === "object" ? [data] : [];
 }
 
 async function mapWithConcurrency(items, limit, mapper) {
@@ -298,30 +352,37 @@ function formatApiErrors(errors) {
 }
 
 async function findWorldCupLeague(apiKey) {
-  const data = await apiRequest(
-    "leagues",
-    {
-      search: "world cup"
-    },
-    apiKey
-  );
+  const configuredLeagueId = String(process.env.RAPIDAPI_WORLD_CUP_LEAGUE_ID || "").trim();
 
-  const candidates = (data.response ?? [])
-    .map((entry) => {
-      const season = (entry.seasons ?? []).find((item) => item.year === WORLD_CUP_SEASON);
+  if (configuredLeagueId) {
+    const detail = await optionalApiRequest("football-get-league-detail", leagueQueryParams(configuredLeagueId), apiKey);
+    const league = extractApiRows(detail)[0] ?? {};
+    return normalizeLeagueEntry({
+      id: configuredLeagueId,
+      name: league.name ?? league.leagueName ?? league.title ?? "World Cup",
+      country: league.country ?? league.category ?? league.countryName ?? "World",
+      raw: league
+    });
+  }
 
-      if (!season) {
-        return null;
-      }
+  const [searchResult, allResult] = await Promise.all([
+    optionalApiRequest(
+      RAPIDAPI_ENDPOINTS.leaguesSearch,
+      {
+        q: "world cup",
+        query: "world cup",
+        search: "world cup"
+      },
+      apiKey
+    ),
+    optionalApiRequest(RAPIDAPI_ENDPOINTS.leaguesAll, {}, apiKey)
+  ]);
 
-      return {
-        ...entry,
-        season
-      };
-    })
+  const candidates = [...extractApiRows(searchResult), ...extractApiRows(allResult)]
+    .map(normalizeLeagueEntry)
     .filter(Boolean)
     .filter((entry) => {
-      const name = String(entry.league?.name || "").toLowerCase();
+      const name = normalizeLookupKey(entry.league?.name);
       return (
         name.includes("world cup") &&
         !name.includes("qualification") &&
@@ -333,7 +394,7 @@ async function findWorldCupLeague(apiKey) {
     .sort((left, right) => scoreLeague(right) - scoreLeague(left));
 
   if (!candidates.length) {
-    throw new Error("Could not find the FIFA World Cup 2026 league in API-Football.");
+    throw new Error("Could not find the FIFA World Cup league in RapidAPI Free API Live Football Data. Set RAPIDAPI_WORLD_CUP_LEAGUE_ID if the provider search does not expose it.");
   }
 
   return candidates[0];
@@ -346,22 +407,110 @@ function scoreLeague(entry) {
   return exactName + worldCountry + standingsCoverage;
 }
 
+function normalizeLeagueEntry(entry) {
+  const leagueSource = entry?.league ?? entry?.uniqueTournament ?? entry?.tournament ?? entry;
+  const id = firstDefined(
+    leagueSource?.id,
+    leagueSource?.leagueId,
+    leagueSource?.leagueid,
+    entry?.leagueId,
+    entry?.leagueid,
+    entry?.id
+  );
+  const name = firstDefined(
+    leagueSource?.name,
+    leagueSource?.leagueName,
+    leagueSource?.title,
+    entry?.leagueName,
+    entry?.name,
+    entry?.title
+  );
+
+  if (id == null || !name) {
+    return null;
+  }
+
+  const countrySource = entry?.country ?? entry?.category ?? leagueSource?.country ?? {};
+  const season = {
+    year: WORLD_CUP_SEASON,
+    coverage: createRapidApiCoverage()
+  };
+
+  return {
+    ...entry,
+    league: {
+      id,
+      name,
+      logo: firstDefined(leagueSource?.logo, leagueSource?.image, leagueSource?.logoUrl, null)
+    },
+    country: {
+      name: normalizeCountryName(countrySource) ?? "World"
+    },
+    season
+  };
+}
+
 function buildTeamLookup(teamResponse = []) {
   const lookup = new Map();
 
   for (const entry of teamResponse) {
-    lookup.set(entry.team.id, {
-      id: entry.team.id,
-      name: entry.team.name,
-      code: entry.team.code ?? null,
-      country: entry.team.country ?? null,
-      national: entry.team.national ?? null,
-      logo: entry.team.logo ?? null,
-      venue: entry.venue ?? null
-    });
+    const team = normalizeTeamSource(entry?.team ?? entry);
+
+    if (team?.id != null) {
+      lookup.set(team.id, team);
+    }
   }
 
   return lookup;
+}
+
+function normalizeTeamSource(source = {}, fallback = {}) {
+  const id = firstDefined(
+    source.id,
+    source.teamId,
+    source.teamid,
+    source.idTeam,
+    fallback.id,
+    fallback.teamId,
+    fallback.teamid
+  );
+  const name = firstDefined(
+    source.name,
+    source.shortName,
+    source.teamName,
+    source.homeTeam,
+    source.awayTeam,
+    fallback.name,
+    fallback.teamName
+  );
+
+  if (id == null && !name) {
+    return null;
+  }
+
+  const countrySource = source.country ?? source.category ?? fallback.country ?? fallback.category ?? {};
+
+  return {
+    id: id ?? normalizeLookupKey(name),
+    name: name ?? "TBD",
+    code: firstDefined(source.code, source.nameCode, source.abbreviation, source.slug, null),
+    country: normalizeCountryName(countrySource) ?? source.countryName ?? null,
+    national: firstDefined(source.national, source.type === "national", null),
+    logo: firstDefined(source.logo, source.logoUrl, source.image, source.teamLogo, source.flag, null),
+    venue: source.venue ?? fallback.venue ?? null
+  };
+}
+
+function normalizeCountryName(countrySource) {
+  if (!countrySource) {
+    return null;
+  }
+
+  if (typeof countrySource === "string") {
+    return countrySource;
+  }
+
+  return firstDefined(countrySource.name, countrySource.countryName, countrySource.alpha2, countrySource.slug, null);
 }
 
 async function fetchVenueLookup(rawFixtures, apiKey) {
@@ -432,7 +581,52 @@ function collectVenues(fixtures, venueLookup) {
   );
 }
 
-function normalizeFixture(fixture, teamLookup, venueLookup) {
+function normalizeFixture(fixture, teamLookup, venueLookup, timezone = "UTC") {
+  if (fixture?.fixture?.id != null) {
+    return normalizeApiFootballFixture(fixture, teamLookup, venueLookup);
+  }
+
+  const homeTeam = normalizeFixtureTeam(fixture?.homeTeam ?? fixture?.home ?? {}, teamLookup, fixture, "home");
+  const awayTeam = normalizeFixtureTeam(fixture?.awayTeam ?? fixture?.away ?? {}, teamLookup, fixture, "away");
+  const id = firstDefined(fixture?.id, fixture?.eventId, fixture?.eventid, fixture?.matchId, fixture?.matchid);
+
+  if (id == null || !homeTeam || !awayTeam) {
+    return null;
+  }
+
+  const timestamp = normalizeFixtureTimestamp(fixture);
+  const date = normalizeFixtureDate(fixture, timestamp);
+  const round = normalizeFixtureRound(fixture);
+  const venue = fixture?.venue ?? fixture?.stadium ?? fixture?.location ?? {};
+
+  return {
+    id,
+    date,
+    timestamp,
+    timezone,
+    referee: firstDefined(fixture?.referee?.name, fixture?.referee, null),
+    stage: classifyStage(round),
+    round,
+    groupLetter: extractGroupLetter(round),
+    status: normalizeFixtureStatus(fixture),
+    venue: {
+      id: firstDefined(venue?.id, venue?.venueId, null),
+      name: firstDefined(venue?.name, venue?.venueName, fixture?.venueName, "TBD"),
+      city: firstDefined(venue?.city, venue?.cityName, fixture?.city, null),
+      country: firstDefined(venue?.country?.name, venue?.countryName, venue?.country, null),
+      capacity: toNumber(venue?.capacity),
+      image: firstDefined(venue?.image, venue?.imageUrl, null)
+    },
+    teams: {
+      home: homeTeam,
+      away: awayTeam
+    },
+    goals: normalizeFixtureGoals(fixture),
+    score: normalizeFixtureScore(fixture)
+  };
+}
+
+function normalizeApiFootballFixture(fixture, teamLookup, venueLookup) {
   const venueId = fixture?.fixture?.venue?.id ?? null;
   const venue = venueLookup.get(venueId);
 
@@ -470,20 +664,154 @@ function normalizeFixture(fixture, teamLookup, venueLookup) {
   };
 }
 
-function normalizeFixtureTeam(team, teamLookup) {
-  const teamInfo = teamLookup.get(team.id);
+function normalizeFixtureTeam(team, teamLookup, fixture = {}, side = "") {
+  const teamInfo = teamLookup.get(team?.id);
+  const fallback = side
+    ? {
+        id: firstDefined(fixture?.[`${side}TeamId`], fixture?.[`${side}Id`]),
+        name: firstDefined(fixture?.[`${side}TeamName`], fixture?.[`${side}Team`]),
+        logo: firstDefined(fixture?.[`${side}TeamLogo`], fixture?.[`${side}Logo`])
+      }
+    : {};
+  const normalized = normalizeTeamSource(team, fallback);
+
+  if (!normalized) {
+    return null;
+  }
+
   return {
-    id: team.id,
-    name: team.name,
-    code: teamInfo?.code ?? null,
-    country: teamInfo?.country ?? null,
-    logo: team.logo ?? teamInfo?.logo ?? null,
-    winner: team.winner ?? null
+    id: normalized.id,
+    name: normalized.name,
+    code: teamInfo?.code ?? normalized.code ?? null,
+    country: teamInfo?.country ?? normalized.country ?? null,
+    logo: normalized.logo ?? teamInfo?.logo ?? null,
+    winner: firstDefined(team?.winner, null)
+  };
+}
+
+function normalizeFixtureTimestamp(fixture) {
+  const raw = firstDefined(fixture?.startTimestamp, fixture?.timestamp, fixture?.time, fixture?.startTime);
+  const number = toNumber(raw);
+
+  if (Number.isFinite(number)) {
+    return number > 9999999999 ? Math.floor(number / 1000) : number;
+  }
+
+  const parsed = Date.parse(firstDefined(fixture?.date, fixture?.startDate, fixture?.startTime, ""));
+  return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : 0;
+}
+
+function normalizeFixtureDate(fixture, timestamp) {
+  const raw = firstDefined(fixture?.date, fixture?.startDate, fixture?.startTime, null);
+
+  if (raw && Number.isNaN(Number(raw))) {
+    const parsed = Date.parse(raw);
+    return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+  }
+
+  return timestamp ? new Date(timestamp * 1000).toISOString() : null;
+}
+
+function normalizeFixtureRound(fixture) {
+  return firstDefined(
+    fixture?.round,
+    fixture?.roundName,
+    fixture?.roundInfo?.name,
+    fixture?.roundInfo?.round,
+    fixture?.stage,
+    fixture?.tournament?.name,
+    fixture?.league?.round,
+    "Other"
+  );
+}
+
+function normalizeFixtureStatus(fixture) {
+  const status = fixture?.status ?? {};
+  const raw = typeof status === "string" ? status : firstDefined(status.description, status.type, status.short, status.long, fixture?.statusText, "");
+  const short = normalizeStatusShort(raw);
+
+  return {
+    long: raw || null,
+    short,
+    elapsed: toNumber(firstDefined(status.elapsed, fixture?.elapsed, fixture?.minute, null))
+  };
+}
+
+function normalizeStatusShort(status) {
+  const label = normalizeLookupKey(status);
+
+  if (!label || label.includes("not started") || label.includes("scheduled")) {
+    return "NS";
+  }
+
+  if (label.includes("finished") || label === "ft") {
+    return "FT";
+  }
+
+  if (label.includes("postponed")) {
+    return "PST";
+  }
+
+  if (label.includes("cancel")) {
+    return "CANC";
+  }
+
+  if (label.includes("halftime") || label === "ht") {
+    return "HT";
+  }
+
+  return "LIVE";
+}
+
+function normalizeFixtureGoals(fixture) {
+  const homeScore = fixture?.homeScore ?? fixture?.score?.home ?? {};
+  const awayScore = fixture?.awayScore ?? fixture?.score?.away ?? {};
+
+  return {
+    home: firstNumber(
+      fixture?.homeScore,
+      fixture?.homeGoals,
+      fixture?.goals?.home,
+      homeScore?.current,
+      homeScore?.display,
+      homeScore?.normaltime
+    ),
+    away: firstNumber(
+      fixture?.awayScore,
+      fixture?.awayGoals,
+      fixture?.goals?.away,
+      awayScore?.current,
+      awayScore?.display,
+      awayScore?.normaltime
+    )
+  };
+}
+
+function normalizeFixtureScore(fixture) {
+  const goals = normalizeFixtureGoals(fixture);
+
+  return {
+    halftime: {
+      home: firstNumber(fixture?.score?.halftime?.home, fixture?.homeScore?.period1, fixture?.homeScore?.halfTime),
+      away: firstNumber(fixture?.score?.halftime?.away, fixture?.awayScore?.period1, fixture?.awayScore?.halfTime)
+    },
+    fulltime: {
+      home: goals.home,
+      away: goals.away
+    },
+    extratime: {
+      home: firstNumber(fixture?.score?.extratime?.home, fixture?.homeScore?.extraTime),
+      away: firstNumber(fixture?.score?.extratime?.away, fixture?.awayScore?.extraTime)
+    },
+    penalty: {
+      home: firstNumber(fixture?.score?.penalty?.home, fixture?.homeScore?.penalties),
+      away: firstNumber(fixture?.score?.penalty?.away, fixture?.awayScore?.penalties)
+    }
   };
 }
 
 function buildGroups({ standingsResponse = [], teamLookup, fixtures }) {
-  const standingsGroups = (standingsResponse?.[0]?.league?.standings ?? [])
+  const standingsGroups = normalizeStandingGroupsResponse(standingsResponse)
     .filter((group) => Array.isArray(group) && group.length)
     .filter((groupRows) => Boolean(extractGroupLetter(groupRows[0]?.group)))
     .map((groupRows, index) => normalizeStandingGroup(groupRows, index, teamLookup, fixtures));
@@ -495,39 +823,106 @@ function buildGroups({ standingsResponse = [], teamLookup, fixtures }) {
   return deriveGroupsFromFixtures(fixtures);
 }
 
+function normalizeStandingGroupsResponse(standingsResponse = []) {
+  const directGroups = standingsResponse?.[0]?.league?.standings;
+
+  if (Array.isArray(directGroups)) {
+    return directGroups;
+  }
+
+  const groups = [];
+
+  for (const entry of standingsResponse) {
+    const nestedRows = [
+      entry?.rows,
+      entry?.standings,
+      entry?.table,
+      entry?.data,
+      entry?.response
+    ].find(Array.isArray);
+
+    if (nestedRows) {
+      groups.push(normalizeRapidStandingRows(nestedRows, entry));
+      continue;
+    }
+
+    if (entry?.team || entry?.teamName || entry?.position || entry?.rank) {
+      const group = extractGroupLetter(firstDefined(entry.group, entry.groupName, entry.name, entry.tournament?.name, ""));
+      groups.push([
+        {
+          ...entry,
+          group: group ? `Group ${group}` : firstDefined(entry.group, entry.groupName, "Group A")
+        }
+      ]);
+    }
+  }
+
+  if (groups.length > 1 && groups.every((group) => group.length === 1)) {
+    const byGroup = new Map();
+
+    for (const [row] of groups) {
+      const groupName = row.group ?? "Group A";
+      if (!byGroup.has(groupName)) {
+        byGroup.set(groupName, []);
+      }
+      byGroup.get(groupName).push(row);
+    }
+
+    return [...byGroup.values()];
+  }
+
+  return groups.filter((group) => group.length);
+}
+
+function normalizeRapidStandingRows(rows, container = {}) {
+  const groupName = firstDefined(container?.name, container?.group, container?.groupName, container?.title, "Group A");
+
+  return rows.map((row) => ({
+    ...row,
+    group: firstDefined(row?.group, row?.groupName, groupName)
+  }));
+}
+
 function normalizeStandingGroup(groupRows, index, teamLookup, fixtures) {
   const groupName = String(groupRows[0]?.group || `Group ${String.fromCharCode(65 + index)}`);
   const letter = extractGroupLetter(groupName) ?? String.fromCharCode(65 + index);
 
   const teams = [...groupRows]
-    .sort((left, right) => Number(left.rank) - Number(right.rank))
+    .sort((left, right) => Number(firstDefined(left.rank, left.position, left.pos, 0)) - Number(firstDefined(right.rank, right.position, right.pos, 0)))
     .map((row) => {
-      const details = teamLookup.get(row.team.id);
+      const team = normalizeTeamSource(row.team ?? row);
+
+      if (!team) {
+        return null;
+      }
+
+      const details = teamLookup.get(team.id);
       return {
-        id: row.team.id,
-        name: row.team.name,
-        code: details?.code ?? null,
-        country: details?.country ?? null,
-        national: details?.national ?? null,
-        logo: row.team.logo ?? details?.logo ?? null,
+        id: team.id,
+        name: team.name,
+        code: details?.code ?? team.code ?? null,
+        country: details?.country ?? team.country ?? null,
+        national: details?.national ?? team.national ?? null,
+        logo: team.logo ?? details?.logo ?? null,
         groupLetter: letter,
         ...createDefaultTeamMetrics(),
         standing: {
-          rank: row.rank ?? null,
-          points: row.points ?? null,
-          goalDifference: row.goalsDiff ?? null,
+          rank: firstNumber(row.rank, row.position, row.pos),
+          points: firstNumber(row.points, row.pts),
+          goalDifference: firstNumber(row.goalsDiff, row.goalDifference, row.diff),
           form: row.form ?? null,
-          played: row.all?.played ?? null,
-          wins: row.all?.win ?? null,
-          draws: row.all?.draw ?? null,
-          losses: row.all?.lose ?? null,
-          goalsFor: row.all?.goals?.for ?? null,
-          goalsAgainst: row.all?.goals?.against ?? null,
+          played: firstNumber(row.all?.played, row.played, row.matches, row.gamesPlayed),
+          wins: firstNumber(row.all?.win, row.wins),
+          draws: firstNumber(row.all?.draw, row.draws),
+          losses: firstNumber(row.all?.lose, row.losses),
+          goalsFor: firstNumber(row.all?.goals?.for, row.goalsFor, row.scoresFor),
+          goalsAgainst: firstNumber(row.all?.goals?.against, row.goalsAgainst, row.scoresAgainst),
           description: row.description ?? null,
           update: row.update ?? null
         }
       };
-    });
+    })
+    .filter(Boolean);
 
   return {
     id: `group-${letter.toLowerCase()}`,
@@ -595,8 +990,10 @@ function deriveGroupsFromFixtures(fixtures) {
 
 function normalizeRounds(roundsResponse = []) {
   return roundsResponse.map((entry) => {
-    const round = typeof entry === "string" ? entry : entry.round;
-    const dates = typeof entry === "string" ? [] : entry.dates ?? [];
+    const round = typeof entry === "string"
+      ? entry
+      : firstDefined(entry.round, entry.name, entry.title, entry.roundName, entry.slug, "Other");
+    const dates = typeof entry === "string" ? [] : entry.dates ?? entry.events ?? [];
 
     return {
       round,
@@ -828,56 +1225,16 @@ function normalizeLookupKey(value) {
 }
 
 async function fetchTeamStrengthSignals({ fixtures, apiKey }) {
-  const eligibleFixtures = fixtures.filter(
-    (fixture) => Number.isInteger(fixture?.id) && fixture?.teams?.home?.id && fixture?.teams?.away?.id
-  );
-  const lookup = new Map();
-  const meta = {
-    fixturesConsidered: eligibleFixtures.length,
-    fixturesWithPredictions: 0,
-    fixturesWithOdds: 0
-  };
-
-  await mapWithConcurrency(eligibleFixtures, EXTERNAL_FETCH_CONCURRENCY, async (fixture) => {
-    const [predictionResponse, oddsResponse] = await Promise.all([
-      optionalApiRequest("predictions", { fixture: fixture.id }, apiKey),
-      optionalApiRequest("odds", { fixture: fixture.id }, apiKey)
-    ]);
-    const predictionEntry = Array.isArray(predictionResponse.response)
-      ? predictionResponse.response[0]
-      : null;
-    const oddsEntry = Array.isArray(oddsResponse.response)
-      ? oddsResponse.response.find((entry) => Array.isArray(entry?.bookmakers) && entry.bookmakers.length) ??
-        oddsResponse.response[0]
-      : null;
-
-    if (isUsablePredictionEntry(predictionEntry)) {
-      meta.fixturesWithPredictions += 1;
-      applyPredictionSignals(lookup, fixture, predictionEntry);
-    }
-
-    if (oddsEntry?.bookmakers?.length) {
-      meta.fixturesWithOdds += 1;
-      applyOddsSignals(lookup, fixture, oddsEntry);
-    }
-  });
-
-  const warnings = [];
-
-  if (!meta.fixturesWithPredictions) {
-    warnings.push("API-Football predictions are currently unavailable for the fetched World Cup fixtures.");
-  }
-
-  if (!meta.fixturesWithOdds) {
-    warnings.push(
-      "API-Football pre-match odds are currently unavailable for the fetched World Cup fixtures, so team scores are leaning on FIFA rankings and prediction-side signals."
-    );
-  }
-
   return {
-    lookup,
-    warnings,
-    meta
+    lookup: new Map(),
+    warnings: [
+      "RapidAPI Free API Live Football Data is being used for tournament data; team strength scores are currently leaning on FIFA rankings only."
+    ],
+    meta: {
+      fixturesConsidered: fixtures.length,
+      fixturesWithPredictions: 0,
+      fixturesWithOdds: 0
+    }
   };
 }
 
@@ -1287,6 +1644,22 @@ function toNumber(value) {
 
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function firstDefined(...values) {
+  return values.find((value) => value !== undefined && value !== null && value !== "");
+}
+
+function firstNumber(...values) {
+  for (const value of values) {
+    const number = toNumber(value);
+
+    if (Number.isFinite(number)) {
+      return number;
+    }
+  }
+
+  return null;
 }
 
 function ratioToPercent(part, total) {

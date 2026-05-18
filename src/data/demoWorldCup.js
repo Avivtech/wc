@@ -1,4 +1,4 @@
-export function buildDemoWorldCupBase(reason = "Live API-Football data is unavailable.") {
+export function buildDemoWorldCupBase(reason = "Live RapidAPI football data is unavailable.") {
   const seededGroups = [
     ["A", ["Mexico", "Croatia", "Norway", "Jordan"]],
     ["B", ["Canada", "Morocco", "Panama", "Cabo Verde"]],
@@ -48,8 +48,8 @@ export function buildDemoWorldCupBase(reason = "Live API-Football data is unavai
   return {
     source: {
       mode: "demo",
-      provider: "API-Football",
-      documentation: "https://www.api-football.com/documentation-v3",
+      provider: "RapidAPI Free API Live Football Data",
+      documentation: "https://rapidapi.com/Creativesdev/api/free-api-live-football-data",
       scheduleSource: "https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/articles/match-schedule-fixtures-results-teams-stadiums",
       fetchedAt: new Date().toISOString(),
       warnings: [
