@@ -109,12 +109,14 @@ export async function getWorldCupData({ refresh = false, timezone = "Asia/Jerusa
 
     const apiKey = String(process.env.RAPIDAPI_KEY || process.env.RAPID_API_KEY || "").trim();
 
-    if (!apiKey) {
-      return finalizeWorldCupData(buildDemoWorldCupBase("No RAPIDAPI_KEY was found in the environment."));
-    }
-
     try {
-      const liveBase = await fetchLiveWorldCupBase({ apiKey, timezone });
+      const liveBase = apiKey
+        ? await fetchLiveWorldCupBase({ apiKey, timezone })
+        : await fetchScheduleTemplateWorldCupBase({
+            warnings: [
+              "No RAPIDAPI_KEY was found in the environment, so the calendar is using the public World Cup 2026 schedule template."
+            ]
+          });
       const payload = finalizeWorldCupData(liveBase);
       await writeCache(payload);
       return payload;
@@ -233,6 +235,51 @@ async function fetchLiveWorldCupBase({ apiKey, timezone }) {
     rounds: normalizedRounds,
     venues: normalizedVenues,
     featuredStats
+  };
+}
+
+async function fetchScheduleTemplateWorldCupBase({ warnings = [] } = {}) {
+  const fallback = await fetchOpenFootballWorldCup2026();
+  const fifaRankingsResult = await fetchFifaRankings(collectUniqueTeams(fallback.groups));
+  const enrichedGroups = enrichGroupsWithTeamMetrics(fallback.groups, fifaRankingsResult.lookup, new Map());
+
+  return {
+    source: {
+      mode: "template",
+      provider: "World Cup 2026 schedule template",
+      documentation: DOCUMENTATION_URL,
+      scheduleSource: FIFA_SCHEDULE_URL,
+      rankingsSource: FIFA_MENS_RANKING_URL,
+      scheduleTemplateSource: OPENFOOTBALL_2026_URL,
+      fetchedAt: new Date().toISOString(),
+      warnings: [
+        ...warnings,
+        ...fifaRankingsResult.warnings,
+        "Team strength scores are currently leaning on FIFA rankings only."
+      ],
+      enrichment: {
+        fifaRankings: fifaRankingsResult.meta,
+        teamScores: {
+          fixturesConsidered: fallback.fixtures.length,
+          fixturesWithPredictions: 0,
+          fixturesWithOdds: 0
+        }
+      },
+      stale: false
+    },
+    competition: {
+      id: "template-world-cup-2026",
+      name: "FIFA World Cup 2026",
+      country: "World",
+      season: WORLD_CUP_SEASON,
+      logo: null,
+      coverage: createRapidApiCoverage()
+    },
+    groups: enrichedGroups,
+    fixtures: fallback.fixtures,
+    rounds: [],
+    venues: collectVenues(fallback.fixtures, new Map()),
+    featuredStats: []
   };
 }
 
