@@ -63,6 +63,9 @@
         <p class="eyebrow">World Cup 2026 Predictor</p>
         <h1>Build your own playoff field from the groups.</h1>
         <p id="save-status" class="panel-note">Changes save automatically once you sign in.</p>
+        <div class="hero-actions">
+          <button id="predict-button" class="button primary" type="button">Predict</button>
+        </div>
       </div>
       <div id="save-panel" class="save-panel">
         <div class="save-panel-top">
@@ -136,9 +139,9 @@
           <h2 id="home-team-section-title">Home Team Live Results</h2>
           <p id="home-team-section-copy" class="section-copy">Your selected home team keeps a soft flag-inspired theme across the app.</p>
         </div>
-        <div class="view-mode-stack">
-          <div id="home-team-pane-live" data-view-content="live" aria-hidden="false"></div>
-          <div id="home-team-pane-my" class="hidden" data-view-content="my" hidden aria-hidden="true"></div>
+        <div class="view-mode-stack home-team-view-stack">
+          <div id="home-team-pane-live" class="home-team-pane" data-view-content="live" aria-labelledby="home-team-section-title" aria-hidden="false"></div>
+          <div id="home-team-pane-my" class="home-team-pane hidden" data-view-content="my" aria-labelledby="home-team-section-title" hidden aria-hidden="true"></div>
         </div>
       </section>
 

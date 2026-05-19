@@ -47,6 +47,10 @@ const TRANSLATIONS = {
 		homeTeamLastGameLineupEmpty: "Player lineup is not available for the last completed game.",
 		homeTeamSearchPlaceholder: "Search by country or code",
 		homeTeamNoResults: "No teams match this search.",
+		homeTeamScore: "Team score",
+		homeTeamAttack: "Attack",
+		homeTeamDefense: "Defense",
+		homeTeamPenalties: "Penalties",
 		saveStatusDevLive: "Development picks are loaded in My Predictions. Switch to inspect them locally.",
 		saveStatusDevLocal: "Development picks are loaded locally. Changes stay local and do not overwrite saved picks.",
 		saveStatusViewingLive: "Viewing live results. Switch to My Predictions to edit your picks.",
@@ -102,6 +106,8 @@ const TRANSLATIONS = {
 		teamToBeDetermined: "Team to be determined",
 		liveResults: "Live Results",
 		myPredictions: "My Predictions",
+		heroCtaPredict: "Predict",
+		heroCtaLive: "Live",
 		predictionsHeadline: "My Predictions",
 		stageGroup: "Group Stage",
 		stageRound32: "Round of 32",
@@ -158,6 +164,10 @@ const TRANSLATIONS = {
 		homeTeamLastGameLineupEmpty: "הרכב השחקנים אינו זמין למשחק האחרון שהסתיים.",
 		homeTeamSearchPlaceholder: "חפשו לפי מדינה או קוד",
 		homeTeamNoResults: "אין נבחרות שתואמות לחיפוש הזה.",
+		homeTeamScore: "ציון נבחרת",
+		homeTeamAttack: "התקפה",
+		homeTeamDefense: "הגנה",
+		homeTeamPenalties: "פנדלים",
 		saveStatusDevLive: "תחזיות הפיתוח נטענו אל התחזיות שלי. עברו אליהן כדי לבדוק מקומית.",
 		saveStatusDevLocal: "תחזיות הפיתוח נטענו מקומית. השינויים נשמרים רק מקומית ואינם דורסים שמירות קיימות.",
 		saveStatusViewingLive: "מוצגות כעת תוצאות חיות. עברו לתחזיות שלי כדי לערוך את הבחירות שלכם.",
@@ -213,6 +223,8 @@ const TRANSLATIONS = {
 		teamToBeDetermined: "הנבחרת תיקבע בהמשך",
 		liveResults: "תוצאות חיות",
 		myPredictions: "התחזיות שלי",
+		heroCtaPredict: "חיזוי",
+		heroCtaLive: "Live",
 		predictionsHeadline: "התחזיות שלי",
 		stageGroup: "שלב הבתים",
 		stageRound32: "שלב 32",
@@ -428,6 +440,8 @@ const state = {
 	worldCup: null,
 	homeTeamId: "",
 	homeTeamSearchQuery: "",
+	homeTeamDataRequestKey: "",
+	homeTeamData: null,
 	groups: [],
 	thirdPlaceRanking: [],
 	selectedThirdTeamIds: [],
@@ -539,6 +553,7 @@ const elements = {
 	countdownMinutes: document.getElementById("countdown-minutes"),
 	countdownSeconds: document.getElementById("countdown-seconds"),
 	savePanel: document.getElementById("save-panel"),
+	predictButton: document.getElementById("predict-button"),
 	authForm: document.getElementById("auth-form"),
 	authModeSwitch: document.getElementById("auth-mode-switch"),
 	authModeButtons: Array.from(document.querySelectorAll("[data-auth-mode]")),
@@ -658,6 +673,11 @@ const SECTION_MODE_COPY = {
 };
 const PLAYOFF_DRAG_HINT_STORAGE_KEY = "wc2026:playoff-drag-hint-dismissed";
 const TECHNICAL_MESSAGE_PATTERN = /\b(api|server|supabase|request failed|status \d+|unknown error|cache|cached data|environment|documentation|provider|rankings page|odds|predictions|fetch|network|connection|timeout|json|syntaxerror|unexpected token)\b/i;
+const API_ROUTES = {
+	authConfig: "/api/auth/config",
+	worldCup: "/api/world-cup",
+	team: (teamId) => `/api/teams/${encodeURIComponent(teamId)}`,
+};
 
 boot();
 
@@ -680,6 +700,7 @@ function bindEvents() {
 	elements.clearAllConfirmButton.addEventListener("click", handleClearAll);
 	elements.signOutButton.addEventListener("click", handleSignOut);
 	elements.overallScoreSubmitButton.addEventListener("click", handleOverallSubmitClick);
+	elements.predictButton?.addEventListener("click", handlePredictClick);
 	elements.displayNameInput.addEventListener("input", handleAuthFieldInput);
 	elements.emailInput.addEventListener("input", handleAuthFieldInput);
 	elements.passwordInput.addEventListener("input", handleAuthFieldInput);
@@ -866,12 +887,7 @@ async function initializeAuth() {
 	state.auth.status = t("authChecking");
 
 	try {
-		const response = await fetch("/api/auth/config");
-		const config = await response.json();
-
-		if (!response.ok) {
-			throw new Error(t("authUnavailable"));
-		}
+		const config = await fetchJson(API_ROUTES.authConfig, { fallbackMessage: t("authUnavailable") });
 
 		if (!config.enabled) {
 			state.auth.enabled = false;
@@ -916,7 +932,7 @@ async function syncAuthSession(session, event = "SESSION") {
 		state.auth.mode = AUTH_MODES.LOGIN;
 		state.auth.user = null;
 		state.auth.displayNameDraft = "";
-		state.homeTeamId = "";
+		setHomeTeamId("");
 		elements.passwordInput.value = "";
 		state.viewMode = VIEW_MODES.LIVE;
 		resetPickSyncState();
@@ -935,7 +951,7 @@ async function syncAuthSession(session, event = "SESSION") {
 		state.auth.mode = AUTH_MODES.LOGIN;
 		state.auth.user = null;
 		state.auth.displayNameDraft = "";
-		state.homeTeamId = "";
+		setHomeTeamId("");
 		elements.passwordInput.value = "";
 		state.viewMode = VIEW_MODES.LIVE;
 		resetPickSyncState();
@@ -951,9 +967,6 @@ async function syncAuthSession(session, event = "SESSION") {
 	state.auth.user = data.user;
 	state.auth.displayNameDraft = getUserDisplayName(data.user);
 	elements.passwordInput.value = "";
-	if (event === "SIGNED_IN" || isUsingDevPicks()) {
-		state.viewMode = VIEW_MODES.MY;
-	}
 	state.auth.status = t("authSignedIn");
 	clearAuthRedirectState();
 
@@ -963,6 +976,11 @@ async function syncAuthSession(session, event = "SESSION") {
 
 	await ensureSavedPicksLoadedForCurrentUser({ renderOnComplete: false });
 	render();
+	void loadSelectedHomeTeamData();
+}
+
+function handlePredictClick() {
+	setViewMode(isShowingLiveResults() ? VIEW_MODES.MY : VIEW_MODES.LIVE);
 }
 
 function renderAuthState() {
@@ -1020,6 +1038,11 @@ function renderViewModeSwitch() {
 
 	if (elements.viewModeSwitch) {
 		elements.viewModeSwitch.dataset.activeMode = state.viewMode;
+	}
+
+	if (elements.predictButton) {
+		elements.predictButton.textContent = isShowingLiveResults() ? t("heroCtaPredict") : t("heroCtaLive");
+		elements.predictButton.setAttribute("aria-label", isShowingLiveResults() ? t("heroCtaPredict") : t("heroCtaLive"));
 	}
 
 	elements.viewModeButtons.forEach((button) => {
@@ -1409,7 +1432,7 @@ async function handleSignOut() {
 		state.auth.mode = AUTH_MODES.LOGIN;
 		state.auth.user = null;
 		state.auth.displayNameDraft = "";
-		state.homeTeamId = "";
+		setHomeTeamId("");
 		elements.passwordInput.value = "";
 		state.viewMode = VIEW_MODES.LIVE;
 		resetPickSyncState();
@@ -1428,7 +1451,7 @@ function handleClearAll() {
 	}
 
 	closeClearAllDialog();
-	state.homeTeamId = "";
+	setHomeTeamId("");
 	state.groups = cloneGroups(state.worldCup.groups || []);
 	state.thirdPlaceRanking = deriveThirdPlaceRanking(state.groups);
 	state.selectedThirdTeamIds = [];
@@ -1512,15 +1535,10 @@ async function loadWorldCup(refresh = false) {
 	}
 
 	try {
-		const response = await fetch(`/api/world-cup?${query.toString()}`);
-		const data = await response.json();
-
-		if (!response.ok) {
-			throw new Error(t("genericCouldNotLoadTournament"));
-		}
+		const data = await fetchWorldCupData(query);
 
 		state.worldCup = data;
-		state.homeTeamId = "";
+		setHomeTeamId("");
 		state.groups = cloneGroups(data.groups || []);
 		state.thirdPlaceRanking = deriveThirdPlaceRanking(state.groups);
 		state.selectedThirdTeamIds = [];
@@ -1541,7 +1559,7 @@ async function loadWorldCup(refresh = false) {
 		}
 	} catch (error) {
 		state.worldCup = null;
-		state.homeTeamId = "";
+		setHomeTeamId("");
 		state.groups = [];
 		state.thirdPlaceRanking = [];
 		state.selectedThirdTeamIds = [];
@@ -1560,7 +1578,48 @@ async function loadWorldCup(refresh = false) {
 		await ensureSavedPicksLoadedForCurrentUser({ renderOnComplete: false });
 		state.loading = false;
 		render();
+		void loadSelectedHomeTeamData();
 	}
+}
+
+async function fetchWorldCupData(query) {
+	const queryString = query?.toString?.() || "";
+	const url = queryString ? `${API_ROUTES.worldCup}?${queryString}` : API_ROUTES.worldCup;
+	return fetchJson(url, { fallbackMessage: t("genericCouldNotLoadTournament") });
+}
+
+async function fetchTeamData(teamId) {
+	const teamKey = getTeamIdKey(teamId);
+
+	if (!teamKey) {
+		return null;
+	}
+
+	const data = await fetchJson(API_ROUTES.team(teamKey), { fallbackMessage: "Could not load team data right now." });
+	return data?.team || null;
+}
+
+async function fetchJson(input, { fallbackMessage = "Request failed." } = {}) {
+	const response = await fetch(input);
+	const data = await readJsonResponse(response);
+
+	if (!response.ok) {
+		throw new Error(getResponseErrorMessage(data, fallbackMessage));
+	}
+
+	return data;
+}
+
+async function readJsonResponse(response) {
+	const contentType = response.headers.get("content-type") || "";
+
+	if (contentType.includes("application/json")) {
+		return response.json();
+	}
+
+	const responseText = await response.text();
+	const preview = responseText.trim().slice(0, 80);
+	throw new Error(`Expected JSON from ${response.url || "request"}, got ${contentType || "unknown content type"}: ${preview}`);
 }
 
 function render() {
@@ -1691,23 +1750,105 @@ function setModeContentVisibility(element, isVisible) {
 
 function renderHomeTeam() {
 	if (!state.worldCup) {
-		const emptyMarkup = emptyState(t("homeTeamEmpty"));
+		const emptyMarkup = state.loading ? renderHomeTeamSkeleton() : emptyState(t("homeTeamEmpty"));
 		elements.homeTeamPaneLive.innerHTML = emptyMarkup;
 		elements.homeTeamPaneMy.innerHTML = emptyMarkup;
 		return;
 	}
 
 	const selectedTeam = getSelectedHomeTeam();
+	const fetchedTeam = getFetchedHomeTeamData(selectedTeam);
+	const isLoadingTeamData = isHomeTeamDataLoading(selectedTeam);
 
-	elements.homeTeamPaneLive.innerHTML = renderHomeTeamSummary(selectedTeam);
-	elements.homeTeamPaneMy.innerHTML = selectedTeam ? renderSelectedHomeTeamDetails(selectedTeam) : renderHomeTeamPicker();
+	elements.homeTeamPaneLive.innerHTML = renderHomeTeamSummary(selectedTeam, fetchedTeam, { isLoadingTeamData });
+	elements.homeTeamPaneMy.innerHTML = selectedTeam ? renderSelectedHomeTeamDetails(selectedTeam, fetchedTeam, { isLoadingTeamData }) : renderHomeTeamPicker();
 
 	if (!selectedTeam) {
 		applyHomeTeamSearchFilter();
 	}
 }
 
-function renderHomeTeamSummary(team) {
+async function loadSelectedHomeTeamData(options = {}) {
+	return loadHomeTeamData(getSelectedHomeTeam(), options);
+}
+
+async function loadHomeTeamData(team, { renderOnComplete = true } = {}) {
+	const teamKey = getTeamIdKey(team?.id);
+
+	if (!teamKey) {
+		resetHomeTeamData();
+		return null;
+	}
+
+	if (getTeamIdKey(state.homeTeamData?.id) === teamKey) {
+		return state.homeTeamData;
+	}
+
+	if (state.homeTeamDataRequestKey === teamKey) {
+		return null;
+	}
+
+	state.homeTeamDataRequestKey = teamKey;
+	state.homeTeamData = null;
+
+	try {
+		const teamData = await fetchTeamData(teamKey);
+
+		if (state.homeTeamDataRequestKey !== teamKey || getTeamIdKey(getSelectedHomeTeam()?.id) !== teamKey) {
+			return null;
+		}
+
+		state.homeTeamData = teamData;
+
+		if (renderOnComplete) {
+			renderHomeTeam();
+		}
+
+		return state.homeTeamData;
+	} catch (error) {
+		if (state.homeTeamDataRequestKey === teamKey) {
+			state.homeTeamDataRequestKey = "";
+		}
+		console.error("Failed to load raw home team data:", error);
+
+		return null;
+	}
+}
+
+function getFetchedHomeTeamData(team) {
+	const teamKey = getTeamIdKey(team?.id);
+	const fetchedTeamKey = getTeamIdKey(state.homeTeamData?.id);
+
+	if (!teamKey || teamKey !== fetchedTeamKey) {
+		return null;
+	}
+
+	return state.homeTeamData;
+}
+
+function setHomeTeamId(teamId) {
+	const nextTeamKey = getTeamIdKey(teamId);
+
+	if (state.homeTeamId === nextTeamKey) {
+		return false;
+	}
+
+	state.homeTeamId = nextTeamKey;
+	resetHomeTeamData();
+	return true;
+}
+
+function resetHomeTeamData() {
+	state.homeTeamDataRequestKey = "";
+	state.homeTeamData = null;
+}
+
+function isHomeTeamDataLoading(team) {
+	const teamKey = getTeamIdKey(team?.id);
+	return Boolean(teamKey && state.homeTeamDataRequestKey === teamKey && getTeamIdKey(state.homeTeamData?.id) !== teamKey);
+}
+
+function renderHomeTeamSummary(team, fetchedTeam = null, { isLoadingTeamData = false } = {}) {
 	if (!team) {
 		return `
 			<article class="home-team-summary-card home-team-summary-card-empty">
@@ -1722,12 +1863,13 @@ function renderHomeTeamSummary(team) {
 			<p class="status-pill">${escapeHtml(t("homeTeamSelected"))}</p>
 			<div class="home-team-summary-head">
 				<div class="team-name">
-					${renderTeamLogo(team)}
+					${renderTeamLogo(fetchedTeam || team)}
 					${renderTeamCode(team, "home-team-code")}
 				</div>
 				<span class="home-team-summary-group">${escapeHtml(formatGroupCardLabel({ letter: team.groupLetter }))}</span>
 			</div>
 			<p class="home-team-summary-name">${escapeHtml(getTeamDisplayName(team))}</p>
+			${renderHomeTeamApiData(fetchedTeam, { isLoading: isLoadingTeamData })}
 		</article>
 	`;
 }
@@ -1754,16 +1896,17 @@ function renderHomeTeamPicker() {
 	`;
 }
 
-function renderSelectedHomeTeamDetails(team) {
+function renderSelectedHomeTeamDetails(team, fetchedTeam = null, { isLoadingTeamData = false } = {}) {
 	return `
 		<article class="home-team-selected-card" ${renderHomeTeamThemeStyle(team)}>
 			<div class="home-team-selected-head">
-				${renderTeamLogo(team)}
+				${renderTeamLogo(fetchedTeam || team)}
 				<div class="home-team-selected-copy">
 					<p class="home-team-selected-label">${escapeHtml(t("homeTeamSelected"))}</p>
 					<h3 class="home-team-selected-name">${escapeHtml(getTeamDisplayName(team))}</h3>
 				</div>
 			</div>
+			${renderHomeTeamApiData(fetchedTeam, { isLoading: isLoadingTeamData })}
 			<div class="home-team-lineup">
 				<p class="home-team-lineup-title">${escapeHtml(t("homeTeamNextMatches"))}</p>
 				${renderHomeTeamNextMatches(team)}
@@ -1774,6 +1917,72 @@ function renderSelectedHomeTeamDetails(team) {
 			</div>
 		</article>
 	`;
+}
+
+function renderHomeTeamApiData(team, { isLoading = false } = {}) {
+	if (isLoading) {
+		return `
+			<div class="home-team-api-data skeleton-card" aria-hidden="true">
+				<div class="home-team-api-score">
+					<span class="skeleton-line skeleton-line-label"></span>
+					<strong class="skeleton-line skeleton-line-score"></strong>
+				</div>
+				<div class="home-team-api-metrics">
+					${Array.from({ length: 3 }, () => `
+						<span class="home-team-api-metric">
+							<span class="skeleton-line skeleton-line-label"></span>
+							<strong class="skeleton-line skeleton-line-short"></strong>
+						</span>
+					`).join("")}
+				</div>
+			</div>
+		`;
+	}
+
+	if (!team) {
+		return "";
+	}
+
+	const scores = team.teamScores || {};
+	const overallScore = formatHomeTeamScoreValue(scores.overallStrength);
+	const scoreItems = [
+		[t("homeTeamAttack"), scores.attack],
+		[t("homeTeamDefense"), scores.defense],
+		[t("homeTeamPenalties"), scores.penalties],
+	]
+		.map(([label, value]) => renderHomeTeamScoreMetric(label, value))
+		.join("");
+
+	return `
+		<div class="home-team-api-data">
+			<div class="home-team-api-score">
+				<span>${escapeHtml(t("homeTeamScore"))}</span>
+				<strong>${escapeHtml(overallScore)}</strong>
+			</div>
+			<div class="home-team-api-metrics">
+				${scoreItems}
+			</div>
+		</div>
+	`;
+}
+
+function renderHomeTeamScoreMetric(label, value) {
+	return `
+		<span class="home-team-api-metric">
+			<span>${escapeHtml(label)}</span>
+			<strong>${escapeHtml(formatHomeTeamScoreValue(value))}</strong>
+		</span>
+	`;
+}
+
+function formatHomeTeamScoreValue(value) {
+	const score = Number(value);
+
+	if (!Number.isFinite(score)) {
+		return "-";
+	}
+
+	return score.toFixed(1);
 }
 
 function renderHomeTeamNextMatches(team) {
@@ -2112,7 +2321,7 @@ function renderGroups() {
 	teardownGroupDragAndDrop();
 
 	if (!state.worldCup) {
-		const emptyMarkup = emptyState(t("emptyGroups"));
+		const emptyMarkup = state.loading ? renderGroupsSkeleton() : emptyState(t("emptyGroups"));
 		elements.groupsGridLive.innerHTML = emptyMarkup;
 		elements.groupsGridMy.innerHTML = emptyMarkup;
 		return;
@@ -2175,9 +2384,10 @@ function renderGroupTableHeaderCells(isLiveView) {
 
 function renderThirdPlace() {
 	if (!state.worldCup) {
-		const emptyMarkup = emptyState(t("emptyThirdPlace"));
-		elements.thirdPlaceHeadLive.innerHTML = "";
-		elements.thirdPlaceHeadMy.innerHTML = "";
+		const emptyMarkup = state.loading ? renderThirdPlaceSkeleton() : emptyState(t("emptyThirdPlace"));
+		const headMarkup = state.loading ? `<span class="status-pill skeleton-pill" aria-hidden="true"></span>` : "";
+		elements.thirdPlaceHeadLive.innerHTML = headMarkup;
+		elements.thirdPlaceHeadMy.innerHTML = headMarkup;
 		elements.thirdPlaceListLive.innerHTML = emptyMarkup;
 		elements.thirdPlaceListMy.innerHTML = emptyMarkup;
 		return;
@@ -2232,7 +2442,7 @@ function renderEmptyThirdPlaceCard() {
 
 function renderPlayoffBoard() {
 	if (!state.worldCup) {
-		const emptyMarkup = emptyState(t("emptyPlayoffs"));
+		const emptyMarkup = state.loading ? renderPlayoffSkeleton() : emptyState(t("emptyPlayoffs"));
 		elements.playoffBoardLive.innerHTML = emptyMarkup;
 		elements.playoffBoardMy.innerHTML = emptyMarkup;
 		return;
@@ -2316,7 +2526,7 @@ function renderFixtures() {
 	renderCalendarTimezoneControl();
 
 	if (!state.worldCup) {
-		elements.fixturesFeed.innerHTML = emptyState(t("emptyFixtures"));
+		elements.fixturesFeed.innerHTML = state.loading ? renderFixturesSkeleton() : emptyState(t("emptyFixtures"));
 		return;
 	}
 
@@ -4455,9 +4665,10 @@ function toggleHomeTeamSelection(teamId) {
 		return;
 	}
 
-	state.homeTeamId = state.homeTeamId === teamKey ? "" : teamKey;
+	setHomeTeamId(state.homeTeamId === teamKey ? "" : teamKey);
 	invalidateSubmittedPicks();
 	render();
+	void loadSelectedHomeTeamData();
 	scheduleAutoSave();
 }
 
@@ -6184,7 +6395,7 @@ function applySavedPicks(saved) {
 		state.groups,
 		(saved.thirdPlaceRanking || []).map((entry) => entry.teamId),
 	);
-	state.homeTeamId = resolveSavedHomeTeamId(saved?.homeTeam);
+	setHomeTeamId(resolveSavedHomeTeamId(saved?.homeTeam));
 	state.selectedThirdTeamIds = chooseThirdPlaceSelections(Array.isArray(saved.bestThirdAdvancers) ? saved.bestThirdAdvancers.map((entry) => entry.teamId) : []);
 	state.bracketWinnerSelections = Object.fromEntries((Array.isArray(saved.knockoutWinners) ? saved.knockoutWinners : []).map((entry) => [String(entry.match || ""), getTeamIdKey(entry.teamId)]).filter(([matchId, teamId]) => matchId && teamId));
 	state.bracketScorePredictions = Object.fromEntries(
@@ -6440,6 +6651,109 @@ function isValidEmail(email) {
 
 function emptyState(message) {
 	return `<div class="empty-state">${escapeHtml(message)}</div>`;
+}
+
+function renderHomeTeamSkeleton() {
+	return `
+		<article class="home-team-summary-card skeleton-card" aria-hidden="true">
+			<p class="status-pill skeleton-pill"></p>
+			<div class="home-team-summary-head">
+				<div class="team-name">
+					<span class="team-mark team-mark-placeholder">
+						<span class="team-logo-fallback team-logo-placeholder"></span>
+					</span>
+					<span class="skeleton-line skeleton-line-code"></span>
+				</div>
+				<span class="home-team-summary-group skeleton-line skeleton-line-chip"></span>
+			</div>
+			<p class="home-team-summary-name skeleton-line skeleton-line-title"></p>
+			${renderHomeTeamApiData(null, { isLoading: true })}
+		</article>
+	`;
+}
+
+function renderGroupsSkeleton() {
+	return Array.from({ length: 4 }, (_entry, groupIndex) => `
+		<article class="group-card skeleton-card" aria-hidden="true">
+			<div class="group-head">
+				<h3 class="skeleton-line skeleton-line-heading"></h3>
+			</div>
+			<div class="group-table-wrap">
+				<div class="group-table group-table-skeleton">
+					${Array.from({ length: 4 }, (_row, rowIndex) => `
+						<div class="skeleton-table-row">
+							<span class="skeleton-line skeleton-line-rank"></span>
+							<span class="team-mark team-mark-placeholder">
+								<span class="team-logo-fallback team-logo-placeholder"></span>
+							</span>
+							<span class="skeleton-line ${rowIndex === groupIndex % 4 ? "skeleton-line-long" : "skeleton-line-medium"}"></span>
+							<span class="skeleton-line skeleton-line-short"></span>
+						</div>
+					`).join("")}
+				</div>
+			</div>
+		</article>
+	`).join("");
+}
+
+function renderThirdPlaceSkeleton() {
+	return Array.from({ length: 8 }, () => `
+		<article class="third-choice-card third-choice-card-static skeleton-card" aria-hidden="true">
+			<div class="third-choice-head">
+				<div class="team-name">
+					<span class="team-mark team-mark-placeholder">
+						<span class="team-logo-fallback team-logo-placeholder"></span>
+					</span>
+					<span class="skeleton-line skeleton-line-code"></span>
+				</div>
+				<span class="third-choice-group skeleton-line skeleton-line-chip"></span>
+			</div>
+			<p class="third-choice-name skeleton-line skeleton-line-title"></p>
+			<div class="third-choice-stats">
+				<span class="skeleton-line skeleton-line-short"></span>
+				<span class="skeleton-line skeleton-line-short"></span>
+			</div>
+		</article>
+	`).join("");
+}
+
+function renderPlayoffSkeleton() {
+	return `
+		<div class="playoff-skeleton skeleton-card" aria-hidden="true">
+			${Array.from({ length: 5 }, (_entry, columnIndex) => `
+				<div class="playoff-skeleton-column">
+					<span class="skeleton-line skeleton-line-heading"></span>
+					${Array.from({ length: columnIndex === 2 ? 2 : 4 }, () => `
+						<div class="bracket-match skeleton-bracket-match">
+							<span class="skeleton-line skeleton-line-medium"></span>
+							<span class="skeleton-line skeleton-line-long"></span>
+							<span class="skeleton-line skeleton-line-long"></span>
+						</div>
+					`).join("")}
+				</div>
+			`).join("")}
+		</div>
+	`;
+}
+
+function renderFixturesSkeleton() {
+	return `
+		<div class="fixtures-skeleton skeleton-card" aria-hidden="true">
+			<div class="calendar-controls">
+				<span class="skeleton-line skeleton-line-button"></span>
+				<span class="skeleton-line skeleton-line-heading"></span>
+				<span class="skeleton-line skeleton-line-button"></span>
+			</div>
+			<div class="calendar-grid calendar-grid-skeleton">
+				${Array.from({ length: 35 }, (_entry, index) => `
+					<div class="calendar-cell skeleton-calendar-cell">
+						<span class="skeleton-line skeleton-line-rank"></span>
+						${index % 5 === 0 ? `<span class="skeleton-line skeleton-line-medium"></span>` : ""}
+					</div>
+				`).join("")}
+			</div>
+		</div>
+	`;
 }
 
 function escapeHtml(value) {

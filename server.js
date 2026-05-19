@@ -74,6 +74,52 @@ function logServerError(context, error) {
   console.error(context, error instanceof Error ? error.message : error);
 }
 
+function getTeamIdKey(teamId) {
+  if (teamId == null) {
+    return "";
+  }
+
+  return String(teamId);
+}
+
+function getWorldCupTeams(data) {
+  return (data.groups || []).flatMap((group) =>
+    (group.teams || []).map((team) => ({
+      ...team,
+      groupLetter: team.groupLetter || group.letter
+    }))
+  );
+}
+
+async function loadWorldCupTeamsData() {
+  const data = await getWorldCupData();
+
+  return {
+    source: data.source,
+    teams: getWorldCupTeams(data)
+  };
+}
+
+async function loadWorldCupTeamData(teamId) {
+  const teamKey = getTeamIdKey(teamId);
+
+  if (!teamKey) {
+    return null;
+  }
+
+  const teamsData = await loadWorldCupTeamsData();
+  const team = teamsData.teams.find((entry) => getTeamIdKey(entry.id) === teamKey);
+
+  if (!team) {
+    return null;
+  }
+
+  return {
+    source: teamsData.source,
+    team
+  };
+}
+
 app.get("/api/auth/config", (_req, res) => {
   res.json(getSupabasePublicConfig());
 });
@@ -90,6 +136,36 @@ app.get("/api/world-cup", async (req, res) => {
   } catch (error) {
     logServerError("Failed to load World Cup data.", error);
     res.status(500).json({ error: "Could not load the tournament right now." });
+  }
+});
+
+app.get("/api/teams", async (_req, res) => {
+  try {
+    res.json(await loadWorldCupTeamsData());
+  } catch (error) {
+    logServerError("Failed to load teams data.", error);
+    res.status(500).json({ error: "Could not load teams right now." });
+  }
+});
+
+app.get("/api/teams/:teamId", async (req, res) => {
+  try {
+    const teamId = getTeamIdKey(req.params.teamId);
+
+    if (!teamId) {
+      return res.status(400).json({ error: "A valid team id is required." });
+    }
+
+    const teamData = await loadWorldCupTeamData(teamId);
+
+    if (!teamData) {
+      return res.status(404).json({ error: "Team not found." });
+    }
+
+    return res.json(teamData);
+  } catch (error) {
+    logServerError("Failed to load team data.", error);
+    return res.status(500).json({ error: "Could not load team data right now." });
   }
 });
 

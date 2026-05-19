@@ -493,6 +493,11 @@ html[dir="rtl"] .language-select {
 	overflow: hidden;
 }
 
+.hero-copy > * {
+	position: relative;
+	z-index: 1;
+}
+
 .hero-copy::after {
 	content: "";
 	position: absolute;
@@ -504,6 +509,14 @@ html[dir="rtl"] .language-select {
 		url("/assets/logo.webp") center / 40% no-repeat;
 	border-radius: 1rem;
 	transform: rotate(16deg);
+	pointer-events: none;
+}
+
+.hero-actions {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	margin-top: 1.1rem;
 }
 
 html[dir="rtl"] .hero-copy::after {
@@ -1003,6 +1016,50 @@ body.dialog-open {
 	color: var(--text);
 	font-family: "Space Grotesk", "Heebo", sans-serif;
 	font-size: clamp(1.4rem, 3vw, 2rem);
+	line-height: 1;
+}
+
+.home-team-api-data {
+	display: grid;
+	grid-template-columns: minmax(5rem, 0.8fr) minmax(0, 1.4fr);
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.75rem 0;
+	border-block: 1px solid color-mix(in srgb, var(--team-theme-primary, var(--mode-accent)) 22%, transparent);
+}
+
+.home-team-api-score,
+.home-team-api-metric {
+	display: grid;
+	gap: 0.15rem;
+	min-width: 0;
+}
+
+.home-team-api-score span,
+.home-team-api-metric span {
+	color: var(--muted);
+	font-size: 0.7rem;
+	font-weight: 800;
+	text-transform: uppercase;
+}
+
+.home-team-api-score strong {
+	color: var(--mode-score-color);
+	font-family: "Space Grotesk", "Heebo", sans-serif;
+	font-size: 1.55rem;
+	line-height: 1;
+}
+
+.home-team-api-metrics {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 0.65rem;
+}
+
+.home-team-api-metric strong {
+	color: var(--text);
+	font-family: "Space Grotesk", "Heebo", sans-serif;
+	font-size: 1rem;
 	line-height: 1;
 }
 
@@ -2259,6 +2316,177 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 	background: rgba(255, 255, 255, 0.02);
 }
 
+.skeleton-card {
+	pointer-events: none;
+	user-select: none;
+}
+
+.skeleton-line,
+.skeleton-pill,
+.skeleton-card .team-logo-placeholder {
+	position: relative;
+	overflow: hidden;
+	color: transparent;
+	border-color: transparent;
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.skeleton-line::after,
+.skeleton-pill::after,
+.skeleton-card .team-logo-placeholder::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	transform: translateX(-100%);
+	background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+	animation: skeleton-shimmer 1400ms ease-in-out infinite;
+}
+
+.skeleton-line {
+	display: block;
+	width: 100%;
+	height: 0.8rem;
+	border-radius: 999px;
+}
+
+.skeleton-line-label {
+	width: 4.6rem;
+	height: 0.68rem;
+}
+
+.skeleton-line-score {
+	width: 3.6rem;
+	height: 1.55rem;
+	border-radius: 0.35rem;
+}
+
+.skeleton-line-short {
+	width: 2.8rem;
+}
+
+.skeleton-line-medium {
+	width: 62%;
+}
+
+.skeleton-line-long {
+	width: 84%;
+}
+
+.skeleton-line-title {
+	width: min(14rem, 72%);
+	height: 1rem;
+}
+
+.skeleton-line-heading {
+	width: 7rem;
+	height: 1.1rem;
+}
+
+.skeleton-line-code {
+	width: 3.2rem;
+	height: 1rem;
+}
+
+.skeleton-line-chip,
+.skeleton-pill {
+	width: 4.4rem;
+	height: 1.35rem;
+	border-radius: 999px;
+}
+
+.skeleton-line-rank {
+	width: 1.6rem;
+}
+
+.skeleton-line-button {
+	width: 5.4rem;
+	height: 2.1rem;
+	border-radius: 999px;
+}
+
+.group-table-skeleton {
+	display: grid;
+}
+
+.skeleton-table-row {
+	display: grid;
+	grid-template-columns: 1.5rem auto minmax(0, 1fr) 2.4rem;
+	align-items: center;
+	gap: 0.55rem;
+	padding: 0.52rem 0.5rem;
+	border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.skeleton-table-row:first-child {
+	border-top: 0;
+}
+
+.playoff-skeleton {
+	display: grid;
+	grid-template-columns: repeat(5, minmax(10rem, 1fr));
+	gap: 1rem;
+	padding: 1rem;
+	border: 1px solid var(--mode-surface-border);
+	border-radius: 1rem;
+	background: var(--mode-surface-panel-soft);
+	overflow-x: auto;
+}
+
+.playoff-skeleton-column {
+	display: grid;
+	align-content: start;
+	gap: 0.8rem;
+}
+
+.skeleton-bracket-match {
+	display: grid;
+	gap: 0.55rem;
+	min-height: 6.4rem;
+	padding: 0.75rem;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 0.8rem;
+	background: rgba(255, 255, 255, 0.03);
+}
+
+.fixtures-skeleton {
+	display: grid;
+	gap: 1rem;
+	padding: 1rem;
+	border: 1px solid var(--mode-surface-border);
+	border-radius: 1rem;
+	background: var(--mode-surface-panel-soft);
+	overflow-x: auto;
+}
+
+.calendar-grid-skeleton {
+	min-width: 58rem;
+}
+
+.skeleton-calendar-cell {
+	display: grid;
+	align-content: start;
+	gap: 0.8rem;
+	min-height: 5.4rem;
+	padding: 0.5rem;
+	border-inline-end: 1px solid rgba(255, 255, 255, 0.06);
+	border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	background: rgba(255, 255, 255, 0.02);
+}
+
+@keyframes skeleton-shimmer {
+	100% {
+		transform: translateX(100%);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.skeleton-line::after,
+	.skeleton-pill::after,
+	.skeleton-card .team-logo-placeholder::after {
+		animation: none;
+	}
+}
+
 .leaderboard-header {
 	display: grid;
 	gap: 0.4rem;
@@ -2597,6 +2825,11 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 
 	.countdown-grid {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.home-team-api-data,
+	.home-team-api-metrics {
+		grid-template-columns: 1fr;
 	}
 
 	.leaderboard-row {
