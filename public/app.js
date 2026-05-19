@@ -538,6 +538,7 @@ const elements = {
 	viewModeContents: Array.from(document.querySelectorAll("[data-view-content]")),
 	calendarTimezoneControl: document.getElementById("calendar-timezone-control"),
 	fixturesFeed: document.getElementById("fixtures-feed"),
+	homeTeamSection: document.getElementById("home-team-section"),
 	homeTeamSectionTitle: document.getElementById("home-team-section-title"),
 	homeTeamSectionCopy: document.getElementById("home-team-section-copy"),
 	groupsSectionTitle: document.getElementById("groups-section-title"),
@@ -1629,6 +1630,7 @@ function render() {
 	renderWarnings();
 	renderCountdown();
 	renderViewModeSwitch();
+	renderSectionVisibility();
 	renderSectionHeadings();
 	renderInteractiveViews();
 	syncViewModeContentVisibility();
@@ -1636,6 +1638,21 @@ function render() {
 	renderSaveState();
 	renderOverallScore();
 	scheduleOverallScoreRefresh();
+}
+
+function renderSectionVisibility() {
+	setSectionVisibility(elements.homeTeamSection, canAccessRankings());
+}
+
+function setSectionVisibility(element, isVisible) {
+	if (!element) {
+		return;
+	}
+
+	element.classList.toggle("hidden", !isVisible);
+	element.hidden = !isVisible;
+	element.inert = !isVisible;
+	element.setAttribute("aria-hidden", isVisible ? "false" : "true");
 }
 
 function renderCountdown() {
