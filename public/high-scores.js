@@ -35,6 +35,7 @@ const elements = {
 void boot();
 
 async function boot() {
+	bindLanguageSelect();
 	elements.status.textContent = t("loading");
 
 	try {
@@ -51,6 +52,22 @@ async function boot() {
 		elements.status.textContent = t("unavailable");
 		elements.list.innerHTML = `<div class="empty-state">${escapeHtml(t("unavailable"))}</div>`;
 	}
+}
+
+function bindLanguageSelect() {
+	const languageSelect = document.getElementById("language-select");
+
+	if (!languageSelect) {
+		return;
+	}
+
+	languageSelect.addEventListener("change", () => {
+		const nextPath = languageSelect.value;
+
+		if (nextPath && nextPath !== window.location.pathname) {
+			window.location.href = nextPath;
+		}
+	});
 }
 
 function renderEntries(entries) {

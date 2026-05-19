@@ -40,6 +40,11 @@ const TRANSLATIONS = {
 		homeTeamEmpty: "No home team selected yet.",
 		homeTeamLiveEmpty: "Choose your home team in My Predictions to personalize the app theme.",
 		homeTeamSelected: "Selected home team",
+		homeTeamNextMatches: "Next 5 matches",
+		homeTeamNextMatchesEmpty: "No upcoming matches are available for this team yet.",
+		homeTeamLastGameLineup: "Last game players lineup",
+		homeTeamLastGameEmpty: "No completed game is available for this team yet.",
+		homeTeamLastGameLineupEmpty: "Player lineup is not available for the last completed game.",
 		homeTeamSearchPlaceholder: "Search by country or code",
 		homeTeamNoResults: "No teams match this search.",
 		saveStatusDevLive: "Development picks are loaded in My Predictions. Switch to inspect them locally.",
@@ -52,6 +57,7 @@ const TRANSLATIONS = {
 		saveStatusSavedOn: "Saved on {date}.",
 		saveStatusNoSaved: "No saved picks yet. Changes will save automatically.",
 		saveStatusLoadedOn: "Loaded saved picks from {date}.",
+		saveStatusLoadingSaved: "Loading your saved picks...",
 		saveStatusSubmitting: "Submitting your picks...",
 		saveStatusSubmitted: "All picks submitted.",
 		saveStatusDevSubmitted: "Development picks submitted locally.",
@@ -65,6 +71,10 @@ const TRANSLATIONS = {
 		emptyThirdPlace: "Third-place ranking will appear here.",
 		emptyPlayoffs: "Projected playoff slots will appear here.",
 		emptyFixtures: "Fixtures will appear here.",
+		countdownLoading: "Loading match time...",
+		countdownNoFixture: "The first match time is not available yet.",
+		countdownStarted: "The first match has started.",
+		countdownMatchTime: "First match: {date}",
 		loadCalendar: "Load Calendar",
 		noFixtureList: "No fixture list is available yet. Dates and locations will appear here when available.",
 		calendarPrevious: "Previous",
@@ -141,6 +151,11 @@ const TRANSLATIONS = {
 		homeTeamEmpty: "עדיין לא נבחרה נבחרת בית.",
 		homeTeamLiveEmpty: "בחרו את נבחרת הבית שלכם בהתחזיות שלי כדי להתאים את צבעי האפליקציה.",
 		homeTeamSelected: "נבחרת הבית שנבחרה",
+		homeTeamNextMatches: "5 המשחקים הבאים",
+		homeTeamNextMatchesEmpty: "עדיין אין משחקים עתידיים זמינים לנבחרת הזו.",
+		homeTeamLastGameLineup: "הרכב השחקנים מהמשחק האחרון",
+		homeTeamLastGameEmpty: "עדיין אין משחק שהסתיים לנבחרת הזו.",
+		homeTeamLastGameLineupEmpty: "הרכב השחקנים אינו זמין למשחק האחרון שהסתיים.",
 		homeTeamSearchPlaceholder: "חפשו לפי מדינה או קוד",
 		homeTeamNoResults: "אין נבחרות שתואמות לחיפוש הזה.",
 		saveStatusDevLive: "תחזיות הפיתוח נטענו אל התחזיות שלי. עברו אליהן כדי לבדוק מקומית.",
@@ -153,6 +168,7 @@ const TRANSLATIONS = {
 		saveStatusSavedOn: "נשמר ב-{date}.",
 		saveStatusNoSaved: "עדיין אין שמירה. השינויים יישמרו אוטומטית.",
 		saveStatusLoadedOn: "הבחירות נטענו מ-{date}.",
+		saveStatusLoadingSaved: "טוען את הבחירות השמורות...",
 		saveStatusSubmitting: "שולח את הבחירות...",
 		saveStatusSubmitted: "כל הבחירות נשלחו.",
 		saveStatusDevSubmitted: "תחזיות הפיתוח נשלחו מקומית.",
@@ -166,6 +182,10 @@ const TRANSLATIONS = {
 		emptyThirdPlace: "דירוג המקומות השלישיים יופיע כאן.",
 		emptyPlayoffs: "מקומות הפלייאוף יוצגו כאן.",
 		emptyFixtures: "לוח המשחקים יוצג כאן.",
+		countdownLoading: "טוען את שעת המשחק...",
+		countdownNoFixture: "שעת המשחק הראשון עדיין לא זמינה.",
+		countdownStarted: "המשחק הראשון התחיל.",
+		countdownMatchTime: "המשחק הראשון: {date}",
 		loadCalendar: "טען לוח משחקים",
 		noFixtureList: "עדיין אין לוח משחקים זמין. תאריכים יופיעו כאן כשיהיו זמינים.",
 		calendarPrevious: "הקודם",
@@ -474,6 +494,7 @@ const tooltipState = {
 	target: null,
 	rafId: 0,
 };
+let countdownTimer = 0;
 const playoffPanState = {
 	active: false,
 	touchMode: false,
@@ -512,6 +533,11 @@ const elements = {
 	playoffsSectionTitle: document.getElementById("playoffs-section-title"),
 	playoffsSectionCopy: document.getElementById("playoffs-section-copy"),
 	warningStrip: document.getElementById("warning-strip"),
+	countdownStatus: document.getElementById("countdown-status"),
+	countdownDays: document.getElementById("countdown-days"),
+	countdownHours: document.getElementById("countdown-hours"),
+	countdownMinutes: document.getElementById("countdown-minutes"),
+	countdownSeconds: document.getElementById("countdown-seconds"),
 	savePanel: document.getElementById("save-panel"),
 	authForm: document.getElementById("auth-form"),
 	authModeSwitch: document.getElementById("auth-mode-switch"),
@@ -638,11 +664,13 @@ boot();
 async function boot() {
 	await initializeAuth();
 	bindEvents();
+	startCountdownTimer();
 	render();
 	await loadWorldCup();
 }
 
 function bindEvents() {
+	bindLanguageSelect();
 	elements.authForm.addEventListener("submit", handleAuthSubmit);
 	elements.authModeButtons.forEach((button) => {
 		button.addEventListener("click", handleAuthModeClick);
@@ -685,6 +713,30 @@ function bindEvents() {
 	window.addEventListener("resize", scheduleBracketLineDraw);
 	window.addEventListener("resize", handleTooltipViewportChange);
 	elements.clearAllDialog.addEventListener("click", handleClearAllDialogBackdrop);
+}
+
+function bindLanguageSelect() {
+	const languageSelect = document.getElementById("language-select");
+
+	if (!languageSelect) {
+		return;
+	}
+
+	languageSelect.addEventListener("change", () => {
+		const nextPath = languageSelect.value;
+
+		if (nextPath && nextPath !== window.location.pathname) {
+			window.location.href = nextPath;
+		}
+	});
+}
+
+function startCountdownTimer() {
+	if (countdownTimer || !elements.countdownStatus) {
+		return;
+	}
+
+	countdownTimer = window.setInterval(renderCountdown, 1000);
 }
 
 function handleMyHomeTeamClick(event) {
@@ -909,8 +961,8 @@ async function syncAuthSession(session, event = "SESSION") {
 		state.saveStatus = "";
 	}
 
+	await ensureSavedPicksLoadedForCurrentUser({ renderOnComplete: false });
 	render();
-	void ensureSavedPicksLoadedForCurrentUser();
 }
 
 function renderAuthState() {
@@ -1505,9 +1557,9 @@ async function loadWorldCup(refresh = false) {
 		syncState.loadedEmail = "";
 		state.devLiveWorldCup = null;
 	} finally {
+		await ensureSavedPicksLoadedForCurrentUser({ renderOnComplete: false });
 		state.loading = false;
 		render();
-		void ensureSavedPicksLoadedForCurrentUser();
 	}
 }
 
@@ -1516,6 +1568,7 @@ function render() {
 	document.body.dataset.viewMode = state.viewMode;
 	applyHomeTeamTheme();
 	renderWarnings();
+	renderCountdown();
 	renderViewModeSwitch();
 	renderSectionHeadings();
 	renderInteractiveViews();
@@ -1524,6 +1577,62 @@ function render() {
 	renderSaveState();
 	renderOverallScore();
 	scheduleOverallScoreRefresh();
+}
+
+function renderCountdown() {
+	if (!elements.countdownStatus || !elements.countdownDays || !elements.countdownHours || !elements.countdownMinutes || !elements.countdownSeconds) {
+		return;
+	}
+
+	const fixture = getFirstMatchFixture();
+
+	if (!fixture) {
+		setCountdownValues("--", "--", "--", "--");
+		elements.countdownStatus.textContent = state.loading ? t("countdownLoading") : t("countdownNoFixture");
+		return;
+	}
+
+	const matchDate = getFixtureDate(fixture);
+	const remainingMs = matchDate.getTime() - Date.now();
+
+	if (!Number.isFinite(remainingMs)) {
+		setCountdownValues("--", "--", "--", "--");
+		elements.countdownStatus.textContent = t("countdownNoFixture");
+		return;
+	}
+
+	if (remainingMs <= 0) {
+		setCountdownValues("0", "00", "00", "00");
+		elements.countdownStatus.textContent = t("countdownStarted");
+		return;
+	}
+
+	const totalSeconds = Math.floor(remainingMs / 1000);
+	const days = Math.floor(totalSeconds / 86400);
+	const hours = Math.floor((totalSeconds % 86400) / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	const seconds = totalSeconds % 60;
+
+	setCountdownValues(String(days), padCountdownUnit(hours), padCountdownUnit(minutes), padCountdownUnit(seconds));
+	elements.countdownStatus.textContent = t("countdownMatchTime", { date: formatCountdownDateTime(matchDate) });
+}
+
+function setCountdownValues(days, hours, minutes, seconds) {
+	elements.countdownDays.textContent = days;
+	elements.countdownHours.textContent = hours;
+	elements.countdownMinutes.textContent = minutes;
+	elements.countdownSeconds.textContent = seconds;
+}
+
+function padCountdownUnit(value) {
+	return String(value).padStart(2, "0");
+}
+
+function getFirstMatchFixture() {
+	return (state.worldCup?.fixtures || [])
+		.map((fixture) => ({ fixture, date: getFixtureDate(fixture) }))
+		.filter(({ date }) => !Number.isNaN(date.getTime()))
+		.sort((left, right) => left.date.getTime() - right.date.getTime())[0]?.fixture ?? null;
 }
 
 function renderSectionHeadings() {
@@ -1591,26 +1700,11 @@ function renderHomeTeam() {
 	const selectedTeam = getSelectedHomeTeam();
 
 	elements.homeTeamPaneLive.innerHTML = renderHomeTeamSummary(selectedTeam);
-	elements.homeTeamPaneMy.innerHTML = `
-		<div class="home-team-picker">
-			<div class="home-team-search">
-				<input
-					class="field-input home-team-search-input"
-					type="search"
-					inputmode="search"
-					data-home-team-search="true"
-					value="${escapeHtml(state.homeTeamSearchQuery)}"
-					placeholder="${escapeHtml(t("homeTeamSearchPlaceholder"))}"
-					aria-label="${escapeHtml(t("homeTeamSearchPlaceholder"))}"
-				/>
-			</div>
-			<div class="home-team-grid">
-				${getTournamentTeams().map((team) => renderHomeTeamSelectionCard(team)).join("")}
-			</div>
-			<div class="home-team-search-empty hidden">${escapeHtml(t("homeTeamNoResults"))}</div>
-		</div>
-	`;
-	applyHomeTeamSearchFilter();
+	elements.homeTeamPaneMy.innerHTML = selectedTeam ? renderSelectedHomeTeamDetails(selectedTeam) : renderHomeTeamPicker();
+
+	if (!selectedTeam) {
+		applyHomeTeamSearchFilter();
+	}
 }
 
 function renderHomeTeamSummary(team) {
@@ -1636,6 +1730,195 @@ function renderHomeTeamSummary(team) {
 			<p class="home-team-summary-name">${escapeHtml(getTeamDisplayName(team))}</p>
 		</article>
 	`;
+}
+
+function renderHomeTeamPicker() {
+	return `
+		<div class="home-team-picker">
+			<div class="home-team-search">
+				<input
+					class="field-input home-team-search-input"
+					type="search"
+					inputmode="search"
+					data-home-team-search="true"
+					value="${escapeHtml(state.homeTeamSearchQuery)}"
+					placeholder="${escapeHtml(t("homeTeamSearchPlaceholder"))}"
+					aria-label="${escapeHtml(t("homeTeamSearchPlaceholder"))}"
+				/>
+			</div>
+			<div class="home-team-grid">
+				${getTournamentTeams().map((team) => renderHomeTeamSelectionCard(team)).join("")}
+			</div>
+			<div class="home-team-search-empty hidden">${escapeHtml(t("homeTeamNoResults"))}</div>
+		</div>
+	`;
+}
+
+function renderSelectedHomeTeamDetails(team) {
+	return `
+		<article class="home-team-selected-card" ${renderHomeTeamThemeStyle(team)}>
+			<div class="home-team-selected-head">
+				${renderTeamLogo(team)}
+				<div class="home-team-selected-copy">
+					<p class="home-team-selected-label">${escapeHtml(t("homeTeamSelected"))}</p>
+					<h3 class="home-team-selected-name">${escapeHtml(getTeamDisplayName(team))}</h3>
+				</div>
+			</div>
+			<div class="home-team-lineup">
+				<p class="home-team-lineup-title">${escapeHtml(t("homeTeamNextMatches"))}</p>
+				${renderHomeTeamNextMatches(team)}
+			</div>
+			<div class="home-team-lineup">
+				<p class="home-team-lineup-title">${escapeHtml(t("homeTeamLastGameLineup"))}</p>
+				${renderHomeTeamLastGameLineup(team)}
+			</div>
+		</article>
+	`;
+}
+
+function renderHomeTeamNextMatches(team) {
+	const fixtures = getHomeTeamFixtures(team)
+		.filter((fixture) => {
+			const fixtureDate = getFixtureDate(fixture);
+			return !Number.isNaN(fixtureDate.getTime()) &&
+				fixtureDate.getTime() >= Date.now() &&
+				!isCompletedFixtureStatus(fixture.status?.short);
+		})
+		.slice(0, 5);
+
+	if (!fixtures.length) {
+		return `<p class="panel-note">${escapeHtml(t("homeTeamNextMatchesEmpty"))}</p>`;
+	}
+
+	return `
+		<div class="home-team-lineup-list">
+			${fixtures.map((fixture) => renderHomeTeamMatchRow(fixture, team)).join("")}
+		</div>
+	`;
+}
+
+function renderHomeTeamLastGameLineup(team) {
+	const fixture = getHomeTeamFixtures(team)
+		.filter((candidate) => isCompletedFixtureStatus(candidate.status?.short))
+		.sort((left, right) => getFixtureDate(right).getTime() - getFixtureDate(left).getTime())[0] ?? null;
+
+	if (!fixture) {
+		return `<p class="panel-note">${escapeHtml(t("homeTeamLastGameEmpty"))}</p>`;
+	}
+
+	const players = getFixturePlayerLineup(fixture, team);
+
+	if (!players.length) {
+		return `
+			<div class="home-team-last-game">
+				${renderHomeTeamMatchRow(fixture, team)}
+				<p class="panel-note">${escapeHtml(t("homeTeamLastGameLineupEmpty"))}</p>
+			</div>
+		`;
+	}
+
+	return `
+		<div class="home-team-last-game">
+			${renderHomeTeamMatchRow(fixture, team)}
+			<div class="home-team-player-lineup">
+				${players.map(renderHomeTeamPlayer).join("")}
+			</div>
+		</div>
+	`;
+}
+
+function renderHomeTeamMatchRow(fixture, team) {
+	const teamId = getTeamIdKey(team.id);
+	const homeTeam = fixture.teams?.home ?? null;
+	const awayTeam = fixture.teams?.away ?? null;
+	const opponent = getTeamIdKey(homeTeam?.id) === teamId ? awayTeam : homeTeam;
+
+	return `
+		<div class="home-team-lineup-match">
+			<span class="home-team-lineup-time">${escapeHtml(formatDate(getFixtureDate(fixture)))} · ${escapeHtml(formatFixtureTime(fixture))}</span>
+			<span class="home-team-lineup-opponent">
+				${opponent ? renderTeamLogo(opponent) : ""}
+				<strong>${escapeHtml(opponent ? getTeamDisplayName(opponent) : t("tbd"))}</strong>
+			</span>
+		</div>
+	`;
+}
+
+function renderHomeTeamPlayer(player) {
+	return `
+		<span class="home-team-player">
+			${player.number ? `<span class="home-team-player-number">${escapeHtml(player.number)}</span>` : ""}
+			<span class="home-team-player-name">${escapeHtml(player.name)}</span>
+			${player.position ? `<span class="home-team-player-position">${escapeHtml(player.position)}</span>` : ""}
+		</span>
+	`;
+}
+
+function getHomeTeamFixtures(team) {
+	const teamId = getTeamIdKey(team?.id);
+
+	if (!teamId) {
+		return [];
+	}
+
+	return (state.worldCup?.fixtures || [])
+		.filter((fixture) => {
+			const homeId = getTeamIdKey(fixture.teams?.home?.id);
+			const awayId = getTeamIdKey(fixture.teams?.away?.id);
+			return homeId === teamId || awayId === teamId;
+		})
+		.sort((left, right) => getFixtureDate(left).getTime() - getFixtureDate(right).getTime());
+}
+
+function getFixturePlayerLineup(fixture, team) {
+	const lineup = findFixtureTeamLineup(fixture, team);
+	const rawPlayers = firstArrayValue(
+		lineup?.startXI,
+		lineup?.startingXI,
+		lineup?.starters,
+		lineup?.players,
+		lineup?.lineup
+	);
+
+	return (rawPlayers || [])
+		.map(normalizeLineupPlayer)
+		.filter(Boolean);
+}
+
+function findFixtureTeamLineup(fixture, team) {
+	const lineups = firstArrayValue(fixture?.lineups, fixture?.lineup, fixture?.playersLineup);
+	const teamId = getTeamIdKey(team?.id);
+	const teamName = normalizeSearchText(getTeamDisplayName(team));
+
+	if (!lineups) {
+		return null;
+	}
+
+	return lineups.find((lineup) => {
+		const lineupTeam = lineup?.team ?? lineup?.country ?? lineup;
+		const lineupTeamId = getTeamIdKey(lineupTeam?.id ?? lineup?.teamId ?? lineup?.idTeam);
+		const lineupTeamName = normalizeSearchText(lineupTeam?.name ?? lineup?.teamName ?? lineup?.strTeam);
+		return (teamId && lineupTeamId === teamId) || (teamName && lineupTeamName === teamName);
+	}) ?? null;
+}
+
+function normalizeLineupPlayer(entry) {
+	const player = entry?.player ?? entry;
+	const name = player?.name ?? player?.fullName ?? player?.strPlayer ?? entry?.name ?? entry?.strPlayer ?? "";
+
+	if (!name) {
+		return null;
+	}
+
+	return {
+		name,
+		number: String(player?.number ?? player?.shirtNumber ?? player?.intSquadNumber ?? entry?.number ?? "").trim(),
+		position: player?.position ?? player?.pos ?? player?.strPosition ?? entry?.position ?? entry?.pos ?? ""
+	};
+}
+
+function firstArrayValue(...values) {
+	return values.find((value) => Array.isArray(value)) ?? null;
 }
 
 function renderHomeTeamSelectionCard(team) {
@@ -2487,6 +2770,10 @@ function getDefaultSaveStatus() {
 		return isShowingLiveResults() ? t("saveStatusDevLive") : t("saveStatusDevLocal");
 	}
 
+	if (syncState.loadingSavedPicks || shouldLoadSavedPicksForCurrentUser()) {
+		return t("saveStatusLoadingSaved");
+	}
+
 	if (isShowingLiveResults()) {
 		return t("saveStatusViewingLive");
 	}
@@ -2904,7 +3191,7 @@ async function saveCurrentPicks(preparedState = null) {
 	return true;
 }
 
-async function loadSavedPicks({ silentMissing = false, silentSuccess = false } = {}) {
+async function loadSavedPicks({ silentMissing = false, silentSuccess = false, renderOnComplete = true } = {}) {
 	const email = getAuthenticatedEmail();
 
 	if (!email || !state.worldCup || syncState.loadingSavedPicks) {
@@ -2925,7 +3212,9 @@ async function loadSavedPicks({ silentMissing = false, silentSuccess = false } =
 			syncState.lastSavedSnapshot = buildCurrentSaveState()?.snapshot || "";
 			if (!silentMissing) {
 				state.saveStatus = t("saveStatusNoSaved");
-				renderSaveState();
+				if (renderOnComplete) {
+					renderSaveState();
+				}
 			}
 			return false;
 		}
@@ -2940,25 +3229,34 @@ async function loadSavedPicks({ silentMissing = false, silentSuccess = false } =
 		if (!silentSuccess) {
 			state.saveStatus = t("saveStatusLoadedOn", { date: formatDateTime(data.savedAt) });
 		}
-		render();
+		if (renderOnComplete) {
+			render();
+		}
 		return true;
 	} catch (error) {
 		state.saveStatus = sanitizeUserFacingMessage(error instanceof Error ? error.message : "", t("genericCouldNotLoadPicks"));
-		renderSaveState();
+		if (renderOnComplete) {
+			renderSaveState();
+		}
 		return false;
 	} finally {
 		syncState.loadingSavedPicks = false;
 	}
 }
 
-function ensureSavedPicksLoadedForCurrentUser() {
+function ensureSavedPicksLoadedForCurrentUser(options = {}) {
 	const email = getAuthenticatedEmail();
 
-	if (isUsingDevPicks() || !email || !state.worldCup || syncState.loadingSavedPicks || syncState.loadedEmail === email) {
+	if (!shouldLoadSavedPicksForCurrentUser()) {
 		return Promise.resolve(false);
 	}
 
-	return loadSavedPicks({ silentMissing: true, silentSuccess: true });
+	return loadSavedPicks({ silentMissing: true, silentSuccess: true, ...options });
+}
+
+function shouldLoadSavedPicksForCurrentUser() {
+	const email = getAuthenticatedEmail();
+	return Boolean(!isUsingDevPicks() && email && state.worldCup && !syncState.loadingSavedPicks && syncState.loadedEmail !== email);
 }
 
 function scheduleAutoSave() {
@@ -6064,6 +6362,23 @@ function formatDateTime(value) {
 		year: "numeric",
 		hour: "numeric",
 		minute: "2-digit",
+	}).format(date);
+}
+
+function formatCountdownDateTime(value) {
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) {
+		return t("tbd");
+	}
+
+	return new Intl.DateTimeFormat(APP_INTL_LOCALE, {
+		weekday: "short",
+		month: "short",
+		day: "numeric",
+		year: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+		hour12: false,
 	}).format(date);
 }
 

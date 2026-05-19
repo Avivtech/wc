@@ -49,11 +49,12 @@
         <a class="top-navbar-link" href="/high-scores">High Scores</a>
       </div>
       <div class="top-navbar-actions">
-        <div class="language-menu" aria-label="Language switcher">
-          <a class="language-link is-active" href="/">English</a>
-          <span class="language-menu-divider" aria-hidden="true">/</span>
-          <a class="language-link" href="/he" lang="he" dir="rtl">עברית</a>
-        </div>
+        <label class="language-menu" for="language-select">
+          <select id="language-select" class="language-select" aria-label="Language switcher">
+            <option value="/" selected>English</option>
+            <option value="/he" lang="he" dir="rtl">עברית</option>
+          </select>
+        </label>
       </div>
     </nav>
 
@@ -103,6 +104,32 @@
     <section id="warning-strip" class="warning-strip hidden"></section>
 
     <main class="page-grid">
+      <section class="section-block countdown-section" aria-labelledby="countdown-section-title">
+        <div class="section-heading">
+          <p class="eyebrow">Opening Match</p>
+          <h2 id="countdown-section-title">Countdown to the first match</h2>
+          <p id="countdown-status" class="section-copy" aria-live="polite">Loading match time...</p>
+        </div>
+        <div class="countdown-grid" aria-live="polite">
+          <div class="countdown-unit">
+            <strong id="countdown-days">--</strong>
+            <span>Days</span>
+          </div>
+          <div class="countdown-unit">
+            <strong id="countdown-hours">--</strong>
+            <span>Hours</span>
+          </div>
+          <div class="countdown-unit">
+            <strong id="countdown-minutes">--</strong>
+            <span>Minutes</span>
+          </div>
+          <div class="countdown-unit">
+            <strong id="countdown-seconds">--</strong>
+            <span>Seconds</span>
+          </div>
+        </div>
+      </section>
+
       <section class="section-block">
         <div class="section-heading">
           <p class="eyebrow">My Home Team</p>

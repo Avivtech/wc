@@ -25,11 +25,13 @@
         <a class="top-navbar-link" href="/he/high-scores">טבלת שיא</a>
       </div>
       <div class="top-navbar-actions">
-        <div class="language-menu" aria-label="בחירת שפה">
-          <a class="language-link" href="/" lang="en" dir="ltr">English</a>
-          <span class="language-menu-divider" aria-hidden="true">/</span>
-          <a class="language-link is-active" href="/he" lang="he" dir="rtl">עברית</a>
-        </div>
+        <label class="language-menu" for="language-select">
+          <span class="language-menu-label">שפה</span>
+          <select id="language-select" class="language-select" aria-label="בחירת שפה">
+            <option value="/" lang="en" dir="ltr">English</option>
+            <option value="/he" selected>עברית</option>
+          </select>
+        </label>
       </div>
     </nav>
 
@@ -79,6 +81,32 @@
     <section id="warning-strip" class="warning-strip hidden"></section>
 
     <main class="page-grid">
+      <section class="section-block countdown-section" aria-labelledby="countdown-section-title">
+        <div class="section-heading">
+          <p class="eyebrow">משחק הפתיחה</p>
+          <h2 id="countdown-section-title">ספירה לאחור למשחק הראשון</h2>
+          <p id="countdown-status" class="section-copy" aria-live="polite">טוען את שעת המשחק...</p>
+        </div>
+        <div class="countdown-grid" aria-live="polite">
+          <div class="countdown-unit">
+            <strong id="countdown-days">--</strong>
+            <span>ימים</span>
+          </div>
+          <div class="countdown-unit">
+            <strong id="countdown-hours">--</strong>
+            <span>שעות</span>
+          </div>
+          <div class="countdown-unit">
+            <strong id="countdown-minutes">--</strong>
+            <span>דקות</span>
+          </div>
+          <div class="countdown-unit">
+            <strong id="countdown-seconds">--</strong>
+            <span>שניות</span>
+          </div>
+        </div>
+      </section>
+
       <section class="section-block">
         <div class="section-heading">
           <p class="eyebrow">נבחרת הבית שלי</p>

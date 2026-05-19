@@ -26,11 +26,13 @@
         <a class="top-navbar-link is-active" href="/he/high-scores">טבלת שיא</a>
       </div>
       <div class="top-navbar-actions">
-        <div class="language-menu" aria-label="בחירת שפה">
-          <a class="language-link" href="/high-scores" lang="en" dir="ltr">English</a>
-          <span class="language-menu-divider" aria-hidden="true">/</span>
-          <a class="language-link is-active" href="/he/high-scores" lang="he" dir="rtl">עברית</a>
-        </div>
+        <label class="language-menu" for="language-select">
+          <span class="language-menu-label">שפה</span>
+          <select id="language-select" class="language-select" aria-label="בחירת שפה">
+            <option value="/high-scores" lang="en" dir="ltr">English</option>
+            <option value="/he/high-scores" selected>עברית</option>
+          </select>
+        </label>
       </div>
     </nav>
 

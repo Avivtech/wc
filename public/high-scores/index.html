@@ -26,11 +26,13 @@
         <a class="top-navbar-link is-active" href="/high-scores">High Scores</a>
       </div>
       <div class="top-navbar-actions">
-        <div class="language-menu" aria-label="Language switcher">
-          <a class="language-link is-active" href="/high-scores">English</a>
-          <span class="language-menu-divider" aria-hidden="true">/</span>
-          <a class="language-link" href="/he/high-scores" lang="he" dir="rtl">עברית</a>
-        </div>
+        <label class="language-menu" for="language-select">
+          <span class="language-menu-label">Language</span>
+          <select id="language-select" class="language-select" aria-label="Language switcher">
+            <option value="/high-scores" selected>English</option>
+            <option value="/he/high-scores" lang="he" dir="rtl">עברית</option>
+          </select>
+        </label>
       </div>
     </nav>
 

@@ -5,16 +5,16 @@ A small full-stack app for ranking FIFA World Cup 2026 groups, projecting the pl
 ## Run
 
 1. Copy `.env.example` to `.env`
-2. Add your RapidAPI key for `Free API Live Football Data`:
+2. Configure TheSportsDB. The free v1 key is `123`, so the default `.env.example` works:
 
 ```env
-RAPIDAPI_KEY=...
+SPORTSDB_API_KEY=123
 ```
 
-If the provider search does not return the World Cup league, set the league id manually:
+The FIFA World Cup league id in TheSportsDB is:
 
 ```env
-RAPIDAPI_WORLD_CUP_LEAGUE_ID=77
+SPORTSDB_WORLD_CUP_LEAGUE_ID=4429
 ```
 
 3. Add your Supabase keys:
@@ -86,8 +86,8 @@ The trigger uses Cloud Build's Developer Connect trigger flow and points at `clo
 After the first deploy, configure these runtime env vars on Cloud Run:
 
 ```text
-RAPIDAPI_KEY
-RAPIDAPI_WORLD_CUP_LEAGUE_ID
+SPORTSDB_API_KEY
+SPORTSDB_WORLD_CUP_LEAGUE_ID
 SUPABASE_URL
 SUPABASE_PUBLISHABLE_KEY
 SUPABASE_SECRET_KEY
@@ -125,22 +125,23 @@ Notes:
 
 ## What It Uses
 
-Live tournament data is pulled from RapidAPI's `Free API Live Football Data` API using the endpoints below:
+Live tournament data is pulled from TheSportsDB v1 free API using the endpoints below:
 
-- `GET /football-leagues-search`
-- `GET /football-get-all-leagues`
-- `GET /football-get-standing-all`
-- `GET /football-get-list-all-team`
-- `GET /football-get-all-matches-by-league`
-- `GET /football-get-all-rounds`
+- `GET /lookupleague.php`
+- `GET /eventsseason.php`
+- `GET /lookuptable.php`
 
-If RapidAPI does not expose future World Cup fixtures yet, the app fills the calendar from the public World Cup 2026 JSON schedule:
+Country names, FIFA abbreviations, short codes, and flag URLs are loaded locally from:
+
+- `src/data/countries.json`
+
+TheSportsDB's free tier limits season event responses, so the app fills any missing World Cup 2026 calendar fixtures from the public World Cup 2026 JSON schedule:
 
 - https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json
 
 Documentation:
 
-- https://rapidapi.com/Creativesdev/api/free-api-live-football-data
+- https://www.thesportsdb.com/documentation
 
 ## Important Note About Knockout Matches
 
@@ -148,7 +149,7 @@ Live football data providers usually add cup fixtures as participants become kno
 
 The app therefore uses:
 
-- RapidAPI Free API Live Football Data for live groups, teams, fixtures, locations, and standings
+- TheSportsDB for live groups, teams, fixtures, locations, and standings where available
 - FIFA's published 2026 knockout schedule template for fixed round-of-32 onward slot metadata
 
 Schedule reference:
@@ -272,6 +273,6 @@ Recommended integration points:
 
 ## Demo Mode
 
-If `RAPIDAPI_KEY` is missing or the live request fails without a cache, the UI falls back to a clearly marked demo field so the drag-and-save flow still works locally.
+If TheSportsDB or the schedule template cannot be reached and no cache exists, the UI falls back to a clearly marked demo field so the drag-and-save flow still works locally.
 
 If `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, or `SUPABASE_SECRET_KEY` is missing, the app still loads in read-only mode, but auth, save, and load are disabled.

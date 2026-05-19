@@ -1,15 +1,22 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 
 import { buildDemoWorldCupBase } from "./data/demoWorldCup.js";
 import { KNOCKOUT_TEMPLATE } from "./data/knockoutTemplate.js";
 
-const RAPIDAPI_HOST = "free-api-live-football-data.p.rapidapi.com";
-const API_BASE_URL = `https://${RAPIDAPI_HOST}`;
-const DOCUMENTATION_URL = "https://rapidapi.com/Creativesdev/api/free-api-live-football-data";
+const require = createRequire(import.meta.url);
+const COUNTRY_METADATA = require("./data/countries.json");
+
+const API_BASE_URL = "https://www.thesportsdb.com/api/v1/json";
+const DOCUMENTATION_URL = "https://www.thesportsdb.com/documentation";
 const FIFA_SCHEDULE_URL =
   "https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/articles/match-schedule-fixtures-results-teams-stadiums";
 const OPENFOOTBALL_2026_URL = "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json";
 const WORLD_CUP_SEASON = 2026;
+const SPORTSDB_DEFAULT_API_KEY = "123";
+const SPORTSDB_WORLD_CUP_LEAGUE_ID = "4429";
+const SPORTSDB_WORLD_CUP_LEAGUE_NAME = "FIFA World Cup";
+const FLAG_ICON_BASE_URL = "https://cdn.jsdelivr.net/npm/flag-icons@7.3.2/flags/4x3";
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const HOST_COUNTRIES = ["Canada", "Mexico", "United States"];
 const CACHE_FILE = new URL("../data/cache/world-cup-2026.json", import.meta.url);
@@ -17,14 +24,6 @@ const FIFA_MENS_RANKING_URL = "https://inside.fifa.com/fifa-world-ranking/men";
 const MAX_FIFA_RANK = 211;
 const EXTERNAL_FETCH_CONCURRENCY = 6;
 const AMBIGUOUS_API_CODES = new Set(["AUS", "IRA", "SOU"]);
-const RAPIDAPI_ENDPOINTS = {
-  leaguesSearch: "football-leagues-search",
-  leaguesAll: "football-get-all-leagues",
-  standings: "football-get-standing-all",
-  teams: "football-get-list-all-team",
-  fixtures: "football-get-all-matches-by-league",
-  rounds: "football-get-all-rounds"
-};
 const FIFA_CODE_FIXUPS = {
   BOS: "BIH",
   CAP: "CPV",
@@ -39,59 +38,16 @@ const FIFA_CODE_FIXUPS = {
   ZEA: "NZL"
 };
 const TEAM_NAME_TO_FIFA_CODE = new Map(
-  Object.entries({
-    algeria: "ALG",
-    argentina: "ARG",
-    australia: "AUS",
-    austria: "AUT",
-    belgium: "BEL",
-    "bosnia and herzegovina": "BIH",
-    brazil: "BRA",
-    canada: "CAN",
-    "cape verde islands": "CPV",
-    colombia: "COL",
-    "congo dr": "COD",
-    "dr congo": "COD",
-    curacao: "CUW",
-    "czech republic": "CZE",
-    ecuador: "ECU",
-    egypt: "EGY",
-    england: "ENG",
-    france: "FRA",
-    germany: "GER",
-    ghana: "GHA",
-    haiti: "HAI",
-    iran: "IRN",
-    iraq: "IRQ",
-    "ivory coast": "CIV",
-    japan: "JPN",
-    jordan: "JOR",
-    mexico: "MEX",
-    morocco: "MAR",
-    netherlands: "NED",
-    "new zealand": "NZL",
-    norway: "NOR",
-    panama: "PAN",
-    paraguay: "PAR",
-    portugal: "POR",
-    qatar: "QAT",
-    "saudi arabia": "KSA",
-    scotland: "SCO",
-    senegal: "SEN",
-    "south africa": "RSA",
-    "south korea": "KOR",
-    spain: "ESP",
-    sweden: "SWE",
-    switzerland: "SUI",
-    tunisia: "TUN",
-    turkey: "TUR",
-    turkiye: "TUR",
-    uruguay: "URU",
-    usa: "USA",
-    "united states": "USA",
-    uzbekistan: "UZB"
-  })
+  COUNTRY_METADATA.flatMap((country) => [
+    [normalizeLookupKey(country.name), country.abbreviation],
+    [normalizeTeamMatchKey(country.name), country.abbreviation],
+    ...(country.aliases ?? []).flatMap((alias) => [
+      [normalizeLookupKey(alias), country.abbreviation],
+      [normalizeTeamMatchKey(alias), country.abbreviation]
+    ])
+  ])
 );
+const LOCAL_COUNTRY_TEAM_LOOKUP = buildCountryTeamLookup(COUNTRY_METADATA);
 
 let inflightRequest = null;
 
@@ -107,16 +63,10 @@ export async function getWorldCupData({ refresh = false, timezone = "Asia/Jerusa
       return cache.payload;
     }
 
-    const apiKey = String(process.env.RAPIDAPI_KEY || process.env.RAPID_API_KEY || "").trim();
+    const apiKey = String(process.env.SPORTSDB_API_KEY || SPORTSDB_DEFAULT_API_KEY).trim();
 
     try {
-      const liveBase = apiKey
-        ? await fetchLiveWorldCupBase({ apiKey, timezone })
-        : await fetchScheduleTemplateWorldCupBase({
-            warnings: [
-              "No RAPIDAPI_KEY was found in the environment, so the calendar is using the public World Cup 2026 schedule template."
-            ]
-          });
+      const liveBase = await fetchLiveWorldCupBase({ apiKey, timezone });
       const payload = finalizeWorldCupData(liveBase);
       await writeCache(payload);
       return payload;
@@ -150,48 +100,43 @@ export async function getWorldCupData({ refresh = false, timezone = "Asia/Jerusa
 async function fetchLiveWorldCupBase({ apiKey, timezone }) {
   const leagueEntry = await findWorldCupLeague(apiKey);
   const leagueId = leagueEntry.league.id;
-  const seasonCoverage = leagueEntry.season.coverage ?? createRapidApiCoverage();
+  const seasonCoverage = leagueEntry.season.coverage ?? createSportsDbCoverage();
 
-  const [standingsResult, teamsResult, fixturesResult, roundsResult] = await Promise.all([
-    optionalApiRequest(RAPIDAPI_ENDPOINTS.standings, leagueQueryParams(leagueId), apiKey),
-    optionalApiRequest(RAPIDAPI_ENDPOINTS.teams, leagueQueryParams(leagueId), apiKey),
-    optionalApiRequest(RAPIDAPI_ENDPOINTS.fixtures, leagueQueryParams(leagueId), apiKey),
-    optionalApiRequest(RAPIDAPI_ENDPOINTS.rounds, leagueQueryParams(leagueId), apiKey)
+  const [standingsResult, fixturesResult] = await Promise.all([
+    optionalApiRequest("lookuptable.php", { l: leagueId, s: String(WORLD_CUP_SEASON) }, apiKey),
+    optionalApiRequest("eventsseason.php", { id: leagueId, s: String(WORLD_CUP_SEASON) }, apiKey)
   ]);
 
   const fallbackWarnings = [];
-  const teamLookup = buildTeamLookup(extractApiRows(teamsResult));
-  const rawFixtures = extractApiRows(fixturesResult);
+  const scheduleTemplate = await fetchOpenFootballWorldCup2026();
+  const sportsDbTeamLookup = new Map(LOCAL_COUNTRY_TEAM_LOOKUP);
+  const sportsDbFixtures = extractApiRows(fixturesResult)
+    .map((fixture) => normalizeSportsDbFixture(fixture, sportsDbTeamLookup, timezone))
+    .filter(Boolean);
+
+  for (const fixture of sportsDbFixtures) {
+    addSportsDbTeamToLookup(sportsDbTeamLookup, fixture.teams.home);
+    addSportsDbTeamToLookup(sportsDbTeamLookup, fixture.teams.away);
+  }
+
   const venueLookup = new Map();
 
-  let normalizedFixtures = rawFixtures.map((fixture) =>
-    normalizeFixture(fixture, teamLookup, venueLookup, timezone)
-  ).filter(Boolean);
-
-  let groups = buildGroups({
-    standingsResponse: extractApiRows(standingsResult),
-    teamLookup,
+  const normalizedFixtures = mergeSportsDbFixtures(scheduleTemplate.fixtures, sportsDbFixtures, sportsDbTeamLookup);
+  const groups = mergeSportsDbGroups({
+    templateGroups: scheduleTemplate.groups,
+    teamLookup: sportsDbTeamLookup,
+    standingsRows: extractApiRows(standingsResult),
     fixtures: normalizedFixtures
   });
 
-  if (!normalizedFixtures.length || !groups.length) {
-    const fallback = await fetchOpenFootballWorldCup2026();
-
-    if (!normalizedFixtures.length) {
-      normalizedFixtures = fallback.fixtures;
-    }
-
-    if (!groups.length) {
-      groups = fallback.groups;
-    }
-
+  if (sportsDbFixtures.length < normalizedFixtures.length) {
     fallbackWarnings.push(
-      "RapidAPI Free API Live Football Data did not return World Cup 2026 fixtures/groups yet, so the calendar is using the public World Cup 2026 schedule template."
+      `TheSportsDB free tier returned ${sportsDbFixtures.length} World Cup 2026 event(s), so the remaining calendar fixtures are filled from the public World Cup 2026 schedule template.`
     );
   }
 
   const normalizedVenues = collectVenues(normalizedFixtures, venueLookup);
-  const normalizedRounds = normalizeRounds(extractApiRows(roundsResult));
+  const normalizedRounds = normalizeRounds(buildRoundsFromFixtures(normalizedFixtures));
   const [featuredStats, fifaRankingsResult, teamSignalsResult] = await Promise.all([
     fetchFeaturedStats({
       fixtures: normalizedFixtures,
@@ -209,7 +154,7 @@ async function fetchLiveWorldCupBase({ apiKey, timezone }) {
   return {
     source: {
       mode: "live",
-      provider: "RapidAPI Free API Live Football Data",
+      provider: "TheSportsDB",
       documentation: DOCUMENTATION_URL,
       scheduleSource: FIFA_SCHEDULE_URL,
       rankingsSource: FIFA_MENS_RANKING_URL,
@@ -273,7 +218,7 @@ async function fetchScheduleTemplateWorldCupBase({ warnings = [] } = {}) {
       country: "World",
       season: WORLD_CUP_SEASON,
       logo: null,
-      coverage: createRapidApiCoverage()
+      coverage: createSportsDbCoverage()
     },
     groups: enrichedGroups,
     fixtures: fallback.fixtures,
@@ -284,7 +229,7 @@ async function fetchScheduleTemplateWorldCupBase({ warnings = [] } = {}) {
 }
 
 async function apiRequest(endpoint, params, apiKey) {
-  const url = new URL(`${API_BASE_URL}/${endpoint}`);
+  const url = new URL(`${API_BASE_URL}/${apiKey}/${endpoint}`);
 
   Object.entries(params ?? {}).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
@@ -294,8 +239,6 @@ async function apiRequest(endpoint, params, apiKey) {
 
   const response = await fetch(url, {
     headers: {
-      "x-rapidapi-key": apiKey,
-      "x-rapidapi-host": RAPIDAPI_HOST,
       Accept: "application/json"
     }
   });
@@ -305,14 +248,14 @@ async function apiRequest(endpoint, params, apiKey) {
   }
 
   if (!response.ok) {
-    throw new Error(`RapidAPI football ${endpoint} request failed with status ${response.status}.`);
+    throw new Error(`TheSportsDB ${endpoint} request failed with status ${response.status}.`);
   }
 
   const data = await response.json();
   const errors = formatApiErrors(data?.errors);
 
   if (errors || data?.message) {
-    throw new Error(`RapidAPI football ${endpoint} returned errors: ${errors || data.message}`);
+    throw new Error(`TheSportsDB ${endpoint} returned errors: ${errors || data.message}`);
   }
 
   return data;
@@ -326,13 +269,7 @@ async function optionalApiRequest(endpoint, params, apiKey) {
   }
 }
 
-function leagueQueryParams(leagueId) {
-  return {
-    leagueid: leagueId
-  };
-}
-
-function createRapidApiCoverage() {
+function createSportsDbCoverage() {
   return {
     standings: true,
     fixtures: {
@@ -437,52 +374,16 @@ function formatApiErrors(errors) {
 }
 
 async function findWorldCupLeague(apiKey) {
-  const configuredLeagueId = String(process.env.RAPIDAPI_WORLD_CUP_LEAGUE_ID || "").trim();
+  const configuredLeagueId = String(process.env.SPORTSDB_WORLD_CUP_LEAGUE_ID || SPORTSDB_WORLD_CUP_LEAGUE_ID).trim();
+  const detail = await optionalApiRequest("lookupleague.php", { id: configuredLeagueId }, apiKey);
+  const league = extractApiRows(detail)[0] ?? {};
 
-  if (configuredLeagueId) {
-    const detail = await optionalApiRequest("football-get-league-detail", leagueQueryParams(configuredLeagueId), apiKey);
-    const league = extractApiRows(detail)[0] ?? {};
-    return normalizeLeagueEntry({
-      id: configuredLeagueId,
-      name: league.name ?? league.leagueName ?? league.title ?? "World Cup",
-      country: league.country ?? league.category ?? league.countryName ?? "World",
-      raw: league
-    });
-  }
-
-  const [searchResult, allResult] = await Promise.all([
-    optionalApiRequest(
-      RAPIDAPI_ENDPOINTS.leaguesSearch,
-      {
-        q: "world cup",
-        query: "world cup",
-        search: "world cup"
-      },
-      apiKey
-    ),
-    optionalApiRequest(RAPIDAPI_ENDPOINTS.leaguesAll, {}, apiKey)
-  ]);
-
-  const candidates = [...extractApiRows(searchResult), ...extractApiRows(allResult)]
-    .map(normalizeLeagueEntry)
-    .filter(Boolean)
-    .filter((entry) => {
-      const name = normalizeLookupKey(entry.league?.name);
-      return (
-        name.includes("world cup") &&
-        !name.includes("qualification") &&
-        !name.includes("qualifying") &&
-        !name.includes("women") &&
-        !name.includes("club")
-      );
-    })
-    .sort((left, right) => scoreLeague(right) - scoreLeague(left));
-
-  if (!candidates.length) {
-    throw new Error("Could not find the FIFA World Cup league in RapidAPI Free API Live Football Data. Set RAPIDAPI_WORLD_CUP_LEAGUE_ID if the provider search does not expose it.");
-  }
-
-  return candidates[0];
+  return normalizeLeagueEntry({
+    ...league,
+    idLeague: league.idLeague ?? configuredLeagueId,
+    strLeague: league.strLeague ?? SPORTSDB_WORLD_CUP_LEAGUE_NAME,
+    strCountry: league.strCountry ?? "Worldwide"
+  });
 }
 
 function scoreLeague(entry) {
@@ -495,6 +396,7 @@ function scoreLeague(entry) {
 function normalizeLeagueEntry(entry) {
   const leagueSource = entry?.league ?? entry?.uniqueTournament ?? entry?.tournament ?? entry;
   const id = firstDefined(
+    leagueSource?.idLeague,
     leagueSource?.id,
     leagueSource?.leagueId,
     leagueSource?.leagueid,
@@ -503,6 +405,7 @@ function normalizeLeagueEntry(entry) {
     entry?.id
   );
   const name = firstDefined(
+    leagueSource?.strLeague,
     leagueSource?.name,
     leagueSource?.leagueName,
     leagueSource?.title,
@@ -518,7 +421,7 @@ function normalizeLeagueEntry(entry) {
   const countrySource = entry?.country ?? entry?.category ?? leagueSource?.country ?? {};
   const season = {
     year: WORLD_CUP_SEASON,
-    coverage: createRapidApiCoverage()
+    coverage: createSportsDbCoverage()
   };
 
   return {
@@ -526,31 +429,84 @@ function normalizeLeagueEntry(entry) {
     league: {
       id,
       name,
-      logo: firstDefined(leagueSource?.logo, leagueSource?.image, leagueSource?.logoUrl, null)
+      logo: firstDefined(leagueSource?.strBadge, leagueSource?.logo, leagueSource?.image, leagueSource?.logoUrl, null)
     },
     country: {
-      name: normalizeCountryName(countrySource) ?? "World"
+      name: normalizeCountryName(countrySource) ?? firstDefined(leagueSource?.strCountry, "World")
     },
     season
   };
 }
 
-function buildTeamLookup(teamResponse = []) {
+function buildCountryTeamLookup(countries = []) {
   const lookup = new Map();
 
-  for (const entry of teamResponse) {
-    const team = normalizeTeamSource(entry?.team ?? entry);
-
-    if (team?.id != null) {
-      lookup.set(team.id, team);
-    }
+  for (const country of countries) {
+    addSportsDbTeamToLookup(lookup, normalizeCountryMetadata(country));
   }
 
   return lookup;
 }
 
+function normalizeCountryMetadata(country = {}) {
+  const name = country.name ?? "TBD";
+  const abbreviation = String(country.abbreviation ?? country.short ?? "")
+    .trim()
+    .toUpperCase();
+  const short = String(country.short ?? abbreviation)
+    .trim()
+    .toUpperCase();
+  const flagCode = String(country.flagCode ?? "")
+    .trim()
+    .toLowerCase();
+
+  return {
+    id: `country-${normalizeTeamMatchKey(name)}`,
+    name,
+    code: abbreviation,
+    abbreviation,
+    short,
+    country: name,
+    national: true,
+    flagCode,
+    flag: flagCode ? `${FLAG_ICON_BASE_URL}/${flagCode}.svg` : null,
+    logo: flagCode ? `${FLAG_ICON_BASE_URL}/${flagCode}.svg` : null,
+    aliases: country.aliases ?? []
+  };
+}
+
+function addSportsDbTeamToLookup(lookup, team) {
+  if (!team) {
+    return;
+  }
+
+  const keys = [
+    team.id,
+    team.code,
+    team.short,
+    team.abbreviation,
+    normalizeLookupKey(team.name),
+    normalizeTeamMatchKey(team.name),
+    ...(team.aliases ?? []).flatMap((alias) => [normalizeLookupKey(alias), normalizeTeamMatchKey(alias)])
+  ].filter(Boolean);
+  const existing = keys.map((key) => lookup.get(key)).find(Boolean);
+  const merged = existing
+    ? {
+        ...team,
+        ...existing,
+        id: team.id ?? existing.id,
+        winner: team.winner ?? existing.winner ?? null
+      }
+    : team;
+
+  for (const key of keys) {
+    lookup.set(key, merged);
+  }
+}
+
 function normalizeTeamSource(source = {}, fallback = {}) {
   const id = firstDefined(
+    source.idTeam,
     source.id,
     source.teamId,
     source.teamid,
@@ -560,6 +516,7 @@ function normalizeTeamSource(source = {}, fallback = {}) {
     fallback.teamid
   );
   const name = firstDefined(
+    source.strTeam,
     source.name,
     source.shortName,
     source.teamName,
@@ -578,10 +535,14 @@ function normalizeTeamSource(source = {}, fallback = {}) {
   return {
     id: id ?? normalizeLookupKey(name),
     name: name ?? "TBD",
-    code: firstDefined(source.code, source.nameCode, source.abbreviation, source.slug, null),
-    country: normalizeCountryName(countrySource) ?? source.countryName ?? null,
-    national: firstDefined(source.national, source.type === "national", null),
-    logo: firstDefined(source.logo, source.logoUrl, source.image, source.teamLogo, source.flag, null),
+    code: firstDefined(source.strTeamShort, source.code, source.nameCode, source.abbreviation, source.slug, null),
+    abbreviation: firstDefined(source.abbreviation, source.code, source.strTeamShort, null),
+    short: firstDefined(source.short, source.strTeamShort, source.code, null),
+    country: normalizeCountryName(countrySource) ?? source.strCountry ?? source.countryName ?? null,
+    national: firstDefined(source.national, source.type === "national", source.strSport === "Soccer", null),
+    flagCode: firstDefined(source.flagCode, null),
+    flag: firstDefined(source.flag, null),
+    logo: firstDefined(source.logo, source.flag, source.strBadge, source.strLogo, source.logoUrl, source.image, source.teamLogo, null),
     venue: source.venue ?? fallback.venue ?? null
   };
 }
@@ -711,6 +672,160 @@ function normalizeFixture(fixture, teamLookup, venueLookup, timezone = "UTC") {
   };
 }
 
+function normalizeSportsDbFixture(event, teamLookup, timezone = "UTC") {
+  const homeTeam = normalizeFixtureTeam(
+    {
+      id: event?.idHomeTeam,
+      name: event?.strHomeTeam,
+      logo: event?.strHomeTeamBadge
+    },
+    teamLookup
+  );
+  const awayTeam = normalizeFixtureTeam(
+    {
+      id: event?.idAwayTeam,
+      name: event?.strAwayTeam,
+      logo: event?.strAwayTeamBadge
+    },
+    teamLookup
+  );
+
+  if (!event?.idEvent || !homeTeam || !awayTeam) {
+    return null;
+  }
+
+  const date = parseSportsDbTimestamp(event);
+  const round = firstDefined(event?.strGroup, event?.strRound, event?.intRound ? `Round ${event.intRound}` : null, "Group Stage");
+
+  return {
+    id: event.idEvent,
+    date: date ? date.toISOString() : event.dateEvent,
+    timestamp: date ? Math.floor(date.getTime() / 1000) : 0,
+    timezone,
+    referee: null,
+    stage: classifyStage(round),
+    round,
+    groupLetter: extractGroupLetter(round),
+    status: normalizeSportsDbStatus(event),
+    venue: {
+      id: null,
+      name: event.strVenue ?? "TBD",
+      city: event.strVenue ?? null,
+      country: event.strCountry ?? null,
+      capacity: null,
+      image: event.strThumb ?? event.strPoster ?? null
+    },
+    teams: {
+      home: homeTeam,
+      away: awayTeam
+    },
+    goals: {
+      home: toNumber(event.intHomeScore),
+      away: toNumber(event.intAwayScore)
+    },
+    score: {
+      halftime: { home: null, away: null },
+      fulltime: {
+        home: toNumber(event.intHomeScore),
+        away: toNumber(event.intAwayScore)
+      },
+      extratime: { home: null, away: null },
+      penalty: { home: null, away: null }
+    }
+  };
+}
+
+function parseSportsDbTimestamp(event) {
+  const timestamp = firstDefined(event?.strTimestamp, event?.dateEvent && event?.strTime ? `${event.dateEvent}T${event.strTime}` : null);
+
+  if (!timestamp) {
+    return null;
+  }
+
+  const normalized = String(timestamp).endsWith("Z") ? String(timestamp) : `${timestamp}Z`;
+  const parsed = Date.parse(normalized);
+  return Number.isFinite(parsed) ? new Date(parsed) : null;
+}
+
+function normalizeSportsDbStatus(event) {
+  const postponed = normalizeLookupKey(event?.strPostponed) === "yes";
+  const label = postponed ? "Postponed" : firstDefined(event?.strStatus, "Not Started");
+
+  return {
+    long: label,
+    short: normalizeStatusShort(label),
+    elapsed: null
+  };
+}
+
+function mergeSportsDbFixtures(templateFixtures, sportsDbFixtures, teamLookup) {
+  const sportsDbFixtureByMatch = new Map(
+    sportsDbFixtures.map((fixture) => [createFixtureMatchKey(fixture), fixture])
+  );
+
+  return templateFixtures.map((fixture) => {
+    const sportsDbFixture = sportsDbFixtureByMatch.get(createFixtureMatchKey(fixture));
+    const home = resolveSportsDbTeam(fixture.teams.home, teamLookup);
+    const away = resolveSportsDbTeam(fixture.teams.away, teamLookup);
+
+    return {
+      ...fixture,
+      ...(sportsDbFixture
+        ? {
+            id: sportsDbFixture.id,
+            date: sportsDbFixture.date,
+            timestamp: sportsDbFixture.timestamp,
+            status: sportsDbFixture.status,
+            venue: {
+              ...fixture.venue,
+              ...sportsDbFixture.venue
+            },
+            goals: sportsDbFixture.goals,
+            score: sportsDbFixture.score
+          }
+        : {}),
+      teams: {
+        home: mergeTeamDetails(fixture.teams.home, home),
+        away: mergeTeamDetails(fixture.teams.away, away)
+      }
+    };
+  });
+}
+
+function mergeTeamDetails(baseTeam, providerTeam) {
+  if (!providerTeam) {
+    return baseTeam;
+  }
+
+  return {
+    ...baseTeam,
+    id: providerTeam.id ?? baseTeam.id,
+    name: providerTeam.name ?? baseTeam.name,
+    code: providerTeam.code ?? baseTeam.code ?? null,
+    abbreviation: providerTeam.abbreviation ?? baseTeam.abbreviation ?? providerTeam.code ?? baseTeam.code ?? null,
+    short: providerTeam.short ?? baseTeam.short ?? providerTeam.code ?? baseTeam.code ?? null,
+    country: providerTeam.country ?? baseTeam.country ?? null,
+    national: providerTeam.national ?? baseTeam.national ?? null,
+    flagCode: providerTeam.flagCode ?? baseTeam.flagCode ?? null,
+    flag: providerTeam.flag ?? baseTeam.flag ?? null,
+    logo: providerTeam.logo ?? baseTeam.logo ?? null,
+    winner: providerTeam.winner ?? baseTeam.winner ?? null
+  };
+}
+
+function resolveSportsDbTeam(team, teamLookup) {
+  return teamLookup.get(normalizeTeamMatchKey(team?.name)) ??
+    teamLookup.get(normalizeLookupKey(team?.name)) ??
+    teamLookup.get(team?.id) ??
+    team;
+}
+
+function createFixtureMatchKey(fixture) {
+  const home = normalizeTeamMatchKey(fixture?.teams?.home?.name);
+  const away = normalizeTeamMatchKey(fixture?.teams?.away?.name);
+  return [home, away].sort().join(":");
+}
+
 function normalizeApiFootballFixture(fixture, teamLookup, venueLookup) {
   const venueId = fixture?.fixture?.venue?.id ?? null;
   const venue = venueLookup.get(venueId);
@@ -750,7 +865,9 @@ function normalizeApiFootballFixture(fixture, teamLookup, venueLookup) {
 }
 
 function normalizeFixtureTeam(team, teamLookup, fixture = {}, side = "") {
-  const teamInfo = teamLookup.get(team?.id);
+  const teamInfo = teamLookup.get(team?.id) ??
+    teamLookup.get(normalizeTeamMatchKey(team?.name)) ??
+    teamLookup.get(normalizeLookupKey(team?.name));
   const fallback = side
     ? {
         id: firstDefined(fixture?.[`${side}TeamId`], fixture?.[`${side}Id`]),
@@ -769,7 +886,11 @@ function normalizeFixtureTeam(team, teamLookup, fixture = {}, side = "") {
     name: normalized.name,
     code: teamInfo?.code ?? normalized.code ?? null,
     country: teamInfo?.country ?? normalized.country ?? null,
-    logo: normalized.logo ?? teamInfo?.logo ?? null,
+    abbreviation: teamInfo?.abbreviation ?? normalized.abbreviation ?? null,
+    short: teamInfo?.short ?? normalized.short ?? null,
+    flagCode: teamInfo?.flagCode ?? normalized.flagCode ?? null,
+    flag: teamInfo?.flag ?? normalized.flag ?? null,
+    logo: teamInfo?.logo ?? normalized.logo ?? null,
     winner: firstDefined(team?.winner, null)
   };
 }
@@ -927,7 +1048,7 @@ function normalizeStandingGroupsResponse(standingsResponse = []) {
     ].find(Array.isArray);
 
     if (nestedRows) {
-      groups.push(normalizeRapidStandingRows(nestedRows, entry));
+      groups.push(normalizeNestedStandingRows(nestedRows, entry));
       continue;
     }
 
@@ -959,13 +1080,76 @@ function normalizeStandingGroupsResponse(standingsResponse = []) {
   return groups.filter((group) => group.length);
 }
 
-function normalizeRapidStandingRows(rows, container = {}) {
+function normalizeNestedStandingRows(rows, container = {}) {
   const groupName = firstDefined(container?.name, container?.group, container?.groupName, container?.title, "Group A");
 
   return rows.map((row) => ({
     ...row,
     group: firstDefined(row?.group, row?.groupName, groupName)
   }));
+}
+
+function mergeSportsDbGroups({ templateGroups, teamLookup, standingsRows, fixtures }) {
+  const standingLookup = new Map(
+    standingsRows
+      .filter((row) => row?.idTeam || row?.strTeam)
+      .flatMap((row) => {
+        const standing = normalizeSportsDbStanding(row);
+        return [
+          [String(row.idTeam || normalizeLookupKey(row.strTeam)), standing],
+          [normalizeLookupKey(row.strTeam), standing],
+          [normalizeTeamMatchKey(row.strTeam), standing]
+        ];
+      })
+  );
+
+  return templateGroups.map((group) => ({
+    ...group,
+    teams: group.teams.map((team, index) => {
+      const sportsDbTeam = resolveSportsDbTeam(team, teamLookup);
+      const standing = standingLookup.get(String(sportsDbTeam.id)) ??
+        standingLookup.get(normalizeLookupKey(sportsDbTeam.name)) ??
+        null;
+
+      return {
+        ...mergeTeamDetails(team, sportsDbTeam),
+        groupLetter: group.letter,
+        standing: {
+          ...team.standing,
+          rank: standing?.rank ?? team.standing?.rank ?? index + 1,
+          points: standing?.points ?? team.standing?.points ?? null,
+          goalDifference: standing?.goalDifference ?? team.standing?.goalDifference ?? null,
+          form: standing?.form ?? team.standing?.form ?? null,
+          played: standing?.played ?? team.standing?.played ?? null,
+          wins: standing?.wins ?? team.standing?.wins ?? null,
+          draws: standing?.draws ?? team.standing?.draws ?? null,
+          losses: standing?.losses ?? team.standing?.losses ?? null,
+          goalsFor: standing?.goalsFor ?? team.standing?.goalsFor ?? null,
+          goalsAgainst: standing?.goalsAgainst ?? team.standing?.goalsAgainst ?? null,
+          description: standing?.description ?? team.standing?.description ?? null,
+          update: standing?.update ?? team.standing?.update ?? null
+        }
+      };
+    }),
+    fixtures: fixtures.filter((fixture) => fixture.groupLetter === group.letter)
+  }));
+}
+
+function normalizeSportsDbStanding(row) {
+  return {
+    rank: firstNumber(row.intRank),
+    points: firstNumber(row.intPoints),
+    goalDifference: firstNumber(row.intGoalDifference),
+    form: row.strForm ?? null,
+    played: firstNumber(row.intPlayed),
+    wins: firstNumber(row.intWin),
+    draws: firstNumber(row.intDraw),
+    losses: firstNumber(row.intLoss),
+    goalsFor: firstNumber(row.intGoalsFor),
+    goalsAgainst: firstNumber(row.intGoalsAgainst),
+    description: row.strDescription ?? null,
+    update: row.dateUpdated ?? null
+  };
 }
 
 function normalizeStandingGroup(groupRows, index, teamLookup, fixtures) {
@@ -1089,6 +1273,27 @@ function normalizeRounds(roundsResponse = []) {
   });
 }
 
+function buildRoundsFromFixtures(fixtures) {
+  const rounds = new Map();
+
+  for (const fixture of fixtures) {
+    const round = fixture.round || fixture.stage || "Other";
+
+    if (!rounds.has(round)) {
+      rounds.set(round, {
+        round,
+        dates: []
+      });
+    }
+
+    if (fixture.date) {
+      rounds.get(round).dates.push(fixture.date);
+    }
+  }
+
+  return [...rounds.values()];
+}
+
 async function fetchOpenFootballWorldCup2026() {
   const response = await fetch(OPENFOOTBALL_2026_URL, {
     headers: {
@@ -1123,7 +1328,7 @@ function buildOpenFootballTeamLookup(matches) {
         continue;
       }
 
-      lookup.set(key, {
+      lookup.set(key, resolveLocalCountryTeam(teamName) ?? {
         id: `template-${key}`,
         name: teamName,
         code: resolveTemplateTeamCode(teamName),
@@ -1244,7 +1449,7 @@ function buildOpenFootballGroups(matches, teamsByName, fixtures) {
 
 function getOpenFootballTeam(teamName, teamsByName) {
   const key = normalizeLookupKey(teamName);
-  return teamsByName.get(key) ?? {
+  return teamsByName.get(key) ?? resolveLocalCountryTeam(teamName) ?? {
     id: `template-${key}`,
     name: teamName,
     code: resolveTemplateTeamCode(teamName),
@@ -1252,6 +1457,12 @@ function getOpenFootballTeam(teamName, teamsByName) {
     national: true,
     logo: null
   };
+}
+
+function resolveLocalCountryTeam(teamName) {
+  return LOCAL_COUNTRY_TEAM_LOOKUP.get(normalizeTeamMatchKey(teamName)) ??
+    LOCAL_COUNTRY_TEAM_LOOKUP.get(normalizeLookupKey(teamName)) ??
+    null;
 }
 
 function parseOpenFootballDate(dateValue, timeValue) {
@@ -1505,11 +1716,34 @@ function normalizeLookupKey(value) {
     .toLowerCase();
 }
 
+function normalizeTeamMatchKey(value) {
+  const key = normalizeLookupKey(value);
+  const aliases = {
+    "bosnia herzegovina": "bosnia and herzegovina",
+    "bosnia and herzegovina": "bosnia and herzegovina",
+    "cape verde": "cabo verde",
+    "cabo verde": "cabo verde",
+    "congo dr": "dr congo",
+    "dr congo": "dr congo",
+    "cote d ivoire": "ivory coast",
+    "cote divoire": "ivory coast",
+    "curacao": "curacao",
+    "iran": "ir iran",
+    "ir iran": "ir iran",
+    "korea republic": "south korea",
+    "south korea": "south korea",
+    "usa": "united states",
+    "united states": "united states"
+  };
+
+  return aliases[key] ?? key;
+}
+
 async function fetchTeamStrengthSignals({ fixtures, apiKey }) {
   return {
     lookup: new Map(),
     warnings: [
-      "RapidAPI Free API Live Football Data is being used for tournament data; team strength scores are currently leaning on FIFA rankings only."
+      "TheSportsDB is being used for tournament data; team strength scores are currently leaning on FIFA rankings only."
     ],
     meta: {
       fixturesConsidered: fixtures.length,
