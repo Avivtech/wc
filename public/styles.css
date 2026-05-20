@@ -2672,7 +2672,7 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 
 .admin-user-row {
 	display: grid;
-	grid-template-columns: minmax(14rem, 1.1fr) minmax(12rem, 0.9fr) auto minmax(15rem, 1fr) auto;
+	grid-template-columns: minmax(7rem, 1fr) minmax(12rem, 0.9fr) auto minmax(15rem, 1fr) auto;
 	align-items: center;
 	gap: 0.85rem;
 	padding: 0.9rem 1rem;
