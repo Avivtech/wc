@@ -14,8 +14,8 @@ const TRANSLATIONS = {
 		noHomeTeam: "No home team selected",
 	},
 	he: {
-		loading: "טוען טבלת שיא...",
-		unavailable: "טבלת השיא אינה זמינה כרגע.",
+		loading: "טוען טבלת ניקוד...",
+		unavailable: "טבלת הניקוד אינה זמינה כרגע.",
 		updatedAt: "עודכן {date}",
 		empty: "עדיין אין שחקנים ששמרו בחירות.",
 		displayName: "שם תצוגה",
@@ -26,6 +26,7 @@ const TRANSLATIONS = {
 		noHomeTeam: "לא נבחרה נבחרת בית",
 	},
 };
+const LANGUAGE_SHORT_LABEL_QUERY = "(max-width: 480px)";
 
 const elements = {
 	status: document.getElementById("leaderboard-status"),
@@ -61,11 +62,27 @@ function bindLanguageSelect() {
 		return;
 	}
 
+	const shortLabelQuery = window.matchMedia(LANGUAGE_SHORT_LABEL_QUERY);
+	const updateLabels = () => updateLanguageSelectLabels(languageSelect, shortLabelQuery.matches);
+
+	updateLabels();
+	shortLabelQuery.addEventListener("change", updateLabels);
+
 	languageSelect.addEventListener("change", () => {
 		const nextPath = languageSelect.value;
 
 		if (nextPath && nextPath !== window.location.pathname) {
 			window.location.href = nextPath;
+		}
+	});
+}
+
+function updateLanguageSelectLabels(languageSelect, shouldUseShortLabels) {
+	Array.from(languageSelect.options).forEach((option) => {
+		const nextLabel = shouldUseShortLabels ? option.dataset.shortLabel : option.dataset.fullLabel;
+
+		if (nextLabel) {
+			option.textContent = nextLabel;
 		}
 	});
 }
