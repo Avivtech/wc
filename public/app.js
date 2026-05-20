@@ -3031,10 +3031,11 @@ function renderSaveState() {
 }
 
 function renderOverallScore() {
-	const shouldShow = Boolean(state.worldCup);
+	const shouldShow = Boolean(state.worldCup && getAuthenticatedEmail());
 	elements.overallScoreCard.classList.toggle("hidden", !shouldShow);
 
 	if (!shouldShow) {
+		elements.overallScoreCard.classList.remove("is-actions-hidden");
 		return;
 	}
 

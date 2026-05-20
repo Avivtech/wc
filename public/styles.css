@@ -265,14 +265,6 @@ p {
 	font-size: 0.92rem;
 }
 
-.language-menu-label {
-	color: var(--muted);
-	font-size: 0.72rem;
-	font-weight: 700;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
-}
-
 .language-select {
 	height: 2.25rem;
 	border: 1px solid var(--line);
@@ -281,7 +273,7 @@ p {
 	color: var(--text);
 	font: inherit;
 	font-weight: 700;
-	padding: 0 1rem 0 0.2rem;
+	padding: 0 0.5rem 0 0.2rem;
 	cursor: pointer;
 }
 
@@ -293,7 +285,7 @@ p {
 }
 
 html[dir="rtl"] .language-select {
-	padding: 0 0.75rem 0 2rem;
+	padding: 0 0.2rem 0 0.5rem;
 }
 
 .overall-score-value-container {
@@ -2752,6 +2744,7 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 
 	h1 {
 		font-size: 2.5rem;
+		max-width: none;
 	}
 
 	h3 {
