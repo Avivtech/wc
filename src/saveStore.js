@@ -19,6 +19,14 @@ export async function loadPicksForUser(user) {
   return loadStoredPicksForAuthUser(authUser);
 }
 
+export async function loadPicksForAuthUser(authUser) {
+  if (!authUser?.email || !validateEmail(authUser.email)) {
+    return null;
+  }
+
+  return loadStoredPicksForAuthUser(authUser);
+}
+
 export async function savePicksForUser(user, payload, options = {}) {
   const authUser = await getAuthUserById(user?.id);
   const normalized = normalizeStoredPayload(authUser, payload, {
@@ -28,6 +36,26 @@ export async function savePicksForUser(user, payload, options = {}) {
   await writeRemotePicks(authUser, normalized);
   await clearPicksMetadata(authUser);
   return normalized;
+}
+
+export async function deletePicksForAuthUser(authUser) {
+  if (!isSupabaseAuthConfigured() || !authUser?.id) {
+    return false;
+  }
+
+  await ensurePicksBucket();
+
+  const { error } = await getServerSupabaseAdminClient()
+    .storage
+    .from(PICKS_STORAGE_BUCKET)
+    .remove([getRemotePicksPath(authUser)]);
+
+  if (error && !isStorageObjectMissingError(error)) {
+    throw new Error(error.message);
+  }
+
+  await clearPicksMetadata(authUser);
+  return true;
 }
 
 export async function migrateStoredPicksOutOfUserMetadata() {

@@ -16,8 +16,16 @@ import {
   calculatePredictedBonusPointsForSavedPicks,
   resolveSavedHomeTeam
 } from "./src/savedPicksSettlement.js";
-import { listSavedPicksForAllUsers, loadPicksForUser, migrateStoredPicksOutOfUserMetadata, savePicksForUser, validateEmail } from "./src/saveStore.js";
-import { getBearerToken, getSupabasePublicConfig, isSupabaseAuthConfigured, verifySupabaseAccessToken } from "./src/supabaseAuth.js";
+import {
+  deletePicksForAuthUser,
+  listSavedPicksForAllUsers,
+  loadPicksForAuthUser,
+  loadPicksForUser,
+  migrateStoredPicksOutOfUserMetadata,
+  savePicksForUser,
+  validateEmail
+} from "./src/saveStore.js";
+import { getBearerToken, getServerSupabaseAdminClient, getSupabasePublicConfig, isSupabaseAuthConfigured, verifySupabaseAccessToken } from "./src/supabaseAuth.js";
 import { getWorldCupData } from "./src/worldCupService.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -29,6 +37,10 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const SUBMISSION_SECTIONS = ["groups", "thirdPlace", "playoffs"];
 const WORLD_CUP_REFRESH_TIMEZONE = "UTC";
+const ADMIN_EMAILS = String(process.env.ADMIN_EMAILS || "")
+  .split(",")
+  .map((entry) => entry.trim().toLowerCase())
+  .filter(Boolean);
 
 app.use(express.json({ limit: "1mb" }));
 
@@ -42,6 +54,10 @@ app.get("/high-scores", (_req, res) => {
 
 app.get("/he/high-scores", (_req, res) => {
   res.sendFile(path.join(publicDir, "he", "high-scores", "index.html"));
+});
+
+app.get("/admin", (_req, res) => {
+  res.sendFile(path.join(publicDir, "admin", "index.html"));
 });
 
 app.use(express.static(publicDir));
@@ -317,6 +333,142 @@ app.post("/api/scoring/settle", async (req, res) => {
   }
 });
 
+app.get("/api/admin/users", requireSupabaseAuth, requireAdminAuth, async (_req, res) => {
+  try {
+    const users = await listAdminUsers();
+
+    return res.json({
+      users,
+      updatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    logServerError("Failed to list admin users.", error);
+    return res.status(500).json({ error: "Could not load users right now." });
+  }
+});
+
+app.post("/api/admin/users", requireSupabaseAuth, requireAdminAuth, async (req, res) => {
+  try {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const password = String(req.body?.password || "");
+    const displayName = sanitizeDisplayName(req.body?.displayName);
+    const isAdmin = Boolean(req.body?.isAdmin);
+
+    if (!validateEmail(email)) {
+      return res.status(400).json({ error: "A valid email address is required." });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: "A password with at least 6 characters is required." });
+    }
+
+    const { data, error } = await getServerSupabaseAdminClient().auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: displayName ? { display_name: displayName } : {},
+      app_metadata: isAdmin ? { is_admin: true, role: "admin" } : { is_admin: false }
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return res.status(201).json({
+      ok: true,
+      user: await buildAdminUserEntry(data.user)
+    });
+  } catch (error) {
+    logServerError("Failed to create admin user.", error);
+    return res.status(500).json({ error: "Could not create user right now." });
+  }
+});
+
+app.patch("/api/admin/users/:userId", requireSupabaseAuth, requireAdminAuth, async (req, res) => {
+  try {
+    const userId = String(req.params.userId || "").trim();
+    const displayName = sanitizeDisplayName(req.body?.displayName);
+    const hasAdminFlag = Object.prototype.hasOwnProperty.call(req.body || {}, "isAdmin");
+    const nextIsAdmin = Boolean(req.body?.isAdmin);
+
+    if (!userId) {
+      return res.status(400).json({ error: "A valid user id is required." });
+    }
+
+    const existing = await getAdminUserById(userId);
+
+    if (!existing) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    if (hasAdminFlag && existing.id === req.authUser.id && !nextIsAdmin && !isAdminEmail(existing.email)) {
+      return res.status(400).json({ error: "You cannot remove your own admin access." });
+    }
+
+    const updates = {
+      user_metadata: {
+        ...(existing.user_metadata || {}),
+        display_name: displayName || null
+      }
+    };
+
+    if (hasAdminFlag) {
+      updates.app_metadata = {
+        ...(existing.app_metadata || {}),
+        is_admin: nextIsAdmin,
+        role: nextIsAdmin ? "admin" : null
+      };
+    }
+
+    const { data, error } = await getServerSupabaseAdminClient().auth.admin.updateUserById(userId, updates);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return res.json({
+      ok: true,
+      user: await buildAdminUserEntry(data.user)
+    });
+  } catch (error) {
+    logServerError("Failed to update admin user.", error);
+    return res.status(500).json({ error: "Could not update user right now." });
+  }
+});
+
+app.delete("/api/admin/users/:userId", requireSupabaseAuth, requireAdminAuth, async (req, res) => {
+  try {
+    const userId = String(req.params.userId || "").trim();
+
+    if (!userId) {
+      return res.status(400).json({ error: "A valid user id is required." });
+    }
+
+    if (userId === req.authUser.id) {
+      return res.status(400).json({ error: "You cannot delete your own account from this page." });
+    }
+
+    const existing = await getAdminUserById(userId);
+
+    if (!existing) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    await deletePicksForAuthUser(existing);
+
+    const { error } = await getServerSupabaseAdminClient().auth.admin.deleteUser(userId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return res.json({ ok: true });
+  } catch (error) {
+    logServerError("Failed to delete admin user.", error);
+    return res.status(500).json({ error: "Could not delete user right now." });
+  }
+});
+
 app.get("/api/picks/me", requireSupabaseAuth, async (req, res) => {
   try {
     const saved = await loadPicksForUser(req.authUser);
@@ -428,6 +580,14 @@ async function requireSupabaseAuth(req, res, next) {
   }
 }
 
+function requireAdminAuth(req, res, next) {
+  if (!isAdminUser(req.authUser)) {
+    return res.status(403).json({ error: "Admin access is required." });
+  }
+
+  return next();
+}
+
 function requireMatchingEmailParam(req, res, next) {
   const requestedEmail = decodeURIComponent(req.params.email || "").trim().toLowerCase();
   const authenticatedEmail = getAuthenticatedEmail(req);
@@ -445,6 +605,93 @@ function requireMatchingEmailParam(req, res, next) {
 
 function getAuthenticatedEmail(req) {
   return String(req.authUser?.email || "").trim().toLowerCase();
+}
+
+function isAdminUser(user) {
+  return isAdminEmail(user?.email) || user?.app_metadata?.is_admin === true || user?.app_metadata?.role === "admin";
+}
+
+function isAdminEmail(email) {
+  return ADMIN_EMAILS.includes(String(email || "").trim().toLowerCase());
+}
+
+async function listAdminUsers() {
+  const client = getServerSupabaseAdminClient();
+  const users = [];
+  let page = 1;
+
+  while (true) {
+    const { data, error } = await client.auth.admin.listUsers({ page, perPage: 100 });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const pageUsers = Array.isArray(data?.users) ? data.users : [];
+
+    if (!pageUsers.length) {
+      break;
+    }
+
+    for (const user of pageUsers) {
+      users.push(await buildAdminUserEntry(user));
+    }
+
+    if (pageUsers.length < 100) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return users.sort((left, right) => {
+    const leftCreated = Date.parse(left.createdAt || "") || 0;
+    const rightCreated = Date.parse(right.createdAt || "") || 0;
+
+    return rightCreated - leftCreated || left.email.localeCompare(right.email, "en", { sensitivity: "base" });
+  });
+}
+
+async function getAdminUserById(userId) {
+  const { data, error } = await getServerSupabaseAdminClient().auth.admin.getUserById(userId);
+
+  if (error) {
+    if (/not found|does not exist/i.test(String(error.message || ""))) {
+      return null;
+    }
+
+    throw new Error(error.message);
+  }
+
+  return data.user || null;
+}
+
+async function buildAdminUserEntry(user) {
+  const picks = await loadPicksForAuthUser(user).catch((error) => {
+    logServerError(`Failed to load picks summary for user ${user?.id || "unknown"}.`, error);
+    return null;
+  });
+
+  return {
+    id: user?.id || "",
+    email: String(user?.email || "").trim().toLowerCase(),
+    displayName: sanitizeDisplayName(user?.user_metadata?.display_name),
+    isAdmin: isAdminUser(user),
+    isAdminEmail: isAdminEmail(user?.email),
+    createdAt: user?.created_at || null,
+    lastSignInAt: user?.last_sign_in_at || null,
+    emailConfirmedAt: user?.email_confirmed_at || user?.confirmed_at || null,
+    hasSavedPicks: Boolean(picks),
+    savedAt: picks?.savedAt ?? null,
+    submittedAt: picks?.submittedAt ?? null
+  };
+}
+
+function sanitizeDisplayName(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 60);
 }
 
 function getLeaderboardDisplayName(user) {

@@ -2624,6 +2624,96 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 	letter-spacing: 0.08em;
 }
 
+.admin-hero h1 {
+	max-width: none;
+}
+
+.admin-login-form,
+.admin-create-form,
+.admin-session-panel {
+	display: grid;
+	gap: 1rem;
+}
+
+.admin-create-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1fr) auto;
+	gap: 0.75rem;
+	align-items: end;
+}
+
+.admin-check-field {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	min-height: 2.8rem;
+	color: var(--text);
+	font-weight: 700;
+}
+
+.admin-check-field input {
+	width: 1rem;
+	height: 1rem;
+	accent-color: var(--mode-accent);
+}
+
+.admin-users-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	margin-bottom: 1rem;
+}
+
+.admin-users-list {
+	display: grid;
+	gap: 0.7rem;
+}
+
+.admin-user-row {
+	display: grid;
+	grid-template-columns: minmax(14rem, 1.1fr) minmax(12rem, 0.9fr) auto minmax(15rem, 1fr) auto;
+	align-items: center;
+	gap: 0.85rem;
+	padding: 0.9rem 1rem;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 1rem;
+	background: rgba(255, 255, 255, 0.03);
+}
+
+.admin-user-primary,
+.admin-user-field,
+.admin-user-meta {
+	min-width: 0;
+	display: grid;
+	gap: 0.25rem;
+}
+
+.admin-user-email {
+	font-size: 0.98rem;
+	line-height: 1.2;
+	overflow-wrap: anywhere;
+}
+
+.admin-user-id {
+	color: var(--muted);
+	font-size: 0.72rem;
+	overflow-wrap: anywhere;
+}
+
+.admin-user-meta {
+	color: var(--muted);
+	font-size: 0.78rem;
+	line-height: 1.35;
+}
+
+.admin-user-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+
 .stats-table {
 	display: grid;
 	gap: 0.5rem;
@@ -2814,6 +2904,21 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 		grid-area: score;
 	}
 
+	.admin-create-grid,
+	.admin-user-row {
+		grid-template-columns: 1fr 1fr;
+	}
+
+	.admin-user-primary,
+	.admin-user-meta,
+	.admin-user-actions {
+		grid-column: 1 / -1;
+	}
+
+	.admin-user-actions {
+		justify-content: flex-start;
+	}
+
 	.group-table-wrap {
 		overflow: auto;
 	}
@@ -2881,6 +2986,26 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 			"rank bonus score"
 			"user bonus score"
 			"team bonus score";
+	}
+
+	.admin-users-head {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.admin-create-grid,
+	.admin-user-row {
+		grid-template-columns: 1fr;
+	}
+
+	.admin-user-primary,
+	.admin-user-meta,
+	.admin-user-actions {
+		grid-column: auto;
+	}
+
+	.admin-user-actions .button {
+		flex: 1 1 8rem;
 	}
 
 	.group-table th,
