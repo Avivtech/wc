@@ -509,6 +509,7 @@ const tooltipState = {
 	rafId: 0,
 };
 let countdownTimer = 0;
+let savePanelFocusTimer = 0;
 const playoffPanState = {
 	active: false,
 	touchMode: false,
@@ -981,7 +982,39 @@ async function syncAuthSession(session, event = "SESSION") {
 }
 
 function handlePredictClick() {
-	setViewMode(isShowingLiveResults() ? VIEW_MODES.MY : VIEW_MODES.LIVE);
+	const nextMode = isShowingLiveResults() ? VIEW_MODES.MY : VIEW_MODES.LIVE;
+	const shouldFocusSavePanel = nextMode === VIEW_MODES.MY && !getAuthenticatedEmail();
+
+	setViewMode(nextMode);
+
+	if (shouldFocusSavePanel) {
+		focusSavePanelForAuth();
+	}
+}
+
+function focusSavePanelForAuth() {
+	if (!elements.savePanel) {
+		return;
+	}
+
+	elements.savePanel.setAttribute("tabindex", "-1");
+	elements.savePanel.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+	elements.savePanel.focus({ preventScroll: true });
+
+	if (savePanelFocusTimer) {
+		window.clearTimeout(savePanelFocusTimer);
+		savePanelFocusTimer = 0;
+	}
+
+	elements.savePanel.classList.remove("is-auth-focus");
+	// Force the highlight transition to restart on repeated clicks.
+	void elements.savePanel.offsetWidth;
+	elements.savePanel.classList.add("is-auth-focus");
+
+	savePanelFocusTimer = window.setTimeout(() => {
+		savePanelFocusTimer = 0;
+		elements.savePanel?.classList.remove("is-auth-focus");
+	}, 1000);
 }
 
 function renderAuthState() {

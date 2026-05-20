@@ -589,6 +589,18 @@ html[dir="rtl"] .hero-copy::after {
 	pointer-events: none;
 }
 
+.save-panel.is-auth-focus {
+	border-color: rgba(255, 226, 154, 0.98);
+	box-shadow:
+		0 0 0 2px rgba(255, 226, 154, 0.34),
+		0 24px 48px rgba(0, 0, 0, 0.32),
+		0 0 64px rgba(255, 211, 124, 0.82);
+}
+
+.save-panel:focus {
+	outline: none;
+}
+
 .save-panel-top {
 	display: flex;
 	justify-content: space-between;
