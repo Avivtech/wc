@@ -246,6 +246,7 @@ const TRANSLATIONS = {
 		matchLoser: "מפסידת משחק {match}",
 	},
 };
+const LANGUAGE_SHORT_LABEL_QUERY = "(max-width: 480px)";
 const CALENDAR_WEEKDAYS = {
 	en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
 	he: ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"],
@@ -745,11 +746,27 @@ function bindLanguageSelect() {
 		return;
 	}
 
+	const shortLabelQuery = window.matchMedia(LANGUAGE_SHORT_LABEL_QUERY);
+	const updateLabels = () => updateLanguageSelectLabels(languageSelect, shortLabelQuery.matches);
+
+	updateLabels();
+	shortLabelQuery.addEventListener("change", updateLabels);
+
 	languageSelect.addEventListener("change", () => {
 		const nextPath = languageSelect.value;
 
 		if (nextPath && nextPath !== window.location.pathname) {
 			window.location.href = nextPath;
+		}
+	});
+}
+
+function updateLanguageSelectLabels(languageSelect, shouldUseShortLabels) {
+	Array.from(languageSelect.options).forEach((option) => {
+		const nextLabel = shouldUseShortLabels ? option.dataset.shortLabel : option.dataset.fullLabel;
+
+		if (nextLabel) {
+			option.textContent = nextLabel;
 		}
 	});
 }
