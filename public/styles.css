@@ -312,8 +312,12 @@ html[dir="rtl"] .language-select {
 	display: grid;
 	grid-template-columns: auto 1fr;
 	grid-template-rows: auto 2.5rem;
+	grid-template-areas:
+		"score controls"
+		"score actions";
 	gap: 0.5rem;
 	align-items: start;
+	justify-content: end;
 	width: min(calc(100vw - 2rem), 30rem);
 	min-height: 8.5rem;
 	padding: 0.8rem 0.9rem;
@@ -330,8 +334,33 @@ html[dir="rtl"] .language-select {
 	transition: none;
 }
 
+html[dir="rtl"] #overall-score-card {
+	direction: ltr;
+	grid-template-areas:
+		"controls score"
+		"actions score";
+}
+
+html[dir="rtl"] #overall-score-card > * {
+	direction: rtl;
+}
+
+.overall-score-card.is-actions-hidden {
+	grid-template-rows: auto;
+	grid-template-areas: "score controls";
+	min-height: auto;
+}
+
+html[dir="rtl"] #overall-score-card.is-actions-hidden {
+	grid-template-areas: "controls score";
+}
+
+.overall-score-card.is-actions-hidden .overall-score-actions {
+	display: none;
+}
+
 .overall-score-display {
-	grid-row: 1 / 3;
+	grid-area: score;
 	display: flex;
 	flex-direction: column;
 	gap: 0.1rem;
@@ -357,6 +386,7 @@ html[dir="rtl"] .language-select {
 }
 
 .overall-score-actions {
+	grid-area: actions;
 	display: flex;
 	min-height: 2.5rem;
 	align-items: stretch;
@@ -365,16 +395,21 @@ html[dir="rtl"] .language-select {
 }
 
 .overall-score-card .view-mode-panel {
-	display: grid;
+	grid-area: controls;
+	align-self: stretch;
+	display: flex;
 	gap: 0.4rem;
 	position: relative;
 	z-index: 1;
 }
 
 .overall-score-meta {
+	flex: 1 1 auto;
+	align-self: stretch;
 	display: flex;
 	align-items: baseline;
 	justify-content: flex-end;
+	justify-self: stretch;
 	gap: 0.4rem;
 	min-height: 1rem;
 }
@@ -446,27 +481,28 @@ html[dir="rtl"] .language-select {
 	overflow: hidden;
 }
 
-.countdown-section {
-	display: grid;
-	gap: 1rem;
-}
-
 .countdown-grid {
-	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
+	display: inline-flex;
+	justify-self: start;
+	width: fit-content;
+	max-width: 100%;
+	direction: ltr;
+	flex-wrap: wrap;
 	gap: 0.8rem;
-}
-
-.countdown-unit {
-	min-height: 6rem;
 	border: 1px solid var(--mode-surface-border);
 	border-radius: 0.75rem;
 	background: var(--mode-surface-panel-soft);
+	padding: 0.8rem;
+}
+
+.countdown-unit {
+	flex: 0 0 auto;
+	min-height: 0;
 	display: grid;
 	place-items: center;
 	align-content: center;
 	gap: 0.25rem;
-	padding: 0.8rem;
+	padding: 0.2rem 0.35rem;
 	text-align: center;
 }
 
@@ -484,6 +520,7 @@ html[dir="rtl"] .language-select {
 	font-weight: 800;
 	letter-spacing: 0.08em;
 	text-transform: uppercase;
+	white-space: nowrap;
 }
 
 .hero-copy {
@@ -592,7 +629,8 @@ html[dir="rtl"] .hero-copy::after {
 }
 
 .view-mode-panel {
-	display: grid;
+	display: flex;
+	flex-direction: column;
 	gap: 0.5rem;
 }
 
@@ -2662,8 +2700,8 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 	}
 
 	.countdown-unit {
-		min-height: 4.8rem;
-		padding: 0.55rem;
+		min-height: 0;
+		padding: 0.2rem 0.35rem;
 	}
 
 	.playoff-board {
@@ -2824,7 +2862,7 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 	}
 
 	.countdown-grid {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
+		padding: 0.5rem;
 	}
 
 	.home-team-api-data,

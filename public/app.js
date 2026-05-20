@@ -129,22 +129,22 @@ const TRANSLATIONS = {
 		matchLoser: "Loser match {match}",
 	},
 	he: {
-		authChecking: "בודק התחברות...",
-		authUnavailable: "ההתחברות אינה זמינה כרגע.",
-		authHintLogin: "הזינו אימייל וסיסמה כדי להתחבר.",
-		authHintRegister: "הזינו שם תצוגה, אימייל וסיסמה כדי ליצור חשבון.",
+		authChecking: "בודק חיבור...",
+		authUnavailable: "חיבור אינו זמין כרגע.",
+		authHintLogin: "הזינו מייל וסיסמה כדי להתחבר.",
+		authHintRegister: "הזינו שם, מייל וסיסמה כדי ליצור חשבון.",
 		authButtonLogin: "התחברות",
 		authButtonRegister: "הרשמה",
 		authButtonLoggingIn: "מתחבר...",
 		authButtonSigningUp: "נרשם...",
-		authValidationLogin: "הזינו אימייל תקין וסיסמה באורך 6 תווים לפחות.",
-		authValidationRegister: "הזינו שם תצוגה, אימייל תקין וסיסמה באורך 6 תווים לפחות.",
-		authFailureLogin: "לא ניתן להתחבר כרגע. בדקו את האימייל והסיסמה.",
+		authValidationLogin: "הזינו מייל תקין וסיסמה באורך 6 תווים לפחות.",
+		authValidationRegister: "הזינו שם תצוגה, מייל תקין וסיסמה באורך 6 תווים לפחות.",
+		authFailureLogin: "לא ניתן להתחבר כרגע. בדקו את המייל והסיסמה.",
 		authFailureRegister: "לא ניתן ליצור חשבון כרגע. נסו שוב.",
 		authCreatingAccount: "יוצר את החשבון...",
 		authSigningIn: "מחבר אותך...",
 		authAccountCreatedSigningIn: "החשבון נוצר. מתחבר...",
-		authAccountCreatedConfirm: "החשבון נוצר. אם נדרש, אשרו את האימייל ואז התחברו.",
+		authAccountCreatedConfirm: "החשבון נוצר. אם נדרש, אשרו את המייל ואז התחברו.",
 		authSignedIn: "התחברתם בהצלחה.",
 		authPleaseSignInAgain: "נא להתחבר שוב.",
 		authSigningOut: "מתנתק...",
@@ -223,7 +223,7 @@ const TRANSLATIONS = {
 		teamToBeDetermined: "הנבחרת תיקבע בהמשך",
 		liveResults: "תוצאות חיות",
 		myPredictions: "התחזיות שלי",
-		heroCtaPredict: "חיזוי",
+		heroCtaPredict: "נסו לחזות",
 		heroCtaLive: "Live",
 		predictionsHeadline: "התחזיות שלי",
 		stageGroup: "שלב הבתים",
@@ -317,7 +317,7 @@ const HOME_TEAM_THEMES = {
 	URU: { primary: "#6eb8ec", secondary: "#f8fafc", accent: "#f3c54a" },
 	USA: { primary: "#244f9d", secondary: "#f8fafc", accent: "#d74652" },
 	UZB: { primary: "#2695d1", secondary: "#f8fafc", accent: "#2d8d56" },
-	ZEA: { primary: "#18386f", secondary: "#f8fafc", accent: "#d74652" }
+	ZEA: { primary: "#18386f", secondary: "#f8fafc", accent: "#d74652" },
 };
 const HOME_TEAM_FLAG_ICON_BASE_URL = "https://cdn.jsdelivr.net/npm/flag-icons@7.3.2/flags/4x3";
 const HOME_TEAM_FLAG_CODES = {
@@ -364,48 +364,48 @@ const HOME_TEAM_FLAG_CODES = {
 	UZB: "uz",
 };
 const HOME_TEAM_FLAG_CODES_BY_NAME = {
-	"algeria": "dz",
-	"argentina": "ar",
-	"australia": "au",
-	"austria": "at",
-	"belgium": "be",
-	"brazil": "br",
+	algeria: "dz",
+	argentina: "ar",
+	australia: "au",
+	austria: "at",
+	belgium: "be",
+	brazil: "br",
 	"cabo verde": "cv",
-	"canada": "ca",
-	"colombia": "co",
+	canada: "ca",
+	colombia: "co",
 	"cote d ivoire": "ci",
-	"croatia": "hr",
-	"curacao": "cw",
-	"ecuador": "ec",
-	"egypt": "eg",
-	"england": "gb-eng",
-	"france": "fr",
-	"germany": "de",
-	"ghana": "gh",
-	"haiti": "ht",
+	croatia: "hr",
+	curacao: "cw",
+	ecuador: "ec",
+	egypt: "eg",
+	england: "gb-eng",
+	france: "fr",
+	germany: "de",
+	ghana: "gh",
+	haiti: "ht",
 	"ir iran": "ir",
-	"japan": "jp",
-	"jordan": "jo",
+	japan: "jp",
+	jordan: "jo",
 	"korea republic": "kr",
-	"mexico": "mx",
-	"morocco": "ma",
-	"netherlands": "nl",
+	mexico: "mx",
+	morocco: "ma",
+	netherlands: "nl",
 	"new zealand": "nz",
-	"norway": "no",
-	"panama": "pa",
-	"paraguay": "py",
-	"portugal": "pt",
-	"qatar": "qa",
+	norway: "no",
+	panama: "pa",
+	paraguay: "py",
+	portugal: "pt",
+	qatar: "qa",
 	"saudi arabia": "sa",
-	"scotland": "gb-sct",
-	"senegal": "sn",
+	scotland: "gb-sct",
+	senegal: "sn",
 	"south africa": "za",
-	"spain": "es",
-	"switzerland": "ch",
-	"tunisia": "tn",
-	"uruguay": "uy",
-	"usa": "us",
-	"uzbekistan": "uz",
+	spain: "es",
+	switzerland: "ch",
+	tunisia: "tn",
+	uruguay: "uy",
+	usa: "us",
+	uzbekistan: "uz",
 };
 
 document.documentElement.lang = APP_LOCALE;
@@ -1111,8 +1111,12 @@ function resolveSavedHomeTeamId(savedHomeTeam) {
 		return getTeamIdKey(byId.id);
 	}
 
-	const savedCode = String(savedHomeTeam.teamCode || "").trim().toUpperCase();
-	const savedName = String(savedHomeTeam.teamName || "").trim().toLowerCase();
+	const savedCode = String(savedHomeTeam.teamCode || "")
+		.trim()
+		.toUpperCase();
+	const savedName = String(savedHomeTeam.teamName || "")
+		.trim()
+		.toLowerCase();
 	const matchedTeam = getTournamentTeams().find((team) => {
 		if (savedCode && getTeamCode(team) === savedCode) {
 			return true;
@@ -1705,10 +1709,12 @@ function padCountdownUnit(value) {
 }
 
 function getFirstMatchFixture() {
-	return (state.worldCup?.fixtures || [])
-		.map((fixture) => ({ fixture, date: getFixtureDate(fixture) }))
-		.filter(({ date }) => !Number.isNaN(date.getTime()))
-		.sort((left, right) => left.date.getTime() - right.date.getTime())[0]?.fixture ?? null;
+	return (
+		(state.worldCup?.fixtures || [])
+			.map((fixture) => ({ fixture, date: getFixtureDate(fixture) }))
+			.filter(({ date }) => !Number.isNaN(date.getTime()))
+			.sort((left, right) => left.date.getTime() - right.date.getTime())[0]?.fixture ?? null
+	);
 }
 
 function renderSectionHeadings() {
@@ -1906,7 +1912,9 @@ function renderHomeTeamPicker() {
 				/>
 			</div>
 			<div class="home-team-grid">
-				${getTournamentTeams().map((team) => renderHomeTeamSelectionCard(team)).join("")}
+				${getTournamentTeams()
+					.map((team) => renderHomeTeamSelectionCard(team))
+					.join("")}
 			</div>
 			<div class="home-team-search-empty hidden">${escapeHtml(t("homeTeamNoResults"))}</div>
 		</div>
@@ -1945,12 +1953,15 @@ function renderHomeTeamApiData(team, { isLoading = false } = {}) {
 					<strong class="skeleton-line skeleton-line-score"></strong>
 				</div>
 				<div class="home-team-api-metrics">
-					${Array.from({ length: 3 }, () => `
+					${Array.from(
+						{ length: 3 },
+						() => `
 						<span class="home-team-api-metric">
 							<span class="skeleton-line skeleton-line-label"></span>
 							<strong class="skeleton-line skeleton-line-short"></strong>
 						</span>
-					`).join("")}
+					`,
+					).join("")}
 				</div>
 			</div>
 		`;
@@ -2006,9 +2017,7 @@ function renderHomeTeamNextMatches(team) {
 	const fixtures = getHomeTeamFixtures(team)
 		.filter((fixture) => {
 			const fixtureDate = getFixtureDate(fixture);
-			return !Number.isNaN(fixtureDate.getTime()) &&
-				fixtureDate.getTime() >= Date.now() &&
-				!isCompletedFixtureStatus(fixture.status?.short);
+			return !Number.isNaN(fixtureDate.getTime()) && fixtureDate.getTime() >= Date.now() && !isCompletedFixtureStatus(fixture.status?.short);
 		})
 		.slice(0, 5);
 
@@ -2024,9 +2033,10 @@ function renderHomeTeamNextMatches(team) {
 }
 
 function renderHomeTeamLastGameLineup(team) {
-	const fixture = getHomeTeamFixtures(team)
-		.filter((candidate) => isCompletedFixtureStatus(candidate.status?.short))
-		.sort((left, right) => getFixtureDate(right).getTime() - getFixtureDate(left).getTime())[0] ?? null;
+	const fixture =
+		getHomeTeamFixtures(team)
+			.filter((candidate) => isCompletedFixtureStatus(candidate.status?.short))
+			.sort((left, right) => getFixtureDate(right).getTime() - getFixtureDate(left).getTime())[0] ?? null;
 
 	if (!fixture) {
 		return `<p class="panel-note">${escapeHtml(t("homeTeamLastGameEmpty"))}</p>`;
@@ -2098,17 +2108,9 @@ function getHomeTeamFixtures(team) {
 
 function getFixturePlayerLineup(fixture, team) {
 	const lineup = findFixtureTeamLineup(fixture, team);
-	const rawPlayers = firstArrayValue(
-		lineup?.startXI,
-		lineup?.startingXI,
-		lineup?.starters,
-		lineup?.players,
-		lineup?.lineup
-	);
+	const rawPlayers = firstArrayValue(lineup?.startXI, lineup?.startingXI, lineup?.starters, lineup?.players, lineup?.lineup);
 
-	return (rawPlayers || [])
-		.map(normalizeLineupPlayer)
-		.filter(Boolean);
+	return (rawPlayers || []).map(normalizeLineupPlayer).filter(Boolean);
 }
 
 function findFixtureTeamLineup(fixture, team) {
@@ -2120,12 +2122,14 @@ function findFixtureTeamLineup(fixture, team) {
 		return null;
 	}
 
-	return lineups.find((lineup) => {
-		const lineupTeam = lineup?.team ?? lineup?.country ?? lineup;
-		const lineupTeamId = getTeamIdKey(lineupTeam?.id ?? lineup?.teamId ?? lineup?.idTeam);
-		const lineupTeamName = normalizeSearchText(lineupTeam?.name ?? lineup?.teamName ?? lineup?.strTeam);
-		return (teamId && lineupTeamId === teamId) || (teamName && lineupTeamName === teamName);
-	}) ?? null;
+	return (
+		lineups.find((lineup) => {
+			const lineupTeam = lineup?.team ?? lineup?.country ?? lineup;
+			const lineupTeamId = getTeamIdKey(lineupTeam?.id ?? lineup?.teamId ?? lineup?.idTeam);
+			const lineupTeamName = normalizeSearchText(lineupTeam?.name ?? lineup?.teamName ?? lineup?.strTeam);
+			return (teamId && lineupTeamId === teamId) || (teamName && lineupTeamName === teamName);
+		}) ?? null
+	);
 }
 
 function normalizeLineupPlayer(entry) {
@@ -2139,7 +2143,7 @@ function normalizeLineupPlayer(entry) {
 	return {
 		name,
 		number: String(player?.number ?? player?.shirtNumber ?? player?.intSquadNumber ?? entry?.number ?? "").trim(),
-		position: player?.position ?? player?.pos ?? player?.strPosition ?? entry?.position ?? entry?.pos ?? ""
+		position: player?.position ?? player?.pos ?? player?.strPosition ?? entry?.position ?? entry?.pos ?? "",
 	};
 }
 
@@ -2211,9 +2215,9 @@ function normalizeSearchText(value) {
 	return String(value || "")
 		.trim()
 		.toLowerCase()
-		.normalize("NFKD")
-		replace(/[^\p{L}\p{N}\s]+/gu, " ")
-		replace(/\s+/g, " ");
+		.normalize("NFKD");
+	replace(/[^\p{L}\p{N}\s]+/gu, " ");
+	replace(/\s+/g, " ");
 }
 
 function renderHomeTeamThemeStyle(team) {
@@ -2268,7 +2272,9 @@ function resolveHomeTeamFlagCode(team) {
 		return HOME_TEAM_FLAG_CODES_BY_NAME[normalizedName];
 	}
 
-	const teamCode = String(getTeamCode(team) || "").trim().toUpperCase();
+	const teamCode = String(getTeamCode(team) || "")
+		.trim()
+		.toUpperCase();
 	return HOME_TEAM_FLAG_CODES[teamCode] || "";
 }
 
@@ -2277,7 +2283,9 @@ function resolveHomeTeamTheme(team) {
 		return null;
 	}
 
-	const teamCode = String(getTeamCode(team) || "").trim().toUpperCase();
+	const teamCode = String(getTeamCode(team) || "")
+		.trim()
+		.toUpperCase();
 	const theme = HOME_TEAM_THEMES[teamCode];
 
 	if (theme) {
@@ -2316,12 +2324,13 @@ function hexToRgba(color, alpha) {
 	}
 
 	const normalized = value.replace("#", "");
-	const hex = normalized.length === 3
-		? normalized
-				.split("")
-				.map((character) => character + character)
-				.join("")
-		: normalized;
+	const hex =
+		normalized.length === 3
+			? normalized
+					.split("")
+					.map((character) => character + character)
+					.join("")
+			: normalized;
 
 	if (!/^[\da-fA-F]{6}$/.test(hex)) {
 		return value;
@@ -2604,11 +2613,13 @@ function renderCalendarTimezoneControl() {
 	elements.calendarTimezoneControl.innerHTML = `
     <label class="calendar-timezone-label" for="calendar-timezone-select">${escapeHtml(t("calendarTimezoneLabel"))}</label>
     <select id="calendar-timezone-select" class="calendar-timezone-select">
-      ${CALENDAR_TIME_ZONES.map((entry) => `
+      ${CALENDAR_TIME_ZONES.map(
+							(entry) => `
         <option value="${escapeHtml(entry.value)}" ${entry.value === state.calendarTimeZone ? "selected" : ""}>
           ${escapeHtml(entry.label)}
         </option>
-      `).join("")}
+      `,
+						).join("")}
     </select>
   `;
 }
@@ -2924,10 +2935,12 @@ function renderCalendarSide(side) {
 	}
 
 	if (side.type === "team" && side.team) {
+		const tooltip = getTeamDisplayName(side.team);
+
 		return `
-      <span class="calendar-team-mark">
-        ${renderTeamLogo(side.team)}
-        ${renderTeamCode(side.team, "team-code calendar-team-code")}
+      <span class="calendar-team-mark team-tooltip" data-tooltip="${escapeHtml(tooltip)}" aria-label="${escapeHtml(tooltip)}">
+        ${renderTeamLogoContent(side.team)}
+        ${renderTeamCodeContent(side.team, "calendar-team-code")}
       </span>
     `;
 	}
@@ -2980,6 +2993,7 @@ function renderOverallScore() {
 	const shouldShowSubmitAction = !isShowingLiveResults() && canAccessRankings();
 	elements.overallScoreSubmitButton.textContent = isSubmissionPending() ? t("overallSubmitting") : hasSubmittedAllPicks() ? t("overallSubmitted") : t("overallSubmit");
 	elements.overallScoreSubmitButton.disabled = !shouldShowSubmitAction || state.loading || !state.worldCup || isSubmissionPending() || hasSubmittedAllPicks();
+	elements.overallScoreCard.classList.toggle("is-actions-hidden", !shouldShowSubmitAction);
 	elements.overallScoreSubmitButton.classList.toggle("is-inert", !shouldShowSubmitAction);
 	elements.overallScoreSubmitButton.setAttribute("aria-hidden", shouldShowSubmitAction ? "false" : "true");
 }
@@ -3051,16 +3065,8 @@ async function flushOverallScoreRefresh() {
 		});
 		const data = await response.json().catch(() => ({}));
 
-		const resolvedCurrentScore = Number.isFinite(Number(data?.currentScore))
-			? Number(data.currentScore)
-			: Number.isFinite(Number(data?.totalPoints))
-				? Number(data.totalPoints) - Number(data?.timingPoints || 0)
-				: Number.NaN;
-		const resolvedBonusPoints = Number.isFinite(Number(data?.predictedBonusPoints))
-			? Number(data.predictedBonusPoints)
-			: Number.isFinite(Number(data?.bonusPoints))
-				? Number(data.bonusPoints)
-				: 0;
+		const resolvedCurrentScore = Number.isFinite(Number(data?.currentScore)) ? Number(data.currentScore) : Number.isFinite(Number(data?.totalPoints)) ? Number(data.totalPoints) - Number(data?.timingPoints || 0) : Number.NaN;
+		const resolvedBonusPoints = Number.isFinite(Number(data?.predictedBonusPoints)) ? Number(data.predictedBonusPoints) : Number.isFinite(Number(data?.bonusPoints)) ? Number(data.bonusPoints) : 0;
 
 		if (!response.ok || !Number.isFinite(resolvedCurrentScore)) {
 			throw new Error(t("genericCouldNotScorePicks"));
@@ -5617,15 +5623,21 @@ function getGroupStandingValue(value, signed = false) {
 function renderTeamLogo(team) {
 	const tooltip = getTeamDisplayName(team);
 
+	return renderTeamTooltip(renderTeamLogoContent(team), tooltip, "team-mark");
+}
+
+function renderTeamLogoContent(team) {
+	const tooltip = getTeamDisplayName(team);
+
 	if (!team) {
-		return renderTeamTooltip(`<span class="team-logo-fallback">${escapeHtml(t("tbd"))}</span>`, tooltip, "team-mark");
+		return `<span class="team-logo-fallback">${escapeHtml(t("tbd"))}</span>`;
 	}
 
 	if (team.logo) {
-		return renderTeamTooltip(`<img class="team-logo" src="${escapeHtml(team.logo)}" alt="${escapeHtml(tooltip)} logo" />`, tooltip, "team-mark");
+		return `<img class="team-logo" src="${escapeHtml(team.logo)}" alt="${escapeHtml(tooltip)} logo" />`;
 	}
 
-	return renderTeamTooltip(`<span class="team-logo-fallback">${escapeHtml((team.code || team.name).slice(0, 3))}</span>`, tooltip, "team-mark");
+	return `<span class="team-logo-fallback">${escapeHtml((team.code || team.name).slice(0, 3))}</span>`;
 }
 
 function getTeamCode(team) {
@@ -5653,10 +5665,15 @@ function getTeamIdKey(teamId) {
 }
 
 function renderTeamCode(team, className = "") {
-	const classes = ["team-code", className].filter(Boolean).join(" ");
 	const tooltip = getTeamDisplayName(team);
 
-	return renderTeamTooltip(`<span class="${escapeHtml(classes)}">${escapeHtml(getTeamCode(team))}</span>`, tooltip);
+	return renderTeamTooltip(renderTeamCodeContent(team, className), tooltip);
+}
+
+function renderTeamCodeContent(team, className = "") {
+	const classes = ["team-code", className].filter(Boolean).join(" ");
+
+	return `<span class="${escapeHtml(classes)}">${escapeHtml(getTeamCode(team))}</span>`;
 }
 
 function getTeamDisplayName(team) {
@@ -6690,14 +6707,18 @@ function renderHomeTeamSkeleton() {
 }
 
 function renderGroupsSkeleton() {
-	return Array.from({ length: 4 }, (_entry, groupIndex) => `
+	return Array.from(
+		{ length: 4 },
+		(_entry, groupIndex) => `
 		<article class="group-card skeleton-card" aria-hidden="true">
 			<div class="group-head">
 				<h3 class="skeleton-line skeleton-line-heading"></h3>
 			</div>
 			<div class="group-table-wrap">
 				<div class="group-table group-table-skeleton">
-					${Array.from({ length: 4 }, (_row, rowIndex) => `
+					${Array.from(
+						{ length: 4 },
+						(_row, rowIndex) => `
 						<div class="skeleton-table-row">
 							<span class="skeleton-line skeleton-line-rank"></span>
 							<span class="team-mark team-mark-placeholder">
@@ -6706,15 +6727,19 @@ function renderGroupsSkeleton() {
 							<span class="skeleton-line ${rowIndex === groupIndex % 4 ? "skeleton-line-long" : "skeleton-line-medium"}"></span>
 							<span class="skeleton-line skeleton-line-short"></span>
 						</div>
-					`).join("")}
+					`,
+					).join("")}
 				</div>
 			</div>
 		</article>
-	`).join("");
+	`,
+	).join("");
 }
 
 function renderThirdPlaceSkeleton() {
-	return Array.from({ length: 8 }, () => `
+	return Array.from(
+		{ length: 8 },
+		() => `
 		<article class="third-choice-card third-choice-card-static skeleton-card" aria-hidden="true">
 			<div class="third-choice-head">
 				<div class="team-name">
@@ -6731,24 +6756,31 @@ function renderThirdPlaceSkeleton() {
 				<span class="skeleton-line skeleton-line-short"></span>
 			</div>
 		</article>
-	`).join("");
+	`,
+	).join("");
 }
 
 function renderPlayoffSkeleton() {
 	return `
 		<div class="playoff-skeleton skeleton-card" aria-hidden="true">
-			${Array.from({ length: 5 }, (_entry, columnIndex) => `
+			${Array.from(
+				{ length: 5 },
+				(_entry, columnIndex) => `
 				<div class="playoff-skeleton-column">
 					<span class="skeleton-line skeleton-line-heading"></span>
-					${Array.from({ length: columnIndex === 2 ? 2 : 4 }, () => `
+					${Array.from(
+						{ length: columnIndex === 2 ? 2 : 4 },
+						() => `
 						<div class="bracket-match skeleton-bracket-match">
 							<span class="skeleton-line skeleton-line-medium"></span>
 							<span class="skeleton-line skeleton-line-long"></span>
 							<span class="skeleton-line skeleton-line-long"></span>
 						</div>
-					`).join("")}
+					`,
+					).join("")}
 				</div>
-			`).join("")}
+			`,
+			).join("")}
 		</div>
 	`;
 }
@@ -6762,12 +6794,15 @@ function renderFixturesSkeleton() {
 				<span class="skeleton-line skeleton-line-button"></span>
 			</div>
 			<div class="calendar-grid calendar-grid-skeleton">
-				${Array.from({ length: 35 }, (_entry, index) => `
+				${Array.from(
+					{ length: 35 },
+					(_entry, index) => `
 					<div class="calendar-cell skeleton-calendar-cell">
 						<span class="skeleton-line skeleton-line-rank"></span>
 						${index % 5 === 0 ? `<span class="skeleton-line skeleton-line-medium"></span>` : ""}
 					</div>
-				`).join("")}
+				`,
+				).join("")}
 			</div>
 		</div>
 	`;
