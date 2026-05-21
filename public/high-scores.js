@@ -31,12 +31,14 @@ const LANGUAGE_SHORT_LABEL_QUERY = "(max-width: 480px)";
 const elements = {
 	status: document.getElementById("leaderboard-status"),
 	list: document.getElementById("leaderboard-list"),
+	adminNavbarLink: document.getElementById("admin-navbar-link"),
 };
 
 void boot();
 
 async function boot() {
 	bindLanguageSelect();
+	void initializeNavbarAdminLink();
 	elements.status.textContent = t("loading");
 
 	try {
@@ -75,6 +77,39 @@ function bindLanguageSelect() {
 			window.location.href = nextPath;
 		}
 	});
+}
+
+async function initializeNavbarAdminLink() {
+	if (!elements.adminNavbarLink) {
+		return;
+	}
+
+	try {
+		const configResponse = await fetch("/api/auth/config");
+		const config = await configResponse.json().catch(() => ({}));
+
+		if (!configResponse.ok || !config.enabled || !window.supabase?.createClient) {
+			return;
+		}
+
+		const client = window.supabase.createClient(config.url, config.publishableKey);
+		const { data, error } = await client.auth.getSession();
+
+		if (error || !data.session?.access_token) {
+			return;
+		}
+
+		const meResponse = await fetch("/api/auth/me", {
+			headers: {
+				Authorization: `Bearer ${data.session.access_token}`,
+			},
+		});
+		const me = await meResponse.json().catch(() => ({}));
+
+		elements.adminNavbarLink.classList.toggle("hidden", !(meResponse.ok && me?.isAdmin === true));
+	} catch (_error) {
+		elements.adminNavbarLink.classList.add("hidden");
+	}
 }
 
 function updateLanguageSelectLabels(languageSelect, shouldUseShortLabels) {

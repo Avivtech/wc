@@ -140,6 +140,14 @@ app.get("/api/auth/config", (_req, res) => {
   res.json(getSupabasePublicConfig());
 });
 
+app.get("/api/auth/me", requireSupabaseAuth, (req, res) => {
+  res.json({
+    id: req.authUser.id || "",
+    email: getAuthenticatedEmail(req),
+    isAdmin: isAdminUser(req.authUser)
+  });
+});
+
 app.get("/api/world-cup", async (req, res) => {
   try {
     const refresh = req.query.refresh === "true";

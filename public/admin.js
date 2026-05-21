@@ -6,6 +6,7 @@ const state = {
 		client: null,
 		session: null,
 		user: null,
+		isAdmin: false,
 	},
 	users: [],
 	loadingUsers: false,
@@ -98,6 +99,7 @@ async function syncAuthSession(session) {
 
 	if (!session?.access_token || !state.auth.client) {
 		state.auth.user = null;
+		state.auth.isAdmin = false;
 		state.users = [];
 		state.status = "Sign in with an admin account.";
 		render();
@@ -109,13 +111,33 @@ async function syncAuthSession(session) {
 	if (error || !data.user?.email) {
 		state.auth.session = null;
 		state.auth.user = null;
+		state.auth.isAdmin = false;
 		state.users = [];
 		state.status = "Your session is invalid. Sign in again.";
 		render();
 		return;
 	}
 
+	let currentUser = null;
+
+	try {
+		currentUser = await loadCurrentUser();
+	} catch (error) {
+		state.auth.user = null;
+		state.auth.isAdmin = false;
+		state.users = [];
+		state.status = getErrorMessage(error, "Could not verify admin access.");
+		render();
+		return;
+	}
+
+	if (!currentUser?.isAdmin) {
+		redirectToHome();
+		return;
+	}
+
 	state.auth.user = data.user;
+	state.auth.isAdmin = true;
 	state.status = "Loading users...";
 	render();
 	await loadUsers();
@@ -174,6 +196,7 @@ async function handleSignOut() {
 
 		state.auth.session = null;
 		state.auth.user = null;
+		state.auth.isAdmin = false;
 		state.users = [];
 		state.status = "Sign in with an admin account.";
 	} catch (error) {
@@ -363,6 +386,21 @@ async function fetchWithAuth(input, init = {}) {
 		...init,
 		headers,
 	});
+}
+
+async function loadCurrentUser() {
+	const response = await fetchWithAuth("/api/auth/me");
+	const data = await response.json().catch(() => ({}));
+
+	if (!response.ok) {
+		throw new Error(data?.error || "Could not verify admin access.");
+	}
+
+	return data;
+}
+
+function redirectToHome() {
+	window.location.replace("/");
 }
 
 function render() {

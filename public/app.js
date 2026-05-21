@@ -468,6 +468,7 @@ const state = {
 		client: null,
 		session: null,
 		user: null,
+		isAdmin: false,
 		displayNameDraft: "",
 		status: "",
 	},
@@ -556,6 +557,7 @@ const elements = {
 	countdownMinutes: document.getElementById("countdown-minutes"),
 	countdownSeconds: document.getElementById("countdown-seconds"),
 	savePanel: document.getElementById("save-panel"),
+	adminNavbarLink: document.getElementById("admin-navbar-link"),
 	predictButton: document.getElementById("predict-button"),
 	authForm: document.getElementById("auth-form"),
 	authModeSwitch: document.getElementById("auth-mode-switch"),
@@ -678,6 +680,7 @@ const PLAYOFF_DRAG_HINT_STORAGE_KEY = "wc2026:playoff-drag-hint-dismissed";
 const TECHNICAL_MESSAGE_PATTERN = /\b(api|server|supabase|request failed|status \d+|unknown error|cache|cached data|environment|documentation|provider|rankings page|odds|predictions|fetch|network|connection|timeout|json|syntaxerror|unexpected token)\b/i;
 const API_ROUTES = {
 	authConfig: "/api/auth/config",
+	authMe: "/api/auth/me",
 	worldCup: "/api/world-cup",
 	team: (teamId) => `/api/teams/${encodeURIComponent(teamId)}`,
 };
@@ -936,6 +939,7 @@ async function initializeAuth() {
 		state.auth.client = null;
 		state.auth.session = null;
 		state.auth.user = null;
+		state.auth.isAdmin = false;
 		state.auth.displayNameDraft = "";
 		state.auth.status = t("authUnavailable");
 	} finally {
@@ -950,6 +954,7 @@ async function syncAuthSession(session, event = "SESSION") {
 	if (!session?.access_token || !state.auth.client) {
 		state.auth.mode = AUTH_MODES.LOGIN;
 		state.auth.user = null;
+		state.auth.isAdmin = false;
 		state.auth.displayNameDraft = "";
 		setHomeTeamId("");
 		elements.passwordInput.value = "";
@@ -969,6 +974,7 @@ async function syncAuthSession(session, event = "SESSION") {
 		state.auth.session = null;
 		state.auth.mode = AUTH_MODES.LOGIN;
 		state.auth.user = null;
+		state.auth.isAdmin = false;
 		state.auth.displayNameDraft = "";
 		setHomeTeamId("");
 		elements.passwordInput.value = "";
@@ -984,6 +990,7 @@ async function syncAuthSession(session, event = "SESSION") {
 	}
 
 	state.auth.user = data.user;
+	state.auth.isAdmin = await loadCurrentUserIsAdmin();
 	state.auth.displayNameDraft = getUserDisplayName(data.user);
 	elements.passwordInput.value = "";
 	state.auth.status = t("authSignedIn");
@@ -1081,6 +1088,7 @@ function renderAuthState() {
 	elements.clearAllButton.classList.toggle("hidden", !isSignedIn);
 	elements.authButton.classList.toggle("hidden", isSignedIn);
 	elements.signOutButton.classList.toggle("hidden", !isSignedIn);
+	elements.adminNavbarLink?.classList.toggle("hidden", !state.auth.isAdmin);
 	elements.authStatus.textContent = state.auth.status || (!authReady ? t("authChecking") : getSignedOutAuthMessage());
 }
 
@@ -1117,6 +1125,17 @@ function getAuthenticatedEmail() {
 	return String(state.auth.user?.email || "")
 		.trim()
 		.toLowerCase();
+}
+
+async function loadCurrentUserIsAdmin() {
+	try {
+		const response = await fetchWithAuth(API_ROUTES.authMe);
+		const data = await response.json().catch(() => ({}));
+
+		return response.ok && data?.isAdmin === true;
+	} catch (_error) {
+		return false;
+	}
 }
 
 function getTournamentTeams() {
@@ -1486,6 +1505,7 @@ async function handleSignOut() {
 		state.auth.session = null;
 		state.auth.mode = AUTH_MODES.LOGIN;
 		state.auth.user = null;
+		state.auth.isAdmin = false;
 		state.auth.displayNameDraft = "";
 		setHomeTeamId("");
 		elements.passwordInput.value = "";
