@@ -2788,6 +2788,7 @@ function buildCalendarMonths(fixtures) {
 
 function buildCalendarMonthCells(year, month, fixtures) {
 	const fixturesByDay = new Map();
+	const currentDateParts = getCalendarDatePartsFromDate(new Date());
 
 	for (const fixture of fixtures) {
 		const date = getFixtureDate(fixture);
@@ -2828,6 +2829,7 @@ function buildCalendarMonthCells(year, month, fixtures) {
 			key: `day-${year}-${month}-${day}`,
 			day,
 			fixtures: fixturesByDay.get(day) || [],
+			isCurrentDay: currentDateParts.year === year && currentDateParts.month === month && currentDateParts.day === day,
 		});
 	}
 
@@ -2908,8 +2910,18 @@ function renderCalendarCell(cell) {
 		return `<div class="calendar-day is-empty" aria-hidden="true"></div>`;
 	}
 
+	const classes = ["calendar-day"];
+
+	if (cell.fixtures.length) {
+		classes.push("has-matches");
+	}
+
+	if (cell.isCurrentDay) {
+		classes.push("current-day");
+	}
+
 	return `
-    <div class="calendar-day ${cell.fixtures.length ? "has-matches" : ""}">
+    <div class="${classes.join(" ")}">
       <div class="calendar-day-number">${cell.day}</div>
       <div class="calendar-day-matches">
         ${cell.fixtures.map(renderCalendarMatch).join("")}
