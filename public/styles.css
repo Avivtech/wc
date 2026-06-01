@@ -1856,6 +1856,10 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 	overflow-y: auto;
 }
 
+.calendar-day.current-day {
+	background: rgba(241, 178, 74, 0.12);
+}
+
 .calendar-grid > .calendar-day:nth-child(7n + 1) {
 	border-inline-start: 1px solid rgba(255, 255, 255, 0.06);
 }
