@@ -1858,6 +1858,7 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 
 .calendar-day.current-day {
 	background: rgba(241, 178, 74, 0.12);
+	outline: 1px solid rgba(241, 178, 74, 0.75);
 }
 
 .calendar-grid > .calendar-day:nth-child(7n + 1) {
