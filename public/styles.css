@@ -1030,6 +1030,23 @@ body.dialog-open {
 	min-width: 0;
 }
 
+.home-team-selected-actions {
+	margin-inline-start: auto;
+	display: flex;
+	justify-content: flex-end;
+	min-width: fit-content;
+}
+
+.home-team-change-button {
+	white-space: nowrap;
+}
+
+.home-team-lock-note {
+	max-width: 16rem;
+	text-align: end;
+	font-size: 0.85rem;
+}
+
 .home-team-selected-head .team-logo,
 .home-team-selected-head .team-logo-fallback {
 	width: 3rem;
@@ -1287,6 +1304,54 @@ body.dialog-open {
 	display: grid;
 	gap: 0.35rem;
 	margin-bottom: 1rem;
+}
+
+.rules-section {
+	scroll-margin-top: 1rem;
+}
+
+.rules-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 0.8rem;
+}
+
+.rule-card {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	align-items: start;
+	gap: 0.35rem 0.65rem;
+	min-width: 0;
+	padding: 0.95rem;
+	border: 1px solid var(--mode-surface-border);
+	border-radius: 0.5rem;
+	background: var(--mode-surface-panel-soft);
+}
+
+.rule-card-number {
+	display: inline-grid;
+	place-items: center;
+	width: 1.8rem;
+	height: 1.8rem;
+	border: 1px solid rgba(255, 255, 255, 0.14);
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.04);
+	color: var(--mode-accent-strong);
+	font-weight: 800;
+	line-height: 1;
+}
+
+.rule-card h3 {
+	font-size: 1.25rem;
+	line-height: 1.15;
+	align-self: center;
+}
+
+.rule-card p {
+	grid-column: 1 / -1;
+	color: var(--muted);
+	font-size: 0.95rem;
+	line-height: 1.55;
 }
 
 .section-title-my-predictions {
@@ -2788,10 +2853,15 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 
 	.groups-grid,
 	.home-team-grid,
+	.rules-grid,
 	.venues-grid,
 	.stats-grid {
 		grid-template-columns: repeat(3, minmax(0, 1fr));
 		gap: 0.5rem;
+	}
+
+	.rules-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 
 	.countdown-grid {
@@ -2830,6 +2900,20 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 	.home-team-lineup-match {
 		grid-template-columns: 1fr;
 		gap: 0.4rem;
+	}
+
+	.home-team-selected-head {
+		flex-wrap: wrap;
+	}
+
+	.home-team-selected-actions {
+		width: 100%;
+		justify-content: flex-start;
+	}
+
+	.home-team-lock-note {
+		max-width: none;
+		text-align: start;
 	}
 
 	.team-actions {
@@ -2974,6 +3058,10 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 	.venues-grid,
 	.stats-grid {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.rules-grid {
+		grid-template-columns: 1fr;
 	}
 
 	.countdown-grid {

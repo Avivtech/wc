@@ -4,6 +4,7 @@ const APP_LOCALE = detectAppLocale();
 const APP_INTL_LOCALE = APP_LOCALE === "he" ? "he-IL" : "en-US";
 const DEV_PICKS_QUERY_PARAM = "devPicks";
 const DEV_RESULTS_QUERY_PARAM = "devResults";
+const HOME_TEAM_LOCK_AT = new Date("2026-06-11T19:00:00.000Z");
 const DEV_GROUP_ORDER_PATTERNS = [
 	[1, 0, 2, 3],
 	[2, 0, 1, 3],
@@ -51,6 +52,8 @@ const TRANSLATIONS = {
 		homeTeamAttack: "Attack",
 		homeTeamDefense: "Defense",
 		homeTeamPenalties: "Penalties",
+		homeTeamChange: "Change",
+		homeTeamLocked: "Home team selection is locked after the first match.",
 		saveStatusDevLive: "Development picks are loaded in My Predictions. Switch to inspect them locally.",
 		saveStatusDevLocal: "Development picks are loaded locally. Changes stay local and do not overwrite saved picks.",
 		saveStatusViewingLive: "Viewing live results. Switch to My Predictions to edit your picks.",
@@ -168,6 +171,8 @@ const TRANSLATIONS = {
 		homeTeamAttack: "התקפה",
 		homeTeamDefense: "הגנה",
 		homeTeamPenalties: "פנדלים",
+		homeTeamChange: "החלפה",
+		homeTeamLocked: "בחירת נבחרת הבית נעולה אחרי המשחק הראשון.",
 		saveStatusDevLive: "תחזיות הפיתוח נטענו אל התחזיות שלי. עברו אליהן כדי לבדוק מקומית.",
 		saveStatusDevLocal: "תחזיות הפיתוח נטענו מקומית. השינויים נשמרים רק מקומית ואינם דורסים שמירות קיימות.",
 		saveStatusViewingLive: "מוצגות כעת תוצאות חיות. עברו לתחזיות שלי כדי לערוך את הבחירות שלכם.",
@@ -441,6 +446,7 @@ const state = {
 	worldCup: null,
 	homeTeamId: "",
 	homeTeamSearchQuery: "",
+	homeTeamPickerOpen: false,
 	homeTeamDataRequestKey: "",
 	homeTeamData: null,
 	groups: [],
@@ -511,6 +517,7 @@ const tooltipState = {
 	rafId: 0,
 };
 let countdownTimer = 0;
+let lastHomeTeamLockedState = isHomeTeamLocked();
 let savePanelFocusTimer = 0;
 const playoffPanState = {
 	active: false,
@@ -779,10 +786,40 @@ function startCountdownTimer() {
 		return;
 	}
 
-	countdownTimer = window.setInterval(renderCountdown, 1000);
+	countdownTimer = window.setInterval(() => {
+		renderCountdown();
+		renderHomeTeamLockStateChange();
+	}, 1000);
+}
+
+function renderHomeTeamLockStateChange() {
+	const nextLockedState = isHomeTeamLocked();
+
+	if (nextLockedState === lastHomeTeamLockedState) {
+		return;
+	}
+
+	lastHomeTeamLockedState = nextLockedState;
+	renderHomeTeam();
 }
 
 function handleMyHomeTeamClick(event) {
+	const changeButton = event.target.closest("[data-change-home-team]");
+
+	if (changeButton) {
+		event.preventDefault();
+		event.stopPropagation();
+
+		if (!ensureEditableRankingsView() || !canChangeHomeTeam()) {
+			return;
+		}
+
+		setHomeTeamId("");
+		render();
+		scheduleAutoSave();
+		return;
+	}
+
 	const homeTeamCard = event.target.closest("[data-select-home-team]");
 
 	if (!homeTeamCard) {
@@ -1229,6 +1266,14 @@ function canAccessRankings() {
 	return Boolean(getAuthenticatedEmail());
 }
 
+function isHomeTeamLocked() {
+	return Number.isFinite(HOME_TEAM_LOCK_AT.getTime()) && Date.now() >= HOME_TEAM_LOCK_AT.getTime();
+}
+
+function canChangeHomeTeam() {
+	return canAccessRankings() && !isSubmissionPending() && !isHomeTeamLocked();
+}
+
 function isRegisterAuthMode() {
 	return state.auth.mode === AUTH_MODES.REGISTER;
 }
@@ -1526,7 +1571,9 @@ function handleClearAll() {
 	}
 
 	closeClearAllDialog();
-	setHomeTeamId("");
+	if (canChangeHomeTeam()) {
+		setHomeTeamId("");
+	}
 	state.groups = cloneGroups(state.worldCup.groups || []);
 	state.thirdPlaceRanking = deriveThirdPlaceRanking(state.groups);
 	state.selectedThirdTeamIds = [];
@@ -1856,7 +1903,7 @@ function renderHomeTeam() {
 	elements.homeTeamPaneLive.innerHTML = renderHomeTeamSummary(selectedTeam, fetchedTeam, { isLoadingTeamData });
 	elements.homeTeamPaneMy.innerHTML = selectedTeam ? renderSelectedHomeTeamDetails(selectedTeam, fetchedTeam, { isLoadingTeamData }) : renderHomeTeamPicker();
 
-	if (!selectedTeam) {
+	if (!selectedTeam && !isHomeTeamLocked()) {
 		applyHomeTeamSearchFilter();
 	}
 }
@@ -1946,7 +1993,7 @@ function renderHomeTeamSummary(team, fetchedTeam = null, { isLoadingTeamData = f
 		return `
 			<article class="home-team-summary-card home-team-summary-card-empty">
 				<p class="status-pill">${escapeHtml(t("homeTeamSelected"))}</p>
-				<p class="panel-note">${escapeHtml(t("homeTeamLiveEmpty"))}</p>
+				<p class="panel-note">${escapeHtml(isHomeTeamLocked() ? t("homeTeamLocked") : t("homeTeamLiveEmpty"))}</p>
 			</article>
 		`;
 	}
@@ -1968,6 +2015,10 @@ function renderHomeTeamSummary(team, fetchedTeam = null, { isLoadingTeamData = f
 }
 
 function renderHomeTeamPicker() {
+	if (isHomeTeamLocked()) {
+		return emptyState(t("homeTeamLocked"));
+	}
+
 	return `
 		<div class="home-team-picker">
 			<div class="home-team-search">
@@ -1992,6 +2043,10 @@ function renderHomeTeamPicker() {
 }
 
 function renderSelectedHomeTeamDetails(team, fetchedTeam = null, { isLoadingTeamData = false } = {}) {
+	const actionMarkup = canChangeHomeTeam()
+		? `<button class="button secondary small home-team-change-button" type="button" data-change-home-team="true">${escapeHtml(t("homeTeamChange"))}</button>`
+		: `<p class="panel-note home-team-lock-note">${escapeHtml(t("homeTeamLocked"))}</p>`;
+
 	return `
 		<article class="home-team-selected-card" ${renderHomeTeamThemeStyle(team)}>
 			<div class="home-team-selected-head">
@@ -1999,6 +2054,9 @@ function renderSelectedHomeTeamDetails(team, fetchedTeam = null, { isLoadingTeam
 				<div class="home-team-selected-copy">
 					<p class="home-team-selected-label">${escapeHtml(t("homeTeamSelected"))}</p>
 					<h3 class="home-team-selected-name">${escapeHtml(getTeamDisplayName(team))}</h3>
+				</div>
+				<div class="home-team-selected-actions">
+					${actionMarkup}
 				</div>
 			</div>
 			${renderHomeTeamApiData(fetchedTeam, { isLoading: isLoadingTeamData })}
@@ -4761,7 +4819,7 @@ function chooseThirdPlaceSelections(preferredIds, thirdPlaceRanking = state.thir
 }
 
 function toggleHomeTeamSelection(teamId) {
-	if (!canAccessRankings() || isSubmissionPending()) {
+	if (!canChangeHomeTeam()) {
 		return;
 	}
 
@@ -4772,7 +4830,6 @@ function toggleHomeTeamSelection(teamId) {
 	}
 
 	setHomeTeamId(state.homeTeamId === teamKey ? "" : teamKey);
-	invalidateSubmittedPicks();
 	render();
 	void loadSelectedHomeTeamData();
 	scheduleAutoSave();

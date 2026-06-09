@@ -37,6 +37,7 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const SUBMISSION_SECTIONS = ["groups", "thirdPlace", "playoffs"];
 const WORLD_CUP_REFRESH_TIMEZONE = "UTC";
+const HOME_TEAM_LOCK_AT = new Date("2026-06-11T19:00:00.000Z");
 const ADMIN_EMAILS = String(process.env.ADMIN_EMAILS || "")
   .split(",")
   .map((entry) => entry.trim().toLowerCase())
@@ -46,6 +47,10 @@ app.use(express.json({ limit: "1mb" }));
 
 app.get("/he", (_req, res) => {
   res.sendFile(path.join(publicDir, "he", "index.html"));
+});
+
+app.get("/he/rules", (_req, res) => {
+  res.sendFile(path.join(publicDir, "he", "rules", "index.html"));
 });
 
 app.get("/high-scores", (_req, res) => {
@@ -84,6 +89,10 @@ function normalizeSectionSubmissionState(value, fallbackSubmittedAt = "") {
   }
 
   return normalized;
+}
+
+function isHomeTeamLocked() {
+  return Number.isFinite(HOME_TEAM_LOCK_AT.getTime()) && Date.now() >= HOME_TEAM_LOCK_AT.getTime();
 }
 
 function logServerError(context, error) {
@@ -526,9 +535,17 @@ app.post("/api/picks", requireSupabaseAuth, async (req, res) => {
     }
 
     const worldCup = await getWorldCupData();
+    const homeTeamLocked = isHomeTeamLocked();
+    const existingSavedPicks = homeTeamLocked ? await loadPicksForUser(req.authUser) : null;
+    const savePayload = homeTeamLocked
+      ? {
+          ...payload,
+          homeTeam: existingSavedPicks?.homeTeam ?? null
+        }
+      : payload;
     const enrichedPayload = {
-      ...payload,
-      bonusPoints: calculatePredictedBonusPointsForSavedPicks(payload, worldCup)
+      ...savePayload,
+      bonusPoints: calculatePredictedBonusPointsForSavedPicks(savePayload, worldCup)
     };
     const saved = await savePicksForUser(req.authUser, enrichedPayload);
 
