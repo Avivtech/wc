@@ -911,6 +911,11 @@ body.dialog-open {
 	grid-template-columns: repeat(8, minmax(0, 1fr));
 }
 
+.home-team-pane {
+	display: grid;
+	gap: 1rem;
+}
+
 .home-team-picker {
 	display: grid;
 	gap: 0.9rem;

@@ -814,9 +814,8 @@ function handleMyHomeTeamClick(event) {
 			return;
 		}
 
-		setHomeTeamId("");
-		render();
-		scheduleAutoSave();
+		state.homeTeamPickerOpen = true;
+		renderHomeTeam();
 		return;
 	}
 
@@ -1899,11 +1898,14 @@ function renderHomeTeam() {
 	const selectedTeam = getSelectedHomeTeam();
 	const fetchedTeam = getFetchedHomeTeamData(selectedTeam);
 	const isLoadingTeamData = isHomeTeamDataLoading(selectedTeam);
+	const shouldShowHomeTeamPicker = !selectedTeam || (state.homeTeamPickerOpen && canChangeHomeTeam());
 
 	elements.homeTeamPaneLive.innerHTML = renderHomeTeamSummary(selectedTeam, fetchedTeam, { isLoadingTeamData });
-	elements.homeTeamPaneMy.innerHTML = selectedTeam ? renderSelectedHomeTeamDetails(selectedTeam, fetchedTeam, { isLoadingTeamData }) : renderHomeTeamPicker();
+	elements.homeTeamPaneMy.innerHTML = selectedTeam
+		? `${renderSelectedHomeTeamDetails(selectedTeam, fetchedTeam, { isLoadingTeamData })}${shouldShowHomeTeamPicker ? renderHomeTeamPicker() : ""}`
+		: renderHomeTeamPicker();
 
-	if (!selectedTeam && !isHomeTeamLocked()) {
+	if (shouldShowHomeTeamPicker && !isHomeTeamLocked()) {
 		applyHomeTeamSearchFilter();
 	}
 }
@@ -1974,6 +1976,7 @@ function setHomeTeamId(teamId) {
 	}
 
 	state.homeTeamId = nextTeamKey;
+	state.homeTeamPickerOpen = false;
 	resetHomeTeamData();
 	return true;
 }
