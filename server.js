@@ -37,7 +37,7 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const SUBMISSION_SECTIONS = ["groups", "thirdPlace", "playoffs"];
 const WORLD_CUP_REFRESH_TIMEZONE = "UTC";
-const HOME_TEAM_LOCK_AT = new Date("2026-06-11T19:00:00.000Z");
+const HOME_TEAM_LOCK_FALLBACK_AT = new Date("2026-06-11T19:00:00.000Z");
 const ADMIN_EMAILS = String(process.env.ADMIN_EMAILS || "")
   .split(",")
   .map((entry) => entry.trim().toLowerCase())
@@ -51,6 +51,10 @@ app.get("/he", (_req, res) => {
 
 app.get("/he/rules", (_req, res) => {
   res.sendFile(path.join(publicDir, "he", "rules", "index.html"));
+});
+
+app.get("/rules", (_req, res) => {
+  res.sendFile(path.join(publicDir, "rules", "index.html"));
 });
 
 app.get("/high-scores", (_req, res) => {
@@ -91,8 +95,24 @@ function normalizeSectionSubmissionState(value, fallbackSubmittedAt = "") {
   return normalized;
 }
 
-function isHomeTeamLocked() {
-  return Number.isFinite(HOME_TEAM_LOCK_AT.getTime()) && Date.now() >= HOME_TEAM_LOCK_AT.getTime();
+function isHomeTeamLocked(worldCup = null) {
+  const lockAt = getHomeTeamLockAt(worldCup);
+  return Boolean(lockAt && Date.now() >= lockAt.getTime());
+}
+
+function getHomeTeamLockAt(worldCup = null) {
+  const firstMatchDate = parseDateValue(worldCup?.summary?.dateRange?.start);
+
+  if (firstMatchDate) {
+    return firstMatchDate;
+  }
+
+  return Number.isFinite(HOME_TEAM_LOCK_FALLBACK_AT.getTime()) ? HOME_TEAM_LOCK_FALLBACK_AT : null;
+}
+
+function parseDateValue(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function logServerError(context, error) {
@@ -535,7 +555,7 @@ app.post("/api/picks", requireSupabaseAuth, async (req, res) => {
     }
 
     const worldCup = await getWorldCupData();
-    const homeTeamLocked = isHomeTeamLocked();
+    const homeTeamLocked = isHomeTeamLocked(worldCup);
     const existingSavedPicks = homeTeamLocked ? await loadPicksForUser(req.authUser) : null;
     const savePayload = homeTeamLocked
       ? {

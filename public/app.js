@@ -4,7 +4,7 @@ const APP_LOCALE = detectAppLocale();
 const APP_INTL_LOCALE = APP_LOCALE === "he" ? "he-IL" : "en-US";
 const DEV_PICKS_QUERY_PARAM = "devPicks";
 const DEV_RESULTS_QUERY_PARAM = "devResults";
-const HOME_TEAM_LOCK_AT = new Date("2026-06-11T19:00:00.000Z");
+const HOME_TEAM_LOCK_FALLBACK_AT = new Date("2026-06-11T19:00:00.000Z");
 const DEV_GROUP_ORDER_PATTERNS = [
 	[1, 0, 2, 3],
 	[2, 0, 1, 3],
@@ -1266,11 +1266,22 @@ function canAccessRankings() {
 }
 
 function isHomeTeamLocked() {
-	return Number.isFinite(HOME_TEAM_LOCK_AT.getTime()) && Date.now() >= HOME_TEAM_LOCK_AT.getTime();
+	const lockAt = getHomeTeamLockAt();
+	return Boolean(lockAt && Date.now() >= lockAt.getTime());
 }
 
 function canChangeHomeTeam() {
 	return canAccessRankings() && !isSubmissionPending() && !isHomeTeamLocked();
+}
+
+function getHomeTeamLockAt() {
+	const firstMatchDate = getFirstMatchDate();
+
+	if (firstMatchDate) {
+		return firstMatchDate;
+	}
+
+	return Number.isFinite(HOME_TEAM_LOCK_FALLBACK_AT.getTime()) ? HOME_TEAM_LOCK_FALLBACK_AT : null;
 }
 
 function isRegisterAuthMode() {
@@ -1831,6 +1842,11 @@ function getFirstMatchFixture() {
 			.filter(({ date }) => !Number.isNaN(date.getTime()))
 			.sort((left, right) => left.date.getTime() - right.date.getTime())[0]?.fixture ?? null
 	);
+}
+
+function getFirstMatchDate() {
+	const firstMatchDate = getFixtureDate(getFirstMatchFixture());
+	return Number.isNaN(firstMatchDate.getTime()) ? null : firstMatchDate;
 }
 
 function renderSectionHeadings() {
