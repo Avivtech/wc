@@ -16,7 +16,8 @@ export function buildSavedPicksSettlementRequest(saved, worldCup) {
     groups: predictionState.groups,
     thirdPlaceRanking: predictionState.thirdPlaceRanking,
     selectedThirdTeamIds: predictionState.selectedThirdTeamIds,
-    winnerSelections: predictionState.winnerSelections
+    winnerSelections: predictionState.winnerSelections,
+    scorePredictions: predictionState.scorePredictions
   });
   const livePlayoffData = getLivePlayoffData(worldCup);
   const playoffScoreData = buildPlayoffScoreData({
@@ -48,7 +49,8 @@ export function calculatePredictedBonusPointsForSavedPicks(saved, worldCup, conf
     groups: predictionState.groups,
     thirdPlaceRanking: predictionState.thirdPlaceRanking,
     selectedThirdTeamIds: predictionState.selectedThirdTeamIds,
-    winnerSelections: predictionState.winnerSelections
+    winnerSelections: predictionState.winnerSelections,
+    scorePredictions: predictionState.scorePredictions
   });
   const tournamentPredictions = buildTournamentScorePredictions(saved, predictionState.groups, predictedPlayoffData.projectedMatches);
   return calculatePredictedBonusPoints(tournamentPredictions, config);
@@ -287,7 +289,11 @@ function buildPlayoffScoreData({ saved, predictionState, predictedMatches, liveM
 
     const homeGoals = getStoredBracketScoreValue(predictionState.scorePredictions, matchKey, "home");
     const awayGoals = getStoredBracketScoreValue(predictionState.scorePredictions, matchKey, "away");
-    const selectedWinner = getSelectedWinnerSide(predictedMatch, predictionState.winnerSelections);
+    const selectedWinner = getResolvedBracketWinnerSide(
+      predictedMatch,
+      predictionState.winnerSelections,
+      predictionState.scorePredictions
+    );
     const hasCompleteScore = homeGoals !== null && awayGoals !== null;
 
     if (!hasCompleteScore && !selectedWinner?.team?.id) {
@@ -430,6 +436,7 @@ function getProjectedPlayoffData({
   thirdPlaceRanking = [],
   selectedThirdTeamIds = [],
   winnerSelections = {},
+  scorePredictions = {},
   liveFixtureMap = null
 } = {}) {
   const knockoutTemplate = normalizeArray(worldCup?.playoffBoard?.knockoutTemplate);
@@ -456,9 +463,10 @@ function getProjectedPlayoffData({
       thirdPlaceAssignments,
       projectedMatchMap,
       winnerSelections,
+      scorePredictions,
       liveFixture: liveFixtureMap?.get(match.match) || null
     });
-    const selectedWinner = getSelectedWinnerSide(projectedMatch, winnerSelections);
+    const selectedWinner = getResolvedBracketWinnerSide(projectedMatch, winnerSelections, scorePredictions);
     projectedMatch.selectedWinnerTeamId = selectedWinner?.team ? getTeamIdKey(selectedWinner.team.id) : "";
     projectedMatchMap.set(projectedMatch.match, projectedMatch);
     return projectedMatch;
@@ -478,7 +486,8 @@ function getLivePlayoffData(worldCup) {
       groups: [],
       thirdPlaceRanking: [],
       selectedThirdTeamIds: [],
-      winnerSelections: {}
+      winnerSelections: {},
+      scorePredictions: {}
     });
   }
 
@@ -492,6 +501,7 @@ function getLivePlayoffData(worldCup) {
     thirdPlaceRanking: normalizeArray(worldCup?.thirdPlaceRanking),
     selectedThirdTeamIds: getLiveSelectedThirdTeamIds(worldCup),
     winnerSelections: liveWinnerSelections,
+    scorePredictions: {},
     liveFixtureMap
   });
 }
@@ -608,7 +618,8 @@ function resolveProjectedSide(source, projectionContext, thirdPlaceSlotKey = "")
     groups = [],
     thirdPlaceAssignments = new Map(),
     projectedMatchMap = new Map(),
-    winnerSelections = {}
+    winnerSelections = {},
+    scorePredictions = {}
   } = projectionContext;
 
   if (source?.type === "groupPlacement") {
@@ -643,20 +654,20 @@ function resolveProjectedSide(source, projectionContext, thirdPlaceSlotKey = "")
   }
 
   if (source?.type === "matchWinner" || source?.type === "matchLoser") {
-    return resolveLinkedMatchSide(source, projectedMatchMap, winnerSelections);
+    return resolveLinkedMatchSide(source, projectedMatchMap, winnerSelections, scorePredictions);
   }
 
   return createMatchLinkSide(source);
 }
 
-function resolveLinkedMatchSide(source, projectedMatchMap, winnerSelections) {
+function resolveLinkedMatchSide(source, projectedMatchMap, winnerSelections, scorePredictions) {
   const sourceMatch = projectedMatchMap.get(source?.match);
 
   if (!sourceMatch) {
     return createMatchLinkSide(source);
   }
 
-  const selectedWinner = getSelectedWinnerSide(sourceMatch, winnerSelections);
+  const selectedWinner = getResolvedBracketWinnerSide(sourceMatch, winnerSelections, scorePredictions);
 
   if (!selectedWinner) {
     return createMatchLinkSide(source);
@@ -839,6 +850,26 @@ function getSelectedWinnerSide(match, winnerSelections) {
   }
 
   return null;
+}
+
+function getResolvedBracketWinnerSide(match, winnerSelections = {}, scorePredictions = {}) {
+  return getBracketScoreWinnerSide(match, scorePredictions) || getSelectedWinnerSide(match, winnerSelections);
+}
+
+function getBracketScoreWinnerSide(match, scorePredictions = {}) {
+  if (!match) {
+    return null;
+  }
+
+  const homeGoals = getStoredBracketScoreValue(scorePredictions, match.match, "home");
+  const awayGoals = getStoredBracketScoreValue(scorePredictions, match.match, "away");
+
+  if (homeGoals === null || awayGoals === null || homeGoals === awayGoals) {
+    return null;
+  }
+
+  const winnerSide = homeGoals > awayGoals ? match.home : match.away;
+  return winnerSide?.type === "team" && winnerSide.team ? winnerSide : null;
 }
 
 function getResolvedFixtureScore(fixture, side) {

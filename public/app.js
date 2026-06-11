@@ -3394,7 +3394,7 @@ function buildPlayoffScoreDataForScoring() {
 
 		const homeGoals = getStoredBracketScoreValue(matchKey, "home");
 		const awayGoals = getStoredBracketScoreValue(matchKey, "away");
-		const selectedWinner = getSelectedWinnerSide(predictedMatch);
+		const selectedWinner = getResolvedBracketWinnerSide(predictedMatch);
 		const hasCompleteScore = homeGoals !== null && awayGoals !== null;
 
 		if (!hasCompleteScore && !selectedWinner?.team?.id) {
@@ -4562,6 +4562,7 @@ function buildDevLiveWorldCup() {
 		thirdPlaceRanking,
 		selectedThirdTeamIds,
 		winnerSelections,
+		scorePredictions: {},
 		syncWinnerSelections: false,
 		syncRenderedMatches: false,
 	});
@@ -4660,6 +4661,7 @@ function buildDevSeedWinnerSelections({ groups = state.groups, thirdPlaceRanking
 			thirdPlaceRanking,
 			selectedThirdTeamIds,
 			winnerSelections,
+			scorePredictions: {},
 			syncWinnerSelections: false,
 			syncRenderedMatches: false,
 		});
@@ -4892,6 +4894,12 @@ function toggleBracketWinnerSelection(matchId, teamId) {
 		return;
 	}
 
+	const match = getProjectedMatchById(matchKey);
+
+	if (getBracketScoreWinnerSide(match)) {
+		return;
+	}
+
 	if (state.bracketWinnerSelections[matchKey] === teamKey) {
 		const nextSelections = { ...state.bracketWinnerSelections };
 		delete nextSelections[matchKey];
@@ -4945,6 +4953,8 @@ function updateBracketScorePrediction(matchId, side, nextValue, input = null) {
 		input.value = normalizedValue;
 	}
 
+	const match = getProjectedMatchById(matchKey);
+	const previousScoreWinnerTeamId = getBracketScoreWinnerTeamId(match);
 	const currentEntry = state.bracketScorePredictions[matchKey] || {};
 	const nextEntry = {
 		home: normalizeBracketScoreStoredValue(currentEntry.home),
@@ -4964,7 +4974,14 @@ function updateBracketScorePrediction(matchId, side, nextValue, input = null) {
 	}
 
 	state.bracketScorePredictions = nextPredictions;
+	const nextScoreWinnerTeamId = getBracketScoreWinnerTeamId(match, nextPredictions);
 	invalidateSubmittedPicks();
+
+	if (previousScoreWinnerTeamId !== nextScoreWinnerTeamId) {
+		renderPlayoffBoard();
+		restoreBracketGoalInputFocus(matchKey, sideKey);
+	}
+
 	scheduleOverallScoreRefresh();
 	scheduleAutoSave();
 }
@@ -4989,21 +5006,21 @@ function normalizeBracketScoreStoredValue(value) {
 	return normalizeBracketScoreInput(value);
 }
 
-function getBracketScorePredictionEntry(matchId) {
-	return state.bracketScorePredictions[String(matchId || "").trim()] || null;
+function getBracketScorePredictionEntry(matchId, scorePredictions = state.bracketScorePredictions) {
+	return scorePredictions?.[String(matchId || "").trim()] || null;
 }
 
-function getBracketScorePredictionValue(matchId, side) {
-	const entry = getBracketScorePredictionEntry(matchId);
+function getBracketScorePredictionValue(matchId, side, scorePredictions = state.bracketScorePredictions) {
+	const entry = getBracketScorePredictionEntry(matchId, scorePredictions);
 	return normalizeBracketScoreStoredValue(side === "away" ? entry?.away : entry?.home);
 }
 
-function getStoredBracketScoreValue(matchId, side) {
-	const value = getBracketScorePredictionValue(matchId, side);
+function getStoredBracketScoreValue(matchId, side, scorePredictions = state.bracketScorePredictions) {
+	const value = getBracketScorePredictionValue(matchId, side, scorePredictions);
 	return value === "" ? null : Number(value);
 }
 
-function getProjectedPlayoffData({ groups = state.groups, thirdPlaceRanking = state.thirdPlaceRanking, selectedThirdTeamIds = state.selectedThirdTeamIds, winnerSelections = state.bracketWinnerSelections, liveFixtureMap = null, syncWinnerSelections = true, syncRenderedMatches = false } = {}) {
+function getProjectedPlayoffData({ groups = state.groups, thirdPlaceRanking = state.thirdPlaceRanking, selectedThirdTeamIds = state.selectedThirdTeamIds, winnerSelections = state.bracketWinnerSelections, scorePredictions = state.bracketScorePredictions, liveFixtureMap = null, syncWinnerSelections = true, syncRenderedMatches = false } = {}) {
 	if (!state.worldCup?.playoffBoard?.knockoutTemplate) {
 		if (syncRenderedMatches) {
 			state.playoffMatches = [];
@@ -5023,14 +5040,22 @@ function getProjectedPlayoffData({ groups = state.groups, thirdPlaceRanking = st
 			thirdPlaceAssignments,
 			projectedMatchMap,
 			winnerSelections,
+			scorePredictions,
 			liveFixture: liveFixtureMap?.get(match.match) || null,
 		});
-		const selectedWinner = getSelectedWinnerSide(projectedMatch, winnerSelections);
+		const scoreWinner = getBracketScoreWinnerSide(projectedMatch, scorePredictions);
+		const selectedWinner = scoreWinner || getSelectedWinnerSide(projectedMatch, winnerSelections);
 		projectedMatch.selectedWinnerTeamId = selectedWinner?.team ? getTeamIdKey(selectedWinner.team.id) : "";
+		projectedMatch.selectedWinnerSource = scoreWinner ? "score" : selectedWinner ? "manual" : "";
 		projectedMatchMap.set(projectedMatch.match, projectedMatch);
 		return projectedMatch;
 	});
-	const cleanedSelections = Object.fromEntries(projectedMatches.flatMap((match) => (match.selectedWinnerTeamId ? [[String(match.match), match.selectedWinnerTeamId]] : [])));
+	const cleanedSelections = Object.fromEntries(
+		projectedMatches.flatMap((match) => {
+			const selectedWinner = getSelectedWinnerSide(match, winnerSelections);
+			return selectedWinner?.team ? [[String(match.match), getTeamIdKey(selectedWinner.team.id)]] : [];
+		}),
+	);
 
 	if (syncWinnerSelections && !areWinnerSelectionsEqual(state.bracketWinnerSelections, cleanedSelections)) {
 		state.bracketWinnerSelections = cleanedSelections;
@@ -5059,6 +5084,7 @@ function getLivePlayoffData(options = {}) {
 			thirdPlaceRanking: [],
 			selectedThirdTeamIds: [],
 			winnerSelections: {},
+			scorePredictions: {},
 			syncWinnerSelections: false,
 		});
 	}
@@ -5073,6 +5099,7 @@ function getLivePlayoffData(options = {}) {
 		thirdPlaceRanking: getLiveThirdPlaceRanking(),
 		selectedThirdTeamIds: getLiveSelectedThirdTeamIds(),
 		winnerSelections: liveWinnerSelections,
+		scorePredictions: {},
 		liveFixtureMap,
 		syncWinnerSelections: false,
 	});
@@ -5100,7 +5127,7 @@ function projectMatch(match, projectionContext) {
 }
 
 function resolveProjectedSide(source, projectionContext, thirdPlaceSlotKey = "") {
-	const { groups = [], bestThird, thirdPlaceAssignments = new Map(), projectedMatchMap = new Map(), winnerSelections = {} } = projectionContext;
+	const { groups = [], bestThird, thirdPlaceAssignments = new Map(), projectedMatchMap = new Map(), winnerSelections = {}, scorePredictions = {} } = projectionContext;
 
 	if (source.type === "groupPlacement") {
 		const group = groups.find((entry) => entry.letter === source.group);
@@ -5137,7 +5164,7 @@ function resolveProjectedSide(source, projectionContext, thirdPlaceSlotKey = "")
 	}
 
 	if (source.type === "matchWinner" || source.type === "matchLoser") {
-		return resolveLinkedMatchSide(source, projectedMatchMap, winnerSelections);
+		return resolveLinkedMatchSide(source, projectedMatchMap, winnerSelections, scorePredictions);
 	}
 
 	return createMatchLinkSide(source);
@@ -5259,14 +5286,14 @@ function normalizeVenueMatchValue(value) {
 		.trim();
 }
 
-function resolveLinkedMatchSide(source, projectedMatchMap, winnerSelections) {
+function resolveLinkedMatchSide(source, projectedMatchMap, winnerSelections, scorePredictions) {
 	const sourceMatch = projectedMatchMap.get(source.match);
 
 	if (!sourceMatch) {
 		return createMatchLinkSide(source);
 	}
 
-	const selectedWinner = getSelectedWinnerSide(sourceMatch, winnerSelections);
+	const selectedWinner = getResolvedBracketWinnerSide(sourceMatch, winnerSelections, scorePredictions);
 
 	if (!selectedWinner) {
 		return createMatchLinkSide(source);
@@ -5301,21 +5328,89 @@ function cloneProjectedTeamSide(side) {
 }
 
 function getSelectedWinnerSide(match, winnerSelections = state.bracketWinnerSelections) {
-	const selectedTeamId = winnerSelections?.[String(match.match)];
+	const selectedTeamId = winnerSelections?.[String(match?.match || "")];
 
 	if (!selectedTeamId) {
 		return null;
 	}
 
-	if (match.home?.type === "team" && match.home.team && getTeamIdKey(match.home.team.id) === selectedTeamId) {
+	if (match?.home?.type === "team" && match.home.team && getTeamIdKey(match.home.team.id) === selectedTeamId) {
 		return match.home;
 	}
 
-	if (match.away?.type === "team" && match.away.team && getTeamIdKey(match.away.team.id) === selectedTeamId) {
+	if (match?.away?.type === "team" && match.away.team && getTeamIdKey(match.away.team.id) === selectedTeamId) {
 		return match.away;
 	}
 
 	return null;
+}
+
+function getResolvedBracketWinnerSide(match, winnerSelections = state.bracketWinnerSelections, scorePredictions = state.bracketScorePredictions) {
+	return getBracketScoreWinnerSide(match, scorePredictions) || getSelectedWinnerSide(match, winnerSelections);
+}
+
+function getBracketScoreWinnerSide(match, scorePredictions = state.bracketScorePredictions) {
+	if (!match) {
+		return null;
+	}
+
+	const homeGoals = getStoredBracketScoreValue(match.match, "home", scorePredictions);
+	const awayGoals = getStoredBracketScoreValue(match.match, "away", scorePredictions);
+
+	if (homeGoals === null || awayGoals === null || homeGoals === awayGoals) {
+		return null;
+	}
+
+	const winnerSide = homeGoals > awayGoals ? match.home : match.away;
+	return winnerSide?.type === "team" && winnerSide.team ? winnerSide : null;
+}
+
+function getBracketScoreWinnerTeamId(match, scorePredictions = state.bracketScorePredictions) {
+	const winner = getBracketScoreWinnerSide(match, scorePredictions);
+	return winner?.team?.id != null ? getTeamIdKey(winner.team.id) : "";
+}
+
+function getProjectedMatchById(matchId) {
+	const matchKey = String(matchId || "").trim();
+
+	if (!matchKey) {
+		return null;
+	}
+
+	const renderedMatch = getMatchById(matchKey);
+
+	if (renderedMatch) {
+		return renderedMatch;
+	}
+
+	const { projectedMatches } = getProjectedPlayoffData({
+		syncWinnerSelections: false,
+		syncRenderedMatches: false,
+	});
+
+	return projectedMatches.find((match) => String(match.match) === matchKey) || null;
+}
+
+function restoreBracketGoalInputFocus(matchId, side) {
+	const matchKey = String(matchId || "").trim();
+	const sideKey = side === "away" ? "away" : side === "home" ? "home" : "";
+
+	if (!matchKey || !sideKey) {
+		return;
+	}
+
+	const input = Array.from(elements.playoffBoardMy?.querySelectorAll("[data-bracket-goals-input]") || []).find((element) => element.dataset.match === matchKey && element.dataset.side === sideKey);
+
+	if (!input) {
+		return;
+	}
+
+	input.focus({ preventScroll: true });
+
+	if (typeof input.setSelectionRange === "function") {
+		const selectionIndex = input.value.length;
+		input.setSelectionRange(selectionIndex, selectionIndex);
+	}
 }
 
 function buildPlayoffBracketLayout(projectedMatches) {
@@ -5482,17 +5577,23 @@ function renderBracketSide(match, side, source, mode, liveWinnerTeamIdsByMatch =
 		const teamId = getTeamIdKey(side.team.id);
 		const isSelected = match.selectedWinnerTeamId === teamId;
 		const matchesLiveWinner = mode === VIEW_MODES.MY && isSelected && liveWinnerTeamIdsByMatch.get(String(match.match)) === teamId;
-		const canClear = canClearBracketSide(match, source);
 		const isInteractive = mode === VIEW_MODES.MY;
+		const hasScoreWinner = isInteractive && match.selectedWinnerSource === "score";
+		const canPickWinner = isInteractive && !hasScoreWinner;
+		const canClear = canPickWinner && canClearBracketSide(match, source);
 		const goals = mode === VIEW_MODES.LIVE ? getBracketSideGoals(match, sideKey) : null;
 		const pickClasses = ["bracket-side"];
 
-		if (isInteractive) {
+		if (canPickWinner) {
 			pickClasses.push("bracket-side-pick");
 		}
 
 		if (isSelected) {
 			pickClasses.push("is-selected");
+		}
+
+		if (hasScoreWinner && isSelected) {
+			pickClasses.push("is-score-winner");
 		}
 
 		if (!isInteractive && isSelected) {
@@ -5517,10 +5618,8 @@ function renderBracketSide(match, side, source, mode, liveWinnerTeamIdsByMatch =
     `;
 		}
 
-		return `
-      <div class="bracket-side-shell" data-bracket-side="${escapeHtml(sideKey)}">
-        <div
-          class="${pickClasses.join(" ")}"
+		const pickAttributes = canPickWinner
+			? `
           role="button"
           tabindex="0"
           data-pick-winner="true"
@@ -5528,6 +5627,14 @@ function renderBracketSide(match, side, source, mode, liveWinnerTeamIdsByMatch =
           data-team-id="${escapeHtml(teamId)}"
           aria-pressed="${isSelected ? "true" : "false"}"
           aria-label="${escapeHtml(getTeamDisplayName(side.team))}"
+        `
+			: "";
+
+		return `
+      <div class="bracket-side-shell" data-bracket-side="${escapeHtml(sideKey)}">
+        <div
+          class="${pickClasses.join(" ")}"
+          ${pickAttributes}
         >
           ${renderBracketTeamRow(side.team, side.groupSlot, {
 											goalInput: {
@@ -5585,7 +5692,13 @@ function canClearBracketSide(match, source) {
 	}
 
 	const stage = String(match.stage).toLowerCase();
-	return !stage.includes("round of 32") && (source.type === "matchWinner" || source.type === "matchLoser");
+
+	if (stage.includes("round of 32") || (source.type !== "matchWinner" && source.type !== "matchLoser")) {
+		return false;
+	}
+
+	const sourceMatch = getMatchById(source.match);
+	return Boolean(sourceMatch && !getBracketScoreWinnerSide(sourceMatch) && getSelectedWinnerSide(sourceMatch));
 }
 
 function getBracketSideGoals(match, sideKey) {
@@ -6481,7 +6594,7 @@ function buildSavePayload(email) {
 		})),
 		knockoutWinners: projectedMatches
 			.map((match) => {
-				const winner = getSelectedWinnerSide(match);
+				const winner = getResolvedBracketWinnerSide(match);
 
 				if (!winner?.team) {
 					return null;
@@ -6590,8 +6703,7 @@ function applySavedPicks(saved) {
 	);
 	setHomeTeamId(resolveSavedHomeTeamId(saved?.homeTeam));
 	state.selectedThirdTeamIds = chooseThirdPlaceSelections(Array.isArray(saved.bestThirdAdvancers) ? saved.bestThirdAdvancers.map((entry) => entry.teamId) : []);
-	state.bracketWinnerSelections = Object.fromEntries((Array.isArray(saved.knockoutWinners) ? saved.knockoutWinners : []).map((entry) => [String(entry.match || ""), getTeamIdKey(entry.teamId)]).filter(([matchId, teamId]) => matchId && teamId));
-	state.bracketScorePredictions = Object.fromEntries(
+	const bracketScorePredictions = Object.fromEntries(
 		(Array.isArray(saved.knockoutScorePredictions) ? saved.knockoutScorePredictions : [])
 			.map((entry) => {
 				const matchKey = String(entry?.match || "").trim();
@@ -6610,9 +6722,22 @@ function applySavedPicks(saved) {
 			})
 			.filter((entry) => entry && (entry[1].home || entry[1].away)),
 	);
+	const bracketWinnerSelections = Object.fromEntries((Array.isArray(saved.knockoutWinners) ? saved.knockoutWinners : []).map((entry) => [String(entry.match || ""), getTeamIdKey(entry.teamId)]).filter(([matchId, teamId]) => matchId && teamId));
+	state.bracketScorePredictions = bracketScorePredictions;
+	state.bracketWinnerSelections = filterManualWinnerSelectionsForScorePredictions(bracketWinnerSelections, bracketScorePredictions);
 	state.sectionSubmittedAt = normalizeSectionSubmissionState(saved.sectionSubmittedAt, saved.submittedAt);
 	state.submittedAt = getLatestSubmittedAt();
 	state.submissionPendingSection = "";
+}
+
+function filterManualWinnerSelectionsForScorePredictions(winnerSelections, scorePredictions) {
+	return Object.fromEntries(Object.entries(winnerSelections || {}).filter(([matchId]) => !hasCompleteNonTieBracketScore(matchId, scorePredictions)));
+}
+
+function hasCompleteNonTieBracketScore(matchId, scorePredictions = state.bracketScorePredictions) {
+	const homeGoals = getStoredBracketScoreValue(matchId, "home", scorePredictions);
+	const awayGoals = getStoredBracketScoreValue(matchId, "away", scorePredictions);
+	return homeGoals !== null && awayGoals !== null && homeGoals !== awayGoals;
 }
 
 function cloneGroups(groups) {
