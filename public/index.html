@@ -5,46 +5,44 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>World Cup 2026 Game</title>
-  <meta name="description" content="Build, save, and compare FIFA World Cup 2026 predictions with live results, group tables, playoff brackets, countdowns, and player scoring." />
+  <meta name="description" content="Follow FIFA World Cup 2026 live group results, the playoff bracket, and the match calendar." />
   <meta name="application-name" content="World Cup 2026 Game" />
   <meta name="keywords" content="World Cup 2026 predictor, FIFA World Cup game, World Cup bracket, football predictions, soccer predictions, World Cup scores" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="theme-color" content="#07121c" />
-  <meta name="ai-summary" content="Interactive World Cup 2026 prediction game for ranking group teams, projecting playoff brackets, saving picks, and comparing scores against live tournament results." />
+  <meta name="ai-summary" content="World Cup 2026 live results app showing group tables, the live playoff bracket, and match calendar." />
   <link rel="canonical" href="https://wc-18268740473.europe-west1.run.app/" />
   <link rel="alternate" hreflang="en" href="https://wc-18268740473.europe-west1.run.app/" />
-  <link rel="alternate" hreflang="he" href="https://wc-18268740473.europe-west1.run.app/he" />
   <link rel="alternate" hreflang="x-default" href="https://wc-18268740473.europe-west1.run.app/" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="World Cup 2026 Game" />
   <meta property="og:title" content="World Cup 2026 Game" />
-  <meta property="og:description" content="Make World Cup 2026 predictions, save your picks, follow live results, and compare scores." />
+  <meta property="og:description" content="Follow World Cup 2026 live group results, playoff bracket, and match calendar." />
   <meta property="og:url" content="https://wc-18268740473.europe-west1.run.app/" />
   <meta property="og:image" content="https://wc-18268740473.europe-west1.run.app/assets/og.webp" />
   <meta property="og:image:alt" content="World Cup 2026 Game logo" />
   <meta property="og:locale" content="en_US" />
-  <meta property="og:locale:alternate" content="he_IL" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="World Cup 2026 Game" />
-  <meta name="twitter:description" content="Predict the World Cup 2026 group stage and playoff bracket, then compare your score." />
+  <meta name="twitter:description" content="World Cup 2026 live group results, playoff bracket, and match calendar." />
   <meta name="twitter:image" content="https://wc-18268740473.europe-west1.run.app/assets/og.webp" />
   <link rel="icon" type="image/png" href="/assets/favicon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Heebo:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "WebApplication",
       "name": "World Cup 2026 Game",
-      "alternateName": "WC 2026 Predictor",
+      "alternateName": "WC 2026 Live Results",
       "url": "https://wc-18268740473.europe-west1.run.app/",
       "applicationCategory": "GameApplication",
       "operatingSystem": "Any",
       "inLanguage": "en",
       "isAccessibleForFree": true,
-      "description": "Interactive FIFA World Cup 2026 prediction game for ranking group teams, projecting playoff brackets, saving picks, and comparing scores against live results.",
+      "description": "FIFA World Cup 2026 live results app showing group tables, the live playoff bracket, and match calendar.",
       "image": "https://wc-18268740473.europe-west1.run.app/assets/logo.webp",
       "offers": {
         "@type": "Offer",
@@ -52,11 +50,9 @@
         "priceCurrency": "USD"
       },
       "featureList": [
-        "World Cup 2026 group predictions",
-        "Playoff bracket projection",
-        "Saved picks",
-        "Live results comparison",
-        "Player scoring"
+        "Group Stage Live Results",
+        "Live Playoff Bracket",
+        "Match calendar"
       ]
     }
   </script>
@@ -66,170 +62,31 @@
   <div class="bg-orb bg-orb-one"></div>
   <div class="bg-orb bg-orb-two"></div>
 
-  <aside id="overall-score-card" class="overall-score-card hidden" aria-live="polite">
-    <div class="overall-score-display">
-      <span class="overall-score-label">Overall score</span>
-      <div class="overall-score-value-container">
-        <strong id="overall-score-value" class="overall-score-value">0</strong>
-        <span class="overall-score-unit">pts</span>
-      </div>
-    </div>
-    <div class="view-mode-panel" aria-label="Prediction view">
-      <div class="overall-score-meta">
-        <span class="overall-score-meta-label">Bonus points</span>
-        <strong id="overall-score-bonus-value" class="overall-score-meta-value">0</strong>
-      </div>
-      <div class="view-mode-switch" role="group" aria-label="Prediction view switch" data-active-mode="live">
-        <button id="view-mode-live" class="view-mode-option is-active" type="button" data-view-mode="live" aria-pressed="true">Live Results</button>
-        <button id="view-mode-my" class="view-mode-option" type="button" data-view-mode="my" aria-pressed="false">My Predictions</button>
-      </div>
-    </div>
-    <div class="overall-score-actions">
-      <button id="overall-score-submit-button" class="button primary overall-score-submit" type="button">Submit</button>
-    </div>
-  </aside>
-
   <div class="page-shell">
     <nav class="top-navbar" aria-label="Primary">
       <div class="top-navbar-brand">
         <span class="top-navbar-kicker">WC 2026</span>
       </div>
-      <div class="top-navbar-links">
-        <a class="top-navbar-link is-active" href="/">Predictor</a>
-        <a class="top-navbar-link" href="/rules">Rules</a>
-        <a class="top-navbar-link" href="/high-scores">High Scores</a>
-        <a id="admin-navbar-link" class="top-navbar-link hidden" href="/admin">Admin</a>
-      </div>
-      <div class="top-navbar-actions">
-        <label class="language-menu" for="language-select">
-          <select id="language-select" class="language-select" aria-label="Language switcher">
-            <option value="/" selected data-full-label="English" data-short-label="EN">English</option>
-            <option value="/he" lang="he" dir="rtl" data-full-label="עברית" data-short-label="עב">עברית</option>
-          </select>
-        </label>
-      </div>
     </nav>
 
     <header class="hero">
       <div class="hero-copy">
-        <p class="eyebrow">World Cup 2026 Predictor</p>
-        <h1>Build your own playoff field from the groups.</h1>
-        <p id="save-status" class="panel-note">Changes save automatically once you sign in.</p>
-        <div class="hero-actions">
-          <button id="predict-button" class="button primary" type="button">Predict</button>
-        </div>
-      </div>
-      <div id="save-panel" class="save-panel">
-        <div class="save-panel-top">
-          <p id="welcome-message" class="panel-note hidden">Hi, Welcome back!</p>
-          <div class="save-panel-top-actions">
-            <button id="clear-all-button" class="button secondary save-panel-action hidden" type="button">Clear All</button>
-            <button id="signout-button" class="button secondary save-panel-action hidden" type="button">Sign out</button>
-          </div>
-        </div>
-        <div class="save-panel-section">
-          <form id="auth-form" class="hidden">
-            <div id="auth-mode-switch" class="auth-mode-switch" role="group" aria-label="Authentication mode switch">
-              <button class="auth-mode-option is-active" type="button" data-auth-mode="login" aria-pressed="true">Log in</button>
-              <button class="auth-mode-option" type="button" data-auth-mode="register" aria-pressed="false">Sign up</button>
-            </div>
-            <div id="auth-fields" class="auth-fields">
-              <div id="display-name-field" class="auth-field">
-                <label id="display-name-label" class="field-label" for="display-name-input">Display Name</label>
-                <input id="display-name-input" class="field-input" type="text" autocomplete="name" placeholder="Your name" required />
-              </div>
-              <div id="email-field" class="auth-field">
-                <label id="email-label" class="field-label" for="email-input">Email</label>
-                <input id="email-input" class="field-input" type="email" autocomplete="email" placeholder="name@example.com" required />
-              </div>
-              <div id="password-field" class="auth-field">
-                <label id="password-label" class="field-label" for="password-input">Password</label>
-                <input id="password-input" class="field-input" type="password" autocomplete="current-password" placeholder="Password" minlength="6" required />
-              </div>
-            </div>
-            <div class="save-actions">
-              <button id="auth-button" class="button primary" type="submit">Log in</button>
-            </div>
-          </form>
-          <p id="auth-status" class="panel-note">Checking auth...</p>
-        </div>
+        <p class="eyebrow">World Cup 2026</p>
+        <h1>Live tournament results</h1>
+        <p class="panel-note">Group tables, playoff bracket, and calendar from the current tournament feed.</p>
       </div>
     </header>
 
     <section id="warning-strip" class="warning-strip hidden"></section>
 
     <main class="page-grid">
-      <section class="section-block countdown-section" aria-labelledby="countdown-section-title">
-        <div class="section-heading">
-          <p class="eyebrow">Opening Match</p>
-          <h2 id="countdown-section-title">Countdown to the first match</h2>
-          <p id="countdown-status" class="section-copy" aria-live="polite">Loading match time...</p>
-        </div>
-        <div class="countdown-grid" aria-live="polite">
-          <div class="countdown-unit">
-            <strong id="countdown-days">--</strong>
-            <span>Days</span>
-          </div>
-          <div class="countdown-unit">
-            <strong id="countdown-hours">--</strong>
-            <span>Hours</span>
-          </div>
-          <div class="countdown-unit">
-            <strong id="countdown-minutes">--</strong>
-            <span>Minutes</span>
-          </div>
-          <div class="countdown-unit">
-            <strong id="countdown-seconds">--</strong>
-            <span>Seconds</span>
-          </div>
-        </div>
-      </section>
-
-      <section id="home-team-section" class="section-block">
-        <div class="section-heading">
-          <p class="eyebrow">My Home Team</p>
-          <h2 id="home-team-section-title">Home Team Live Results</h2>
-          <p id="home-team-section-copy" class="section-copy">Your selected home team keeps a soft flag-inspired theme across the app.</p>
-        </div>
-        <div class="view-mode-stack home-team-view-stack">
-          <div id="home-team-pane-live" class="home-team-pane" data-view-content="live" aria-labelledby="home-team-section-title" aria-hidden="false"></div>
-          <div id="home-team-pane-my" class="home-team-pane hidden" data-view-content="my" aria-labelledby="home-team-section-title" hidden aria-hidden="true"></div>
-        </div>
-      </section>
-
       <section class="section-block">
         <div class="section-heading">
           <p class="eyebrow">Groups</p>
           <h2 id="groups-section-title">Group Stage Live Results</h2>
-          <p id="groups-section-copy" class="section-copy">
-            Drag on desktop or use the Up and Down buttons on mobile. The top two teams qualify
-            automatically.
-          </p>
+          <p id="groups-section-copy" class="section-copy">Current group standings and live stats from the tournament.</p>
         </div>
-        <div class="view-mode-stack">
-          <div id="groups-grid-live" class="groups-grid" data-view-content="live" aria-hidden="false"></div>
-          <div id="groups-grid-my" class="groups-grid hidden" data-view-content="my" hidden aria-hidden="true"></div>
-        </div>
-      </section>
-
-      <section class="section-block">
-        <div class="section-heading">
-          <p class="eyebrow">Third Place</p>
-          <h2 id="third-place-section-title">Third-Place Live Results</h2>
-          <p id="third-place-section-copy" class="section-copy">Choose eight third-place teams to send them into the round of 32.</br>
-            Order of choice determins the placement in the playoff bracket (1st choice gets the best matchup).
-          </p>
-        </div>
-        <div class="view-mode-stack">
-          <div id="third-place-pane-live" data-view-content="live" aria-hidden="false">
-            <div id="third-place-head-live" class="third-place-head"></div>
-            <div id="third-place-list-live" class="third-place-list"></div>
-          </div>
-          <div id="third-place-pane-my" class="hidden" data-view-content="my" hidden aria-hidden="true">
-            <div id="third-place-head-my" class="third-place-head"></div>
-            <div id="third-place-list-my" class="third-place-list"></div>
-          </div>
-        </div>
+        <div id="groups-grid-live" class="groups-grid" data-view-content="live" aria-hidden="false"></div>
       </section>
 
       <section class="section-block playoff-section">
@@ -237,13 +94,10 @@
           <p class="eyebrow">Playoffs</p>
           <h2 id="playoffs-section-title">Live Playoff Bracket</h2>
           <p id="playoffs-section-copy" class="section-copy">
-            Built from the current group standings and updated immediately when you reorder a group.
+            Built from the current group standings and updated as results come in.
           </p>
         </div>
-        <div class="view-mode-stack">
-          <div id="playoff-board-live" class="playoff-board" data-view-content="live" aria-hidden="false"></div>
-          <div id="playoff-board-my" class="playoff-board hidden" data-view-content="my" hidden aria-hidden="true"></div>
-        </div>
+        <div id="playoff-board-live" class="playoff-board" data-view-content="live" aria-hidden="false"></div>
       </section>
 
       <section class="section-block">
@@ -259,19 +113,6 @@
 
   </div>
 
-  <div id="clear-all-dialog" class="confirm-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="clear-all-dialog-title">
-    <div class="confirm-dialog-card">
-      <p class="eyebrow">Reset Picks</p>
-      <h2 id="clear-all-dialog-title">Are you sure?</h2>
-      <p class="panel-note">This clears group rankings, best third-place picks, and playoff winners.</p>
-      <div class="confirm-dialog-actions">
-        <button id="clear-all-cancel" class="button secondary" type="button">Cancel</button>
-        <button id="clear-all-confirm" class="button secondary" type="button">Clear All</button>
-      </div>
-    </div>
-  </div>
-
-  <script src="/vendor/supabase/supabase.js"></script>
   <script type="module" src="/app.js"></script>
 </body>
 

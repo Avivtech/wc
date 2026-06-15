@@ -1103,13 +1103,19 @@ function mergeSportsDbGroups({ templateGroups, teamLookup, standingsRows, fixtur
       })
   );
 
+  const fixtureStandingLookup = buildFixtureStandingLookup(fixtures);
+
   return templateGroups.map((group) => ({
     ...group,
     teams: group.teams.map((team, index) => {
       const sportsDbTeam = resolveSportsDbTeam(team, teamLookup);
-      const standing = standingLookup.get(String(sportsDbTeam.id)) ??
+      const sportsDbStanding = standingLookup.get(String(sportsDbTeam.id)) ??
         standingLookup.get(normalizeLookupKey(sportsDbTeam.name)) ??
         null;
+      const fixtureStanding = fixtureStandingLookup.get(String(sportsDbTeam.id)) ??
+        fixtureStandingLookup.get(normalizeLookupKey(sportsDbTeam.name)) ??
+        null;
+      const standing = fixtureStanding ?? (hasUsableSportsDbStanding(sportsDbStanding) ? sportsDbStanding : null);
 
       return {
         ...mergeTeamDetails(team, sportsDbTeam),
@@ -1133,6 +1139,142 @@ function mergeSportsDbGroups({ templateGroups, teamLookup, standingsRows, fixtur
     }),
     fixtures: fixtures.filter((fixture) => fixture.groupLetter === group.letter)
   }));
+}
+
+function buildFixtureStandingLookup(fixtures) {
+  const groupTables = new Map();
+
+  for (const fixture of fixtures ?? []) {
+    if (!fixture?.groupLetter) {
+      continue;
+    }
+
+    const groupTable = getOrCreateGroupTable(groupTables, fixture.groupLetter);
+    const home = getOrCreateFixtureStanding(groupTable, fixture.teams?.home, fixture.groupLetter);
+    const away = getOrCreateFixtureStanding(groupTable, fixture.teams?.away, fixture.groupLetter);
+
+    if (!home || !away || !hasFixtureResultScore(fixture)) {
+      continue;
+    }
+
+    const homeGoals = toNumber(fixture.goals?.home);
+    const awayGoals = toNumber(fixture.goals?.away);
+
+    home.played += 1;
+    away.played += 1;
+    home.goalsFor += homeGoals;
+    home.goalsAgainst += awayGoals;
+    away.goalsFor += awayGoals;
+    away.goalsAgainst += homeGoals;
+
+    if (homeGoals > awayGoals) {
+      home.wins += 1;
+      home.points += 3;
+      away.losses += 1;
+      home.form = appendFixtureForm(home.form, "W");
+      away.form = appendFixtureForm(away.form, "L");
+    } else if (awayGoals > homeGoals) {
+      away.wins += 1;
+      away.points += 3;
+      home.losses += 1;
+      home.form = appendFixtureForm(home.form, "L");
+      away.form = appendFixtureForm(away.form, "W");
+    } else {
+      home.draws += 1;
+      away.draws += 1;
+      home.points += 1;
+      away.points += 1;
+      home.form = appendFixtureForm(home.form, "D");
+      away.form = appendFixtureForm(away.form, "D");
+    }
+
+    home.goalDifference = home.goalsFor - home.goalsAgainst;
+    away.goalDifference = away.goalsFor - away.goalsAgainst;
+    home.update = fixture.date ?? null;
+    away.update = fixture.date ?? null;
+  }
+
+  const lookup = new Map();
+
+  for (const groupTable of groupTables.values()) {
+    [...groupTable.values()]
+      .sort(compareFixtureStandings)
+      .forEach((standing, index) => {
+        const rankedStanding = {
+          ...standing,
+          rank: index + 1
+        };
+
+        for (const key of standing.lookupKeys) {
+          lookup.set(key, rankedStanding);
+        }
+      });
+  }
+
+  return lookup;
+}
+
+function getOrCreateGroupTable(groupTables, groupLetter) {
+  if (!groupTables.has(groupLetter)) {
+    groupTables.set(groupLetter, new Map());
+  }
+
+  return groupTables.get(groupLetter);
+}
+
+function getOrCreateFixtureStanding(groupTable, team, groupLetter) {
+  if (!team?.id && !team?.name) {
+    return null;
+  }
+
+  const teamKey = String(team.id ?? normalizeLookupKey(team.name));
+
+  if (!groupTable.has(teamKey)) {
+    groupTable.set(teamKey, {
+      rank: null,
+      points: 0,
+      goalDifference: 0,
+      form: "",
+      played: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      goalsFor: 0,
+      goalsAgainst: 0,
+      description: null,
+      update: null,
+      groupLetter,
+      teamName: team.name ?? "",
+      lookupKeys: [
+        String(team.id ?? ""),
+        normalizeLookupKey(team.name),
+        normalizeTeamMatchKey(team.name)
+      ].filter(Boolean)
+    });
+  }
+
+  return groupTable.get(teamKey);
+}
+
+function hasFixtureResultScore(fixture) {
+  return Number.isFinite(toNumber(fixture?.goals?.home)) && Number.isFinite(toNumber(fixture?.goals?.away));
+}
+
+function hasUsableSportsDbStanding(standing) {
+  return Boolean(standing && (Number.isFinite(standing.played) || Number.isFinite(standing.points)));
+}
+
+function appendFixtureForm(form, result) {
+  return `${form || ""}${result}`.slice(-5);
+}
+
+function compareFixtureStandings(left, right) {
+  return (
+    right.points - left.points ||
+    right.goalDifference - left.goalDifference ||
+    right.goalsFor - left.goalsFor ||
+    left.teamName.localeCompare(right.teamName, "en", { sensitivity: "base" })
+  );
 }
 
 function normalizeSportsDbStanding(row) {

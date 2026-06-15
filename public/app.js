@@ -1,7 +1,7 @@
 import { attachClosestEdge, combine, draggable, dropTargetForElements, extractClosestEdge, monitorForElements } from "/vendor/pragmatic-dnd.js";
 
-const APP_LOCALE = detectAppLocale();
-const APP_INTL_LOCALE = APP_LOCALE === "he" ? "he-IL" : "en-US";
+const APP_LOCALE = "en";
+const APP_INTL_LOCALE = "en-US";
 const DEV_PICKS_QUERY_PARAM = "devPicks";
 const DEV_RESULTS_QUERY_PARAM = "devResults";
 const HOME_TEAM_LOCK_FALLBACK_AT = new Date("2026-06-11T19:00:00.000Z");
@@ -131,130 +131,10 @@ const TRANSLATIONS = {
 		matchWinner: "Winner match {match}",
 		matchLoser: "Loser match {match}",
 	},
-	he: {
-		authChecking: "בודק חיבור...",
-		authUnavailable: "חיבור אינו זמין כרגע.",
-		authHintLogin: "הזינו מייל וסיסמה כדי להתחבר.",
-		authHintRegister: "הזינו שם, מייל וסיסמה כדי ליצור חשבון.",
-		authButtonLogin: "התחברות",
-		authButtonRegister: "הרשמה",
-		authButtonLoggingIn: "מתחבר...",
-		authButtonSigningUp: "נרשם...",
-		authValidationLogin: "הזינו מייל תקין וסיסמה באורך 6 תווים לפחות.",
-		authValidationRegister: "הזינו שם תצוגה, מייל תקין וסיסמה באורך 6 תווים לפחות.",
-		authFailureLogin: "לא ניתן להתחבר כרגע. בדקו את המייל והסיסמה.",
-		authFailureRegister: "לא ניתן ליצור חשבון כרגע. נסו שוב.",
-		authCreatingAccount: "יוצר את החשבון...",
-		authSigningIn: "מחבר אותך...",
-		authAccountCreatedSigningIn: "החשבון נוצר. מתחבר...",
-		authAccountCreatedConfirm: "החשבון נוצר. אם נדרש, אשרו את המייל ואז התחברו.",
-		authSignedIn: "התחברתם בהצלחה.",
-		authPleaseSignInAgain: "נא להתחבר שוב.",
-		authSigningOut: "מתנתק...",
-		authSignOutFailed: "לא ניתן להתנתק כרגע. נסו שוב.",
-		authSignInFirst: "יש להתחבר תחילה.",
-		authStartPredicting: "התחברו או הירשמו כדי להתחיל לנבא.",
-		authUnlockPredictions: "התחברו או הירשמו כדי לפתוח את התחזיות שלי.",
-		welcomeBack: "היי, ברוך שובך!",
-		welcomeBackNamed: "היי {name}, ברוך שובך!",
-		homeTeamEmpty: "עדיין לא נבחרה נבחרת בית.",
-		homeTeamLiveEmpty: "בחרו את נבחרת הבית שלכם בהתחזיות שלי כדי להתאים את צבעי האפליקציה.",
-		homeTeamSelected: "נבחרת הבית שנבחרה",
-		homeTeamNextMatches: "5 המשחקים הבאים",
-		homeTeamNextMatchesEmpty: "עדיין אין משחקים עתידיים זמינים לנבחרת הזו.",
-		homeTeamLastGameLineup: "הרכב השחקנים מהמשחק האחרון",
-		homeTeamLastGameEmpty: "עדיין אין משחק שהסתיים לנבחרת הזו.",
-		homeTeamLastGameLineupEmpty: "הרכב השחקנים אינו זמין למשחק האחרון שהסתיים.",
-		homeTeamSearchPlaceholder: "חפשו לפי מדינה או קוד",
-		homeTeamNoResults: "אין נבחרות שתואמות לחיפוש הזה.",
-		homeTeamScore: "ציון נבחרת",
-		homeTeamAttack: "התקפה",
-		homeTeamDefense: "הגנה",
-		homeTeamPenalties: "פנדלים",
-		homeTeamChange: "החלפה",
-		homeTeamLocked: "בחירת נבחרת הבית נעולה אחרי המשחק הראשון.",
-		saveStatusDevLive: "תחזיות הפיתוח נטענו אל התחזיות שלי. עברו אליהן כדי לבדוק מקומית.",
-		saveStatusDevLocal: "תחזיות הפיתוח נטענו מקומית. השינויים נשמרים רק מקומית ואינם דורסים שמירות קיימות.",
-		saveStatusViewingLive: "מוצגות כעת תוצאות חיות. עברו לתחזיות שלי כדי לערוך את הבחירות שלכם.",
-		saveStatusDefault: "השינויים נשמרים אוטומטית בזמן העריכה. לחצו על שליחה כשתהיו מוכנים.",
-		saveStatusClearedSaving: "כל הבחירות נמחקו. שומר שינויים...",
-		saveStatusClearedLocal: "כל הבחירות נמחקו מקומית.",
-		saveStatusSaving: "שומר שינויים...",
-		saveStatusSavedOn: "נשמר ב-{date}.",
-		saveStatusNoSaved: "עדיין אין שמירה. השינויים יישמרו אוטומטית.",
-		saveStatusLoadedOn: "הבחירות נטענו מ-{date}.",
-		saveStatusLoadingSaved: "טוען את הבחירות השמורות...",
-		saveStatusSubmitting: "שולח את הבחירות...",
-		saveStatusSubmitted: "כל הבחירות נשלחו.",
-		saveStatusDevSubmitted: "תחזיות הפיתוח נשלחו מקומית.",
-		signInToSubmit: "התחברו כדי לשלוח את הבחירות.",
-		genericCouldNotLoadTournament: "לא ניתן לטעון את הטורניר כרגע.",
-		genericCouldNotSavePicks: "לא ניתן לשמור את הבחירות כרגע.",
-		genericCouldNotLoadPicks: "לא ניתן לטעון את הבחירות כרגע.",
-		genericCouldNotSubmitPicks: "לא ניתן לשלוח את הבחירות כרגע.",
-		genericCouldNotScorePicks: "לא ניתן לחשב את הניקוד כרגע.",
-		emptyGroups: "טענו נתונים כדי לדרג את הבתים.",
-		emptyThirdPlace: "דירוג המקומות השלישיים יופיע כאן.",
-		emptyPlayoffs: "מקומות הפלייאוף יוצגו כאן.",
-		emptyFixtures: "לוח המשחקים יוצג כאן.",
-		countdownLoading: "טוען את שעת המשחק...",
-		countdownNoFixture: "שעת המשחק הראשון עדיין לא זמינה.",
-		countdownStarted: "המשחק הראשון התחיל.",
-		countdownMatchTime: "המשחק הראשון: {date}",
-		loadCalendar: "טען לוח משחקים",
-		noFixtureList: "עדיין אין לוח משחקים זמין. תאריכים יופיעו כאן כשיהיו זמינים.",
-		calendarPrevious: "הקודם",
-		calendarNext: "הבא",
-		calendarVersus: "נגד",
-		calendarSelectedCount: "{count}/8 נבחרו",
-		calendarThirdPlace: "מקום 3",
-		calendarTimezoneLabel: "אזור זמן",
-		bracketFinals: "גמרים",
-		bracketDragHint: "לגרירה השתמשו בשתי אצבעות או ב-Ctrl / Cmd + גרירה",
-		overallSubmit: "שליחה",
-		overallSubmitted: "נשלח",
-		overallSubmitting: "שולח...",
-		groupCountry: "Country",
-		groupCountryPrediction: "מדינה",
-		groupWins: "W",
-		groupLosses: "L",
-		groupDraws: "D",
-		groupGoalDiff: "GD",
-		groupPoints: "Pts",
-		pointsShort: "נק׳",
-		goalDiffShort: "הפ׳",
-		tbd: "טרם נקבע",
-		match: "משחק",
-		teamToBeDetermined: "הנבחרת תיקבע בהמשך",
-		liveResults: "תוצאות חיות",
-		myPredictions: "התחזיות שלי",
-		heroCtaPredict: "נסו לחזות",
-		heroCtaLive: "Live",
-		predictionsHeadline: "התחזיות שלי",
-		stageGroup: "שלב הבתים",
-		stageRound32: "שלב 32",
-		stageRound16: "שמינית הגמר",
-		stageQuarter: "רבע הגמר",
-		stageSemi: "חצי הגמר",
-		stageFinal: "הגמר",
-		stageThird: "המשחק על המקום השלישי",
-		stageGroupShort: "בתים",
-		stageRound32Short: "32",
-		stageRound16Short: "16",
-		stageQuarterShort: "רבע",
-		stageSemiShort: "חצי",
-		stageFinalShort: "גמר",
-		stageThirdShort: "מקום 3",
-		groupSingular: "בית",
-		groupPlural: "בתים",
-		matchWinner: "מנצחת משחק {match}",
-		matchLoser: "מפסידת משחק {match}",
-	},
 };
 const LANGUAGE_SHORT_LABEL_QUERY = "(max-width: 480px)";
 const CALENDAR_WEEKDAYS = {
 	en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
-	he: ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"],
 };
 const CALENDAR_TIME_ZONES = [
 	{ label: "Israel", value: "Asia/Jerusalem" },
@@ -415,21 +295,8 @@ const HOME_TEAM_FLAG_CODES_BY_NAME = {
 };
 
 document.documentElement.lang = APP_LOCALE;
-document.documentElement.dir = APP_LOCALE === "he" ? "rtl" : "ltr";
+document.documentElement.dir = "ltr";
 document.documentElement.dataset.locale = APP_LOCALE;
-
-function detectAppLocale() {
-	const path = String(window.location.pathname || "/").replace(/\/+$/, "") || "/";
-	const htmlLang = String(document.documentElement.lang || "")
-		.trim()
-		.toLowerCase();
-
-	if (htmlLang === "he" || path === "/he" || path.startsWith("/he/")) {
-		return "he";
-	}
-
-	return "en";
-}
 
 function t(key, variables = {}) {
 	const resolve = (catalog) => key.split(".").reduce((value, part) => (value && typeof value === "object" ? value[part] : undefined), catalog);
@@ -459,7 +326,7 @@ const state = {
 	devLiveResultsEnabled: shouldUseDevLiveResults(),
 	devLiveWorldCup: null,
 	playoffDragHintDismissed: getStoredPlayoffDragHintDismissed(),
-	calendarLoaded: false,
+	calendarLoaded: true,
 	calendarMonthIndex: null,
 	calendarTimeZone: CALENDAR_TIME_ZONES[0].value,
 	playoffMatches: [],
@@ -564,7 +431,6 @@ const elements = {
 	countdownMinutes: document.getElementById("countdown-minutes"),
 	countdownSeconds: document.getElementById("countdown-seconds"),
 	savePanel: document.getElementById("save-panel"),
-	adminNavbarLink: document.getElementById("admin-navbar-link"),
 	predictButton: document.getElementById("predict-button"),
 	authForm: document.getElementById("auth-form"),
 	authModeSwitch: document.getElementById("auth-mode-switch"),
@@ -644,58 +510,18 @@ const SECTION_MODE_COPY = {
 			},
 		},
 	},
-	he: {
-		[VIEW_MODES.LIVE]: {
-			homeTeam: {
-				title: "נבחרת הבית תוצאות חיות",
-				copy: "נבחרת הבית שבחרתם מוסיפה לאפליקציה שכבת צבע רכה בהשראת הדגל שלה.",
-			},
-			groups: {
-				title: "שלב הבתים תוצאות חיות",
-				copy: "טבלת הבתים והסטטיסטיקות החיות של הטורניר.",
-			},
-			thirdPlace: {
-				title: "המקומות השלישיים תוצאות חיות",
-				copy: "דירוג עדכני של הנבחרות שבמקום השלישי לפי התוצאות החיות.",
-			},
-			playoffs: {
-				title: "עץ הפלייאוף תוצאות חיות",
-				copy: "נבנה לפי התוצאות החיות ומתעדכן בזמן אמת.",
-			},
-		},
-		[VIEW_MODES.MY]: {
-			homeTeam: {
-				title: "נבחרת הבית התחזיות שלי",
-				copy: "בחרו נבחרת אחת שאתם מאמינים שתזכה במונדיאל. הצבעים שלה יתנו חותמת עדינה לכל החוויה.",
-			},
-			groups: {
-				title: "שלב הבתים התחזיות שלי",
-				copy: "גררו כדי לשנות את סדר הנבחרות בכל בית ולקבוע את התחזית שלכם.",
-			},
-			thirdPlace: {
-				title: "המקומות השלישיים התחזיות שלי",
-				copy: "בחרו שמונה נבחרות מהמקום השלישי שיעלו לשלב 32. סדר הבחירה קובע את המיקום בעץ הפלייאוף.",
-			},
-			playoffs: {
-				title: "עץ הפלייאוף התחזיות שלי",
-				copy: "נבנה מהתחזיות הנוכחיות שלכם ומתעדכן מיד עם כל שינוי.",
-			},
-		},
-	},
 };
 const PLAYOFF_DRAG_HINT_STORAGE_KEY = "wc2026:playoff-drag-hint-dismissed";
-const TECHNICAL_MESSAGE_PATTERN = /\b(api|server|supabase|request failed|status \d+|unknown error|cache|cached data|environment|documentation|provider|rankings page|odds|predictions|fetch|network|connection|timeout|json|syntaxerror|unexpected token)\b/i;
+const TECHNICAL_MESSAGE_PATTERN = /\b(api|server|request failed|status \d+|unknown error|cache|cached data|environment|documentation|provider|rankings page|odds|predictions|fetch|network|connection|timeout|json|syntaxerror|unexpected token)\b/i;
 const API_ROUTES = {
-	authConfig: "/api/auth/config",
-	authMe: "/api/auth/me",
 	worldCup: "/api/world-cup",
-	team: (teamId) => `/api/teams/${encodeURIComponent(teamId)}`,
 };
 
 boot();
 
 async function boot() {
-	await initializeAuth();
+	state.auth.ready = true;
+	state.auth.enabled = false;
 	bindEvents();
 	startCountdownTimer();
 	render();
@@ -704,29 +530,29 @@ async function boot() {
 
 function bindEvents() {
 	bindLanguageSelect();
-	elements.authForm.addEventListener("submit", handleAuthSubmit);
+	elements.authForm?.addEventListener("submit", handleAuthSubmit);
 	elements.authModeButtons.forEach((button) => {
 		button.addEventListener("click", handleAuthModeClick);
 	});
-	elements.clearAllButton.addEventListener("click", openClearAllDialog);
-	elements.clearAllCancelButton.addEventListener("click", closeClearAllDialog);
-	elements.clearAllConfirmButton.addEventListener("click", handleClearAll);
-	elements.signOutButton.addEventListener("click", handleSignOut);
-	elements.overallScoreSubmitButton.addEventListener("click", handleOverallSubmitClick);
+	elements.clearAllButton?.addEventListener("click", openClearAllDialog);
+	elements.clearAllCancelButton?.addEventListener("click", closeClearAllDialog);
+	elements.clearAllConfirmButton?.addEventListener("click", handleClearAll);
+	elements.signOutButton?.addEventListener("click", handleSignOut);
+	elements.overallScoreSubmitButton?.addEventListener("click", handleOverallSubmitClick);
 	elements.predictButton?.addEventListener("click", handlePredictClick);
-	elements.displayNameInput.addEventListener("input", handleAuthFieldInput);
-	elements.emailInput.addEventListener("input", handleAuthFieldInput);
-	elements.passwordInput.addEventListener("input", handleAuthFieldInput);
-	elements.homeTeamPaneMy.addEventListener("input", handleMyHomeTeamInput);
-	elements.homeTeamPaneMy.addEventListener("click", handleMyHomeTeamClick);
-	elements.thirdPlaceListMy.addEventListener("click", handleMyThirdPlaceClick);
-	elements.playoffBoardMy.addEventListener("click", handleMyPlayoffBoardClick);
-	elements.playoffBoardMy.addEventListener("input", handleMyPlayoffBoardInput);
-	elements.playoffBoardMy.addEventListener("keydown", handleMyPlayoffBoardKeyDown);
-	elements.groupsGridMy.addEventListener("touchstart", handleGroupTouchDragStart, { passive: true });
-	elements.groupsGridMy.addEventListener("touchmove", handleGroupTouchDragMove, { passive: false });
-	elements.groupsGridMy.addEventListener("touchend", handleGroupTouchDragEnd, { passive: true });
-	elements.groupsGridMy.addEventListener("touchcancel", handleGroupTouchDragEnd, { passive: true });
+	elements.displayNameInput?.addEventListener("input", handleAuthFieldInput);
+	elements.emailInput?.addEventListener("input", handleAuthFieldInput);
+	elements.passwordInput?.addEventListener("input", handleAuthFieldInput);
+	elements.homeTeamPaneMy?.addEventListener("input", handleMyHomeTeamInput);
+	elements.homeTeamPaneMy?.addEventListener("click", handleMyHomeTeamClick);
+	elements.thirdPlaceListMy?.addEventListener("click", handleMyThirdPlaceClick);
+	elements.playoffBoardMy?.addEventListener("click", handleMyPlayoffBoardClick);
+	elements.playoffBoardMy?.addEventListener("input", handleMyPlayoffBoardInput);
+	elements.playoffBoardMy?.addEventListener("keydown", handleMyPlayoffBoardKeyDown);
+	elements.groupsGridMy?.addEventListener("touchstart", handleGroupTouchDragStart, { passive: true });
+	elements.groupsGridMy?.addEventListener("touchmove", handleGroupTouchDragMove, { passive: false });
+	elements.groupsGridMy?.addEventListener("touchend", handleGroupTouchDragEnd, { passive: true });
+	elements.groupsGridMy?.addEventListener("touchcancel", handleGroupTouchDragEnd, { passive: true });
 
 	document.addEventListener("click", handlePlayoffPanClickCapture, true);
 	document.addEventListener("click", handleMoveClick);
@@ -746,7 +572,7 @@ function bindEvents() {
 	elements.calendarTimezoneControl?.addEventListener("change", handleCalendarTimezoneChange);
 	window.addEventListener("resize", scheduleBracketLineDraw);
 	window.addEventListener("resize", handleTooltipViewportChange);
-	elements.clearAllDialog.addEventListener("click", handleClearAllDialogBackdrop);
+	elements.clearAllDialog?.addEventListener("click", handleClearAllDialogBackdrop);
 }
 
 function bindLanguageSelect() {
@@ -941,46 +767,14 @@ function handleMyPlayoffBoardKeyDown(event) {
 }
 
 async function initializeAuth() {
-	state.auth.ready = false;
-	state.auth.status = t("authChecking");
-
-	try {
-		const config = await fetchJson(API_ROUTES.authConfig, { fallbackMessage: t("authUnavailable") });
-
-		if (!config.enabled) {
-			state.auth.enabled = false;
-			state.auth.status = t("authUnavailable");
-			return;
-		}
-
-		if (!window.supabase?.createClient) {
-			throw new Error(t("authUnavailable"));
-		}
-
-		state.auth.enabled = true;
-		state.auth.client = window.supabase.createClient(config.url, config.publishableKey);
-		state.auth.client.auth.onAuthStateChange((event, session) => {
-			void syncAuthSession(session, event);
-		});
-
-		const { data, error } = await state.auth.client.auth.getSession();
-
-		if (error) {
-			throw error;
-		}
-
-		await syncAuthSession(data.session, "INITIAL_SESSION");
-	} catch (error) {
-		state.auth.enabled = false;
-		state.auth.client = null;
-		state.auth.session = null;
-		state.auth.user = null;
-		state.auth.isAdmin = false;
-		state.auth.displayNameDraft = "";
-		state.auth.status = t("authUnavailable");
-	} finally {
-		state.auth.ready = true;
-	}
+	state.auth.enabled = false;
+	state.auth.ready = true;
+	state.auth.client = null;
+	state.auth.session = null;
+	state.auth.user = null;
+	state.auth.isAdmin = false;
+	state.auth.displayNameDraft = "";
+	state.auth.status = "";
 }
 
 async function syncAuthSession(session, event = "SESSION") {
@@ -1078,6 +872,10 @@ function focusSavePanelForAuth() {
 }
 
 function renderAuthState() {
+	if (!elements.authForm || !elements.authStatus) {
+		return;
+	}
+
 	const email = getAuthenticatedEmail();
 	const authReady = state.auth.ready;
 	const authAvailable = state.auth.enabled && Boolean(state.auth.client);
@@ -1124,7 +922,6 @@ function renderAuthState() {
 	elements.clearAllButton.classList.toggle("hidden", !isSignedIn);
 	elements.authButton.classList.toggle("hidden", isSignedIn);
 	elements.signOutButton.classList.toggle("hidden", !isSignedIn);
-	elements.adminNavbarLink?.classList.toggle("hidden", !state.auth.isAdmin);
 	elements.authStatus.textContent = state.auth.status || (!authReady ? t("authChecking") : getSignedOutAuthMessage());
 }
 
@@ -1768,7 +1565,6 @@ function render() {
 	renderAuthState();
 	renderSaveState();
 	renderOverallScore();
-	scheduleOverallScoreRefresh();
 }
 
 function renderSectionVisibility() {
@@ -1852,14 +1648,30 @@ function getFirstMatchDate() {
 function renderSectionHeadings() {
 	const copy = SECTION_MODE_COPY[APP_LOCALE]?.[state.viewMode] || SECTION_MODE_COPY.en[state.viewMode] || SECTION_MODE_COPY.en[VIEW_MODES.LIVE];
 
-	elements.homeTeamSectionTitle.innerHTML = renderSectionTitleMarkup(copy.homeTeam.title);
-	elements.homeTeamSectionCopy.textContent = copy.homeTeam.copy;
-	elements.groupsSectionTitle.innerHTML = renderSectionTitleMarkup(copy.groups.title);
-	elements.groupsSectionCopy.textContent = copy.groups.copy;
-	elements.thirdPlaceSectionTitle.innerHTML = renderSectionTitleMarkup(copy.thirdPlace.title);
-	elements.thirdPlaceSectionCopy.textContent = copy.thirdPlace.copy;
-	elements.playoffsSectionTitle.innerHTML = renderSectionTitleMarkup(copy.playoffs.title);
-	elements.playoffsSectionCopy.textContent = copy.playoffs.copy;
+	if (elements.homeTeamSectionTitle) {
+		elements.homeTeamSectionTitle.innerHTML = renderSectionTitleMarkup(copy.homeTeam.title);
+	}
+	if (elements.homeTeamSectionCopy) {
+		elements.homeTeamSectionCopy.textContent = copy.homeTeam.copy;
+	}
+	if (elements.groupsSectionTitle) {
+		elements.groupsSectionTitle.innerHTML = renderSectionTitleMarkup(copy.groups.title);
+	}
+	if (elements.groupsSectionCopy) {
+		elements.groupsSectionCopy.textContent = copy.groups.copy;
+	}
+	if (elements.thirdPlaceSectionTitle) {
+		elements.thirdPlaceSectionTitle.innerHTML = renderSectionTitleMarkup(copy.thirdPlace.title);
+	}
+	if (elements.thirdPlaceSectionCopy) {
+		elements.thirdPlaceSectionCopy.textContent = copy.thirdPlace.copy;
+	}
+	if (elements.playoffsSectionTitle) {
+		elements.playoffsSectionTitle.innerHTML = renderSectionTitleMarkup(copy.playoffs.title);
+	}
+	if (elements.playoffsSectionCopy) {
+		elements.playoffsSectionCopy.textContent = copy.playoffs.copy;
+	}
 }
 
 function renderSectionTitleMarkup(title) {
@@ -1882,6 +1694,10 @@ function renderInteractiveViews() {
 }
 
 function renderWarnings() {
+	if (!elements.warningStrip) {
+		return;
+	}
+
 	elements.warningStrip.classList.add("hidden");
 	elements.warningStrip.innerHTML = "";
 }
@@ -1904,10 +1720,18 @@ function setModeContentVisibility(element, isVisible) {
 }
 
 function renderHomeTeam() {
+	if (!elements.homeTeamPaneLive && !elements.homeTeamPaneMy) {
+		return;
+	}
+
 	if (!state.worldCup) {
 		const emptyMarkup = state.loading ? renderHomeTeamSkeleton() : emptyState(t("homeTeamEmpty"));
-		elements.homeTeamPaneLive.innerHTML = emptyMarkup;
-		elements.homeTeamPaneMy.innerHTML = emptyMarkup;
+		if (elements.homeTeamPaneLive) {
+			elements.homeTeamPaneLive.innerHTML = emptyMarkup;
+		}
+		if (elements.homeTeamPaneMy) {
+			elements.homeTeamPaneMy.innerHTML = emptyMarkup;
+		}
 		return;
 	}
 
@@ -1916,10 +1740,14 @@ function renderHomeTeam() {
 	const isLoadingTeamData = isHomeTeamDataLoading(selectedTeam);
 	const shouldShowHomeTeamPicker = !selectedTeam || (state.homeTeamPickerOpen && canChangeHomeTeam());
 
-	elements.homeTeamPaneLive.innerHTML = renderHomeTeamSummary(selectedTeam, fetchedTeam, { isLoadingTeamData });
-	elements.homeTeamPaneMy.innerHTML = selectedTeam
-		? `${renderSelectedHomeTeamDetails(selectedTeam, fetchedTeam, { isLoadingTeamData })}${shouldShowHomeTeamPicker ? renderHomeTeamPicker() : ""}`
-		: renderHomeTeamPicker();
+	if (elements.homeTeamPaneLive) {
+		elements.homeTeamPaneLive.innerHTML = renderHomeTeamSummary(selectedTeam, fetchedTeam, { isLoadingTeamData });
+	}
+	if (elements.homeTeamPaneMy) {
+		elements.homeTeamPaneMy.innerHTML = selectedTeam
+			? `${renderSelectedHomeTeamDetails(selectedTeam, fetchedTeam, { isLoadingTeamData })}${shouldShowHomeTeamPicker ? renderHomeTeamPicker() : ""}`
+			: renderHomeTeamPicker();
+	}
 
 	if (shouldShowHomeTeamPicker && !isHomeTeamLocked()) {
 		applyHomeTeamSearchFilter();
@@ -2495,15 +2323,23 @@ function renderGroups() {
 
 	if (!state.worldCup) {
 		const emptyMarkup = state.loading ? renderGroupsSkeleton() : emptyState(t("emptyGroups"));
-		elements.groupsGridLive.innerHTML = emptyMarkup;
-		elements.groupsGridMy.innerHTML = emptyMarkup;
+		if (elements.groupsGridLive) {
+			elements.groupsGridLive.innerHTML = emptyMarkup;
+		}
+		if (elements.groupsGridMy) {
+			elements.groupsGridMy.innerHTML = emptyMarkup;
+		}
 		return;
 	}
 
-	renderGroupsGrid(elements.groupsGridLive, getLiveGroups(), { mode: VIEW_MODES.LIVE });
-	renderGroupsGrid(elements.groupsGridMy, state.groups, { mode: VIEW_MODES.MY });
+	if (elements.groupsGridLive) {
+		renderGroupsGrid(elements.groupsGridLive, getLiveGroups(), { mode: VIEW_MODES.LIVE });
+	}
+	if (elements.groupsGridMy) {
+		renderGroupsGrid(elements.groupsGridMy, state.groups, { mode: VIEW_MODES.MY });
+	}
 
-	if (!isShowingLiveResults()) {
+	if (!isShowingLiveResults() && elements.groupsGridMy) {
 		bindGroupDragAndDrop(elements.groupsGridMy);
 	}
 }
@@ -2556,33 +2392,49 @@ function renderGroupTableHeaderCells(isLiveView) {
 }
 
 function renderThirdPlace() {
+	if (!elements.thirdPlaceHeadLive && !elements.thirdPlaceHeadMy && !elements.thirdPlaceListLive && !elements.thirdPlaceListMy) {
+		return;
+	}
+
 	if (!state.worldCup) {
 		const emptyMarkup = state.loading ? renderThirdPlaceSkeleton() : emptyState(t("emptyThirdPlace"));
 		const headMarkup = state.loading ? `<span class="status-pill skeleton-pill" aria-hidden="true"></span>` : "";
-		elements.thirdPlaceHeadLive.innerHTML = headMarkup;
-		elements.thirdPlaceHeadMy.innerHTML = headMarkup;
-		elements.thirdPlaceListLive.innerHTML = emptyMarkup;
-		elements.thirdPlaceListMy.innerHTML = emptyMarkup;
+		if (elements.thirdPlaceHeadLive) {
+			elements.thirdPlaceHeadLive.innerHTML = headMarkup;
+		}
+		if (elements.thirdPlaceHeadMy) {
+			elements.thirdPlaceHeadMy.innerHTML = headMarkup;
+		}
+		if (elements.thirdPlaceListLive) {
+			elements.thirdPlaceListLive.innerHTML = emptyMarkup;
+		}
+		if (elements.thirdPlaceListMy) {
+			elements.thirdPlaceListMy.innerHTML = emptyMarkup;
+		}
 		return;
 	}
 
 	const showEmptyLiveCards = shouldRenderEmptyLiveThirdPlaceCards();
 
-	renderThirdPlaceList({
-		mode: VIEW_MODES.LIVE,
-		ranking: showEmptyLiveCards ? [] : getLiveThirdPlaceRanking(),
-		selectedTeamIds: showEmptyLiveCards ? [] : getLiveSelectedThirdTeamIds(),
-		placeholderCount: showEmptyLiveCards ? getLiveThirdPlacePlaceholderCount() : 0,
-		headElement: elements.thirdPlaceHeadLive,
-		listElement: elements.thirdPlaceListLive,
-	});
-	renderThirdPlaceList({
-		mode: VIEW_MODES.MY,
-		ranking: state.thirdPlaceRanking,
-		selectedTeamIds: state.selectedThirdTeamIds,
-		headElement: elements.thirdPlaceHeadMy,
-		listElement: elements.thirdPlaceListMy,
-	});
+	if (elements.thirdPlaceHeadLive && elements.thirdPlaceListLive) {
+		renderThirdPlaceList({
+			mode: VIEW_MODES.LIVE,
+			ranking: showEmptyLiveCards ? [] : getLiveThirdPlaceRanking(),
+			selectedTeamIds: showEmptyLiveCards ? [] : getLiveSelectedThirdTeamIds(),
+			placeholderCount: showEmptyLiveCards ? getLiveThirdPlacePlaceholderCount() : 0,
+			headElement: elements.thirdPlaceHeadLive,
+			listElement: elements.thirdPlaceListLive,
+		});
+	}
+	if (elements.thirdPlaceHeadMy && elements.thirdPlaceListMy) {
+		renderThirdPlaceList({
+			mode: VIEW_MODES.MY,
+			ranking: state.thirdPlaceRanking,
+			selectedTeamIds: state.selectedThirdTeamIds,
+			headElement: elements.thirdPlaceHeadMy,
+			listElement: elements.thirdPlaceListMy,
+		});
+	}
 }
 
 function renderThirdPlaceList({ mode, ranking, selectedTeamIds, headElement, listElement, placeholderCount = 0 }) {
@@ -2614,10 +2466,18 @@ function renderEmptyThirdPlaceCard() {
 }
 
 function renderPlayoffBoard() {
+	if (!elements.playoffBoardLive && !elements.playoffBoardMy) {
+		return;
+	}
+
 	if (!state.worldCup) {
 		const emptyMarkup = state.loading ? renderPlayoffSkeleton() : emptyState(t("emptyPlayoffs"));
-		elements.playoffBoardLive.innerHTML = emptyMarkup;
-		elements.playoffBoardMy.innerHTML = emptyMarkup;
+		if (elements.playoffBoardLive) {
+			elements.playoffBoardLive.innerHTML = emptyMarkup;
+		}
+		if (elements.playoffBoardMy) {
+			elements.playoffBoardMy.innerHTML = emptyMarkup;
+		}
 		return;
 	}
 
@@ -2625,18 +2485,22 @@ function renderPlayoffBoard() {
 	const myScrollSnapshot = getPlayoffScrollSnapshot(elements.playoffBoardMy);
 	clearPlayoffPanState();
 	const livePlayoffData = getLivePlayoffData({ syncRenderedMatches: isShowingLiveResults() });
-	const myPlayoffData = getProjectedPlayoffData({ syncRenderedMatches: !isShowingLiveResults() });
 	const liveWinnerTeamIdsByMatch = new Map(livePlayoffData.projectedMatches.map((match) => [String(match.match), String(match.selectedWinnerTeamId || "")]).filter(([, teamId]) => teamId));
 
-	renderPlayoffBoardForMode(elements.playoffBoardLive, {
-		mode: VIEW_MODES.LIVE,
-		projectedMatches: livePlayoffData.projectedMatches,
-	});
-	renderPlayoffBoardForMode(elements.playoffBoardMy, {
-		mode: VIEW_MODES.MY,
-		projectedMatches: myPlayoffData.projectedMatches,
-		liveWinnerTeamIdsByMatch,
-	});
+	if (elements.playoffBoardLive) {
+		renderPlayoffBoardForMode(elements.playoffBoardLive, {
+			mode: VIEW_MODES.LIVE,
+			projectedMatches: livePlayoffData.projectedMatches,
+		});
+	}
+	if (elements.playoffBoardMy) {
+		const myPlayoffData = getProjectedPlayoffData({ syncRenderedMatches: !isShowingLiveResults() });
+		renderPlayoffBoardForMode(elements.playoffBoardMy, {
+			mode: VIEW_MODES.MY,
+			projectedMatches: myPlayoffData.projectedMatches,
+			liveWinnerTeamIdsByMatch,
+		});
+	}
 
 	restorePlayoffScrollSnapshot(elements.playoffBoardLive, liveScrollSnapshot);
 	restorePlayoffScrollSnapshot(elements.playoffBoardMy, myScrollSnapshot);
@@ -2697,6 +2561,10 @@ function restorePlayoffScrollSnapshot(container, snapshot) {
 
 function renderFixtures() {
 	renderCalendarTimezoneControl();
+
+	if (!elements.fixturesFeed) {
+		return;
+	}
 
 	if (!state.worldCup) {
 		elements.fixturesFeed.innerHTML = state.loading ? renderFixturesSkeleton() : emptyState(t("emptyFixtures"));
@@ -3136,10 +3004,18 @@ function parseFixtureDateValue(value) {
 }
 
 function renderSaveState() {
+	if (!elements.saveStatus) {
+		return;
+	}
+
 	elements.saveStatus.textContent = state.saveStatus || getDefaultSaveStatus();
 }
 
 function renderOverallScore() {
+	if (!elements.overallScoreCard) {
+		return;
+	}
+
 	const shouldShow = Boolean(state.worldCup && getAuthenticatedEmail());
 	elements.overallScoreCard.classList.toggle("hidden", !shouldShow);
 
@@ -3208,49 +3084,7 @@ function scheduleOverallScoreRefresh() {
 }
 
 async function flushOverallScoreRefresh() {
-	if (scoreSyncState.inFlight || !scoreSyncState.pendingPayload || !scoreSyncState.pendingSnapshot) {
-		return;
-	}
-
-	const payload = scoreSyncState.pendingPayload;
-	const snapshot = scoreSyncState.pendingSnapshot;
-
-	scoreSyncState.inFlight = true;
-
-	try {
-		const response = await fetch("/api/scoring/settle", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(payload),
-		});
-		const data = await response.json().catch(() => ({}));
-
-		const resolvedCurrentScore = Number.isFinite(Number(data?.currentScore)) ? Number(data.currentScore) : Number.isFinite(Number(data?.totalPoints)) ? Number(data.totalPoints) - Number(data?.timingPoints || 0) : Number.NaN;
-		const resolvedBonusPoints = Number.isFinite(Number(data?.predictedBonusPoints)) ? Number(data.predictedBonusPoints) : Number.isFinite(Number(data?.bonusPoints)) ? Number(data.bonusPoints) : 0;
-
-		if (!response.ok || !Number.isFinite(resolvedCurrentScore)) {
-			throw new Error(t("genericCouldNotScorePicks"));
-		}
-
-		state.overallScore = resolvedCurrentScore;
-		state.overallBonusPoints = resolvedBonusPoints;
-		renderOverallScore();
-	} catch (_error) {
-		// Keep score failures silent in the UI.
-	} finally {
-		scoreSyncState.inFlight = false;
-		scoreSyncState.lastResolvedSnapshot = snapshot;
-
-		if (scoreSyncState.pendingSnapshot === snapshot) {
-			scoreSyncState.pendingSnapshot = "";
-			scoreSyncState.pendingPayload = null;
-			return;
-		}
-
-		if (scoreSyncState.pendingSnapshot && scoreSyncState.pendingSnapshot !== scoreSyncState.lastResolvedSnapshot) {
-			void flushOverallScoreRefresh();
-		}
-	}
+	resetOverallScore();
 }
 
 function resetOverallScore() {
@@ -3554,87 +3388,14 @@ function buildCurrentSaveState() {
 }
 
 async function saveCurrentPicks(preparedState = null) {
-	const current = preparedState || buildCurrentSaveState();
-
-	if (!current) {
-		return false;
-	}
-
-	if (current.snapshot === syncState.lastSavedSnapshot) {
-		return true;
-	}
-
-	const response = await fetchWithAuth("/api/picks", {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(current.payload),
-	});
-	const data = await response.json();
-
-	if (!response.ok) {
-		throw new Error(getResponseErrorMessage(data, t("genericCouldNotSavePicks")));
-	}
-
-	state.sectionSubmittedAt = normalizeSectionSubmissionState(data.sectionSubmittedAt, data.submittedAt);
-	state.submittedAt = getLatestSubmittedAt();
-	syncState.lastSavedSnapshot = current.snapshot;
-	syncState.loadedEmail = current.email;
-	state.saveStatus = t("saveStatusSavedOn", { date: formatDateTime(data.savedAt) });
-	renderSaveState();
-	return true;
+	return Boolean(preparedState || buildCurrentSaveState());
 }
 
 async function loadSavedPicks({ silentMissing = false, silentSuccess = false, renderOnComplete = true } = {}) {
-	const email = getAuthenticatedEmail();
-
-	if (!email || !state.worldCup || syncState.loadingSavedPicks) {
-		return false;
-	}
-
-	syncState.loadingSavedPicks = true;
-
-	try {
-		const response = await fetchWithAuth("/api/picks/me");
-		const data = await response.json().catch(() => ({}));
-
-		if (response.status === 404) {
-			state.submittedAt = "";
-			state.sectionSubmittedAt = createEmptySectionSubmissionState();
-			state.submissionPendingSection = "";
-			syncState.loadedEmail = email;
-			syncState.lastSavedSnapshot = buildCurrentSaveState()?.snapshot || "";
-			if (!silentMissing) {
-				state.saveStatus = t("saveStatusNoSaved");
-				if (renderOnComplete) {
-					renderSaveState();
-				}
-			}
-			return false;
-		}
-
-		if (!response.ok) {
-			throw new Error(getResponseErrorMessage(data, t("genericCouldNotLoadPicks")));
-		}
-
-		applySavedPicks(data);
-		syncState.loadedEmail = email;
-		syncState.lastSavedSnapshot = buildCurrentSaveState()?.snapshot || "";
-		if (!silentSuccess) {
-			state.saveStatus = t("saveStatusLoadedOn", { date: formatDateTime(data.savedAt) });
-		}
-		if (renderOnComplete) {
-			render();
-		}
-		return true;
-	} catch (error) {
-		state.saveStatus = sanitizeUserFacingMessage(error instanceof Error ? error.message : "", t("genericCouldNotLoadPicks"));
-		if (renderOnComplete) {
-			renderSaveState();
-		}
-		return false;
-	} finally {
-		syncState.loadingSavedPicks = false;
-	}
+	void silentMissing;
+	void silentSuccess;
+	void renderOnComplete;
+	return false;
 }
 
 function ensureSavedPicksLoadedForCurrentUser(options = {}) {
@@ -6215,10 +5976,6 @@ function formatGroupPlacementLabel(group, placement) {
 
 function formatOrdinalPlacement(value) {
 	const number = Number(value);
-
-	if (APP_LOCALE === "he") {
-		return `מקום ${number}`;
-	}
 
 	if (number === 1) {
 		return "1st";
