@@ -1271,6 +1271,7 @@ function appendFixtureForm(form, result) {
 function compareFixtureStandings(left, right) {
   return (
     right.points - left.points ||
+    right.wins - left.wins ||
     right.goalDifference - left.goalDifference ||
     right.goalsFor - left.goalsFor ||
     left.teamName.localeCompare(right.teamName, "en", { sensitivity: "base" })
@@ -2392,9 +2393,10 @@ function classifyStage(round) {
 function finalizeWorldCupData(base) {
   const groups = [...(base.groups ?? [])]
     .sort((left, right) => left.letter.localeCompare(right.letter))
-    .map((group) => ({
-      ...group,
-      teams: group.teams.map((team, index) => ({
+    .map((group) => {
+      const teams = [...(group.teams ?? [])]
+        .sort(compareTeamsForGroup)
+        .map((team, index) => ({
         ...team,
         groupLetter: group.letter,
         fifaGlobalRanking: team.fifaGlobalRanking ?? null,
@@ -2404,7 +2406,7 @@ function finalizeWorldCupData(base) {
           ...(team.teamScores ?? {})
         },
         standing: {
-          rank: team.standing?.rank ?? index + 1,
+          rank: index + 1,
           points: team.standing?.points ?? null,
           goalDifference: team.standing?.goalDifference ?? null,
           form: team.standing?.form ?? null,
@@ -2417,9 +2419,14 @@ function finalizeWorldCupData(base) {
           description: team.standing?.description ?? null,
           update: team.standing?.update ?? null
         }
-      })),
-      fixtures: group.fixtures ?? []
-    }));
+      }));
+
+      return {
+        ...group,
+        teams,
+        fixtures: group.fixtures ?? []
+      };
+    });
 
   const fixtures = [...(base.fixtures ?? [])].sort((left, right) => left.timestamp - right.timestamp);
   const rounds = [...(base.rounds ?? [])];
@@ -2454,10 +2461,48 @@ function buildThirdPlaceRanking(groups) {
     .sort(compareTeamsForThirdPlace);
 }
 
+function compareTeamsForGroup(left, right) {
+  const pointsDelta = (right.standing?.points ?? Number.NEGATIVE_INFINITY) - (left.standing?.points ?? Number.NEGATIVE_INFINITY);
+  if (pointsDelta !== 0) {
+    return pointsDelta;
+  }
+
+  const winsDelta = (right.standing?.wins ?? Number.NEGATIVE_INFINITY) - (left.standing?.wins ?? Number.NEGATIVE_INFINITY);
+  if (winsDelta !== 0) {
+    return winsDelta;
+  }
+
+  const gdDelta =
+    (right.standing?.goalDifference ?? Number.NEGATIVE_INFINITY) -
+    (left.standing?.goalDifference ?? Number.NEGATIVE_INFINITY);
+  if (gdDelta !== 0) {
+    return gdDelta;
+  }
+
+  const rankDelta = (left.standing?.rank ?? Number.POSITIVE_INFINITY) - (right.standing?.rank ?? Number.POSITIVE_INFINITY);
+  if (rankDelta !== 0) {
+    return rankDelta;
+  }
+
+  const gfDelta =
+    (right.standing?.goalsFor ?? Number.NEGATIVE_INFINITY) -
+    (left.standing?.goalsFor ?? Number.NEGATIVE_INFINITY);
+  if (gfDelta !== 0) {
+    return gfDelta;
+  }
+
+  return String(left.name || "").localeCompare(String(right.name || ""), "en", { sensitivity: "base" });
+}
+
 function compareTeamsForThirdPlace(left, right) {
   const pointsDelta = (right.standing?.points ?? Number.NEGATIVE_INFINITY) - (left.standing?.points ?? Number.NEGATIVE_INFINITY);
   if (pointsDelta !== 0) {
     return pointsDelta;
+  }
+
+  const winsDelta = (right.standing?.wins ?? Number.NEGATIVE_INFINITY) - (left.standing?.wins ?? Number.NEGATIVE_INFINITY);
+  if (winsDelta !== 0) {
+    return winsDelta;
   }
 
   const gdDelta =

@@ -4269,9 +4269,19 @@ function compareTeams(left, right) {
 		return pointsDelta;
 	}
 
+	const winsDelta = (right.standing?.wins ?? Number.NEGATIVE_INFINITY) - (left.standing?.wins ?? Number.NEGATIVE_INFINITY);
+	if (winsDelta !== 0) {
+		return winsDelta;
+	}
+
 	const gdDelta = (right.standing?.goalDifference ?? Number.NEGATIVE_INFINITY) - (left.standing?.goalDifference ?? Number.NEGATIVE_INFINITY);
 	if (gdDelta !== 0) {
 		return gdDelta;
+	}
+
+	const rankDelta = (left.standing?.rank ?? Number.POSITIVE_INFINITY) - (right.standing?.rank ?? Number.POSITIVE_INFINITY);
+	if (rankDelta !== 0) {
+		return rankDelta;
 	}
 
 	const gfDelta = (right.standing?.goalsFor ?? Number.NEGATIVE_INFINITY) - (left.standing?.goalsFor ?? Number.NEGATIVE_INFINITY);
