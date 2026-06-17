@@ -11,9 +11,16 @@ const publicDir = path.join(__dirname, "public");
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
-const WORLD_CUP_REFRESH_TIMEZONE = "UTC";
-const WORLD_CUP_REFRESH_OFFSETS_MS = [0, 45 * 60_000, 150 * 60_000];
-const WORLD_CUP_FALLBACK_REFRESH_INTERVAL_MS = 24 * 60 * 60_000;
+const WORLD_CUP_REFRESH_TIMEZONE = "GMT+3";
+const WORLD_CUP_REFRESH_TIMEZONE_OFFSET_MS = 3 * 60 * 60_000;
+const WORLD_CUP_DAILY_REFRESH_TIMES = [
+  { hour: 8, minute: 0 },
+  { hour: 12, minute: 0 },
+  { hour: 16, minute: 0 },
+  { hour: 20, minute: 0 },
+  { hour: 22, minute: 0 },
+  { hour: 24, minute: 0 }
+];
 const MAX_REFRESH_TIMER_DELAY_MS = 2_147_000_000;
 
 app.use(express.json({ limit: "1mb" }));
@@ -55,26 +62,21 @@ let scheduledWorldCupRefreshTimer = null;
 let worldCupRefreshInFlight = null;
 
 async function initializeWorldCupRefreshScheduler() {
-  const data = await refreshWorldCupDataIfNeeded("startup");
-  scheduleNextWorldCupRefresh(data);
+  await refreshWorldCupDataIfNeeded("startup", { force: true });
+  scheduleNextWorldCupRefresh();
 }
 
-async function scheduleNextWorldCupRefresh(data = null) {
+function scheduleNextWorldCupRefresh() {
   if (scheduledWorldCupRefreshTimer) {
     clearTimeout(scheduledWorldCupRefreshTimer);
   }
 
-  const scheduleData = data ?? await getWorldCupData().catch((error) => {
-    logServerError("Failed to load World Cup data while scheduling refresh.", error);
-    return null;
-  });
-  const nextRefreshAt = getNextFixtureRefreshDate(scheduleData?.fixtures);
-  const targetRefreshAt = nextRefreshAt ?? new Date(Date.now() + WORLD_CUP_FALLBACK_REFRESH_INTERVAL_MS);
+  const targetRefreshAt = getNextDailyWorldCupRefreshDate();
   const delayMs = clampRefreshDelay(targetRefreshAt.getTime() - Date.now());
 
   scheduledWorldCupRefreshTimer = setTimeout(async () => {
-    const refreshedData = await refreshWorldCupDataIfNeeded("scheduled", { force: true });
-    void scheduleNextWorldCupRefresh(refreshedData);
+    await refreshWorldCupDataIfNeeded("scheduled", { force: true });
+    scheduleNextWorldCupRefresh();
   }, delayMs);
 
   if (typeof scheduledWorldCupRefreshTimer.unref === "function") {
@@ -82,7 +84,7 @@ async function scheduleNextWorldCupRefresh(data = null) {
   }
 
   console.log(
-    `Next World Cup data refresh scheduled for ${new Date(Date.now() + delayMs).toISOString()} (${WORLD_CUP_REFRESH_TIMEZONE}).`
+    `Next World Cup data refresh scheduled for ${formatWorldCupRefreshDate(targetRefreshAt)} (${targetRefreshAt.toISOString()} UTC).`
   );
 }
 
@@ -123,40 +125,39 @@ async function refreshWorldCupDataIfNeeded(reason, { force = false } = {}) {
   return worldCupRefreshInFlight;
 }
 
-function getNextFixtureRefreshDate(fixtures = [], now = new Date()) {
-  const nowMs = now.getTime();
-  const refreshTimes = [];
+function getNextDailyWorldCupRefreshDate(now = new Date()) {
+  const refreshLocalNow = new Date(now.getTime() + WORLD_CUP_REFRESH_TIMEZONE_OFFSET_MS);
+  const todayRefreshes = WORLD_CUP_DAILY_REFRESH_TIMES.map(({ hour, minute }) =>
+    createWorldCupRefreshDate(
+      refreshLocalNow.getUTCFullYear(),
+      refreshLocalNow.getUTCMonth(),
+      refreshLocalNow.getUTCDate(),
+      hour,
+      minute
+    )
+  );
+  const nextTodayRefresh = todayRefreshes.find((date) => date.getTime() > now.getTime());
 
-  for (const fixture of fixtures ?? []) {
-    const kickoffMs = getFixtureKickoffTime(fixture);
-
-    if (!Number.isFinite(kickoffMs)) {
-      continue;
-    }
-
-    for (const offsetMs of WORLD_CUP_REFRESH_OFFSETS_MS) {
-      const refreshMs = kickoffMs + offsetMs;
-
-      if (refreshMs > nowMs) {
-        refreshTimes.push(refreshMs);
-      }
-    }
+  if (nextTodayRefresh) {
+    return nextTodayRefresh;
   }
 
-  if (!refreshTimes.length) {
-    return null;
-  }
-
-  return new Date(Math.min(...refreshTimes));
+  const next = WORLD_CUP_DAILY_REFRESH_TIMES[0];
+  return createWorldCupRefreshDate(
+    refreshLocalNow.getUTCFullYear(),
+    refreshLocalNow.getUTCMonth(),
+    refreshLocalNow.getUTCDate() + 1,
+    next.hour,
+    next.minute
+  );
 }
 
-function getFixtureKickoffTime(fixture) {
-  if (Number.isFinite(fixture?.timestamp)) {
-    return Number(fixture.timestamp) * 1000;
-  }
+function createWorldCupRefreshDate(year, month, day, hour, minute) {
+  return new Date(Date.UTC(year, month, day, hour, minute, 0, 0) - WORLD_CUP_REFRESH_TIMEZONE_OFFSET_MS);
+}
 
-  const parsed = new Date(fixture?.date);
-  return Number.isNaN(parsed.getTime()) ? Number.NaN : parsed.getTime();
+function formatWorldCupRefreshDate(date) {
+  return `${new Date(date.getTime() + WORLD_CUP_REFRESH_TIMEZONE_OFFSET_MS).toISOString().replace(".000Z", "")} ${WORLD_CUP_REFRESH_TIMEZONE}`;
 }
 
 function clampRefreshDelay(delayMs) {
