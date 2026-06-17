@@ -102,15 +102,24 @@ async function fetchLiveWorldCupBase({ apiKey, timezone }) {
   const leagueId = leagueEntry.league.id;
   const seasonCoverage = leagueEntry.season.coverage ?? createSportsDbCoverage();
 
-  const [standingsResult, fixturesResult] = await Promise.all([
+  const [standingsResult, fixturesResult, scheduleTemplate] = await Promise.all([
     optionalApiRequest("lookuptable.php", { l: leagueId, s: String(WORLD_CUP_SEASON) }, apiKey),
-    optionalApiRequest("eventsseason.php", { id: leagueId, s: String(WORLD_CUP_SEASON) }, apiKey)
+    optionalApiRequest("eventsseason.php", { id: leagueId, s: String(WORLD_CUP_SEASON) }, apiKey),
+    fetchOpenFootballWorldCup2026()
   ]);
 
   const fallbackWarnings = [];
-  const scheduleTemplate = await fetchOpenFootballWorldCup2026();
+  const dailyFixturesResult = await fetchSportsDbDailyFixtures({
+    apiKey,
+    leagueId,
+    templateFixtures: scheduleTemplate.fixtures
+  });
   const sportsDbTeamLookup = new Map(LOCAL_COUNTRY_TEAM_LOOKUP);
-  const sportsDbFixtures = extractApiRows(fixturesResult)
+  const sportsDbFixtureRows = mergeApiRowsById([
+    ...extractApiRows(fixturesResult),
+    ...dailyFixturesResult.rows
+  ]);
+  const sportsDbFixtures = sportsDbFixtureRows
     .map((fixture) => normalizeSportsDbFixture(fixture, sportsDbTeamLookup, timezone))
     .filter(Boolean);
 
@@ -131,7 +140,13 @@ async function fetchLiveWorldCupBase({ apiKey, timezone }) {
 
   if (sportsDbFixtures.length < normalizedFixtures.length) {
     fallbackWarnings.push(
-      `TheSportsDB free tier returned ${sportsDbFixtures.length} World Cup 2026 event(s), so the remaining calendar fixtures are filled from the public World Cup 2026 schedule template.`
+      `TheSportsDB returned ${sportsDbFixtures.length} World Cup 2026 event(s), so the remaining calendar fixtures are filled from the public World Cup 2026 schedule template.`
+    );
+  }
+
+  if (dailyFixturesResult.dateKeys.length) {
+    fallbackWarnings.push(
+      `TheSportsDB daily fixture feed was checked for ${dailyFixturesResult.dateKeys.length} schedule date(s) to supplement season results.`
     );
   }
 
@@ -267,6 +282,66 @@ async function optionalApiRequest(endpoint, params, apiKey) {
   } catch {
     return { response: [] };
   }
+}
+
+async function fetchSportsDbDailyFixtures({ apiKey, leagueId, templateFixtures, now = new Date() }) {
+  const dateKeys = getSportsDbDailyFixtureDateKeys(templateFixtures, now);
+  const responses = await mapWithConcurrency(
+    dateKeys,
+    EXTERNAL_FETCH_CONCURRENCY,
+    (dateKey) => optionalApiRequest("eventsday.php", { d: dateKey, l: leagueId }, apiKey)
+  );
+
+  return {
+    dateKeys,
+    rows: responses.flatMap((response) => extractApiRows(response))
+  };
+}
+
+function getSportsDbDailyFixtureDateKeys(fixtures = [], now = new Date()) {
+  const todayEnd = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 2);
+  const keys = new Set();
+
+  for (const fixture of fixtures) {
+    const timestampMs = getFixtureTimestampMs(fixture);
+
+    if (!Number.isFinite(timestampMs) || timestampMs >= todayEnd) {
+      continue;
+    }
+
+    keys.add(formatUtcDateKey(new Date(timestampMs)));
+  }
+
+  return [...keys].sort();
+}
+
+function getFixtureTimestampMs(fixture) {
+  if (Number.isFinite(Number(fixture?.timestamp))) {
+    return Number(fixture.timestamp) * 1000;
+  }
+
+  const parsed = Date.parse(fixture?.date || "");
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function formatUtcDateKey(date) {
+  return [
+    date.getUTCFullYear(),
+    String(date.getUTCMonth() + 1).padStart(2, "0"),
+    String(date.getUTCDate()).padStart(2, "0")
+  ].join("-");
+}
+
+function mergeApiRowsById(rows) {
+  const merged = new Map();
+
+  for (const row of rows) {
+    const id = firstDefined(row?.idEvent, row?.id, row?.eventId);
+    const key = id == null ? `row:${merged.size}` : `id:${id}`;
+    merged.set(key, row);
+  }
+
+  return [...merged.values()];
 }
 
 function createSportsDbCoverage() {
@@ -1048,6 +1123,12 @@ function normalizeFixtureStatus(fixture) {
 }
 
 function normalizeStatusShort(status) {
+  const raw = String(status || "").trim().toUpperCase();
+
+  if (["NS", "TBD", "FT", "AET", "PEN", "PST", "CANC", "HT", "1H", "2H", "ET", "BT", "SUSP", "INT", "AWD", "WO"].includes(raw)) {
+    return raw;
+  }
+
   const label = normalizeLookupKey(status);
 
   if (!label || label.includes("not started") || label.includes("scheduled")) {
