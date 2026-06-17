@@ -668,7 +668,8 @@ function normalizeFixture(fixture, teamLookup, venueLookup, timezone = "UTC") {
       away: awayTeam
     },
     goals: normalizeFixtureGoals(fixture),
-    score: normalizeFixtureScore(fixture)
+    score: normalizeFixtureScore(fixture),
+    details: normalizeFixtureDetails(fixture)
   };
 }
 
@@ -731,7 +732,8 @@ function normalizeSportsDbFixture(event, teamLookup, timezone = "UTC") {
       },
       extratime: { home: null, away: null },
       penalty: { home: null, away: null }
-    }
+    },
+    details: normalizeSportsDbEventDetails(event, homeTeam, awayTeam)
   };
 }
 
@@ -758,6 +760,106 @@ function normalizeSportsDbStatus(event) {
   };
 }
 
+function normalizeSportsDbEventDetails(event, homeTeam, awayTeam) {
+  return {
+    scorers: [
+      ...parseSportsDbDetailList(
+        firstDefined(event?.strHomeGoalDetails, event?.strHomeGoalScorers, event?.strHomeGoals),
+        homeTeam
+      ),
+      ...parseSportsDbDetailList(
+        firstDefined(event?.strAwayGoalDetails, event?.strAwayGoalScorers, event?.strAwayGoals),
+        awayTeam
+      )
+    ],
+    cards: [
+      ...parseSportsDbDetailList(
+        firstDefined(event?.strHomeYellowCards, event?.strHomeYellowCardDetails),
+        homeTeam,
+        "Yellow"
+      ),
+      ...parseSportsDbDetailList(
+        firstDefined(event?.strAwayYellowCards, event?.strAwayYellowCardDetails),
+        awayTeam,
+        "Yellow"
+      ),
+      ...parseSportsDbDetailList(
+        firstDefined(event?.strHomeRedCards, event?.strHomeRedCardDetails),
+        homeTeam,
+        "Red"
+      ),
+      ...parseSportsDbDetailList(
+        firstDefined(event?.strAwayRedCards, event?.strAwayRedCardDetails),
+        awayTeam,
+        "Red"
+      )
+    ]
+  };
+}
+
+function parseSportsDbDetailList(value, team, type = "") {
+  return String(value || "")
+    .split(/[;\n|]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => ({
+      team: createDetailTeam(team),
+      label: entry,
+      minute: null,
+      type
+    }));
+}
+
+function normalizeFixtureDetails(fixture) {
+  const events = Array.isArray(fixture?.events) ? fixture.events : [];
+
+  return {
+    scorers: events
+      .filter((event) => String(event?.type || event?.detail || "").toLowerCase().includes("goal"))
+      .map((event) => normalizeFixtureEventDetail(event))
+      .filter(Boolean),
+    cards: events
+      .filter((event) => String(event?.type || event?.detail || "").toLowerCase().includes("card"))
+      .map((event) => normalizeFixtureEventDetail(event))
+      .filter(Boolean)
+  };
+}
+
+function normalizeFixtureEventDetail(event) {
+  const label = firstDefined(
+    event?.player?.name,
+    event?.playerName,
+    event?.player,
+    event?.label,
+    event?.detail,
+    null
+  );
+
+  if (!label) {
+    return null;
+  }
+
+  return {
+    team: createDetailTeam(event?.team),
+    label,
+    minute: firstDefined(event?.time?.elapsed, event?.minute, event?.elapsed, null),
+    type: firstDefined(event?.detail, event?.type, "")
+  };
+}
+
+function createDetailTeam(team) {
+  if (!team) {
+    return null;
+  }
+
+  return {
+    id: team.id ?? null,
+    name: team.name ?? null,
+    code: team.code ?? team.abbreviation ?? team.short ?? null,
+    short: team.short ?? team.abbreviation ?? team.code ?? null
+  };
+}
+
 function mergeSportsDbFixtures(templateFixtures, sportsDbFixtures, teamLookup) {
   const sportsDbFixtureByMatch = new Map(
     sportsDbFixtures.map((fixture) => [createFixtureMatchKey(fixture), fixture])
@@ -781,7 +883,8 @@ function mergeSportsDbFixtures(templateFixtures, sportsDbFixtures, teamLookup) {
               ...sportsDbFixture.venue
             },
             goals: sportsDbFixture.goals,
-            score: sportsDbFixture.score
+            score: sportsDbFixture.score,
+            details: sportsDbFixture.details
           }
         : {}),
       teams: {
@@ -860,7 +963,8 @@ function normalizeApiFootballFixture(fixture, teamLookup, venueLookup) {
       home: fixture.goals?.home ?? null,
       away: fixture.goals?.away ?? null
     },
-    score: fixture.score ?? null
+    score: fixture.score ?? null,
+    details: normalizeFixtureDetails(fixture)
   };
 }
 

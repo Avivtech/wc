@@ -1715,10 +1715,104 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 
 .third-place-grid,
 .playoff-grid,
+.last-games-feed,
 .fixtures-feed,
 .rounds-feed {
 	display: grid;
 	gap: 0.8rem;
+}
+
+.last-games-table {
+	display: grid;
+	gap: 0.5rem;
+	min-width: 0;
+}
+
+.last-games-header,
+.last-game-row {
+	display: grid;
+	grid-template-columns: minmax(15rem, 1.2fr) minmax(5rem, 0.35fr) minmax(13rem, 1fr) minmax(12rem, 0.9fr);
+	gap: 0.8rem;
+	align-items: center;
+}
+
+.last-games-header {
+	padding: 0 0.8rem 0.25rem;
+	color: var(--muted);
+	font-size: 0.76rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.last-game-row {
+	min-height: 4.4rem;
+	padding: 0.75rem 0.8rem;
+	border: 1px solid var(--mode-surface-border);
+	border-radius: 8px;
+	background: var(--mode-surface-panel-soft);
+}
+
+.last-game-teams {
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+	flex-wrap: wrap;
+	min-width: 0;
+}
+
+.last-game-team {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	min-width: 0;
+	font-weight: 700;
+}
+
+.last-game-team-code {
+	font-size: 0.92rem;
+	letter-spacing: 0.04em;
+}
+
+.last-game-versus,
+.last-game-empty-detail,
+.last-game-meta {
+	color: var(--muted);
+}
+
+.last-game-meta {
+	flex-basis: 100%;
+	font-size: 0.78rem;
+}
+
+.last-game-score {
+	color: var(--mode-score-color);
+	font-family: "Bebas Neue", sans-serif;
+	font-size: 1.7rem;
+	line-height: 1;
+	letter-spacing: 0.04em;
+}
+
+.last-game-detail {
+	min-width: 0;
+	color: var(--text);
+	font-size: 0.88rem;
+	line-height: 1.35;
+}
+
+.last-game-detail-list {
+	display: grid;
+	gap: 0.22rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.last-games-skeleton {
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+	padding: 0;
 }
 
 .calendar-load-state {
@@ -2695,6 +2789,38 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 
 	.calendar-team-code {
 		display: none;
+	}
+
+	.last-games-header {
+		display: none;
+	}
+
+	.last-game-row {
+		grid-template-columns: minmax(0, 1fr) auto;
+		grid-template-areas:
+			"teams score"
+			"scorers scorers"
+			"cards cards";
+		align-items: start;
+		gap: 0.65rem;
+	}
+
+	.last-game-teams {
+		grid-area: teams;
+	}
+
+	.last-game-score {
+		grid-area: score;
+		justify-self: end;
+		font-size: 1.55rem;
+	}
+
+	.last-game-detail:nth-child(3) {
+		grid-area: scorers;
+	}
+
+	.last-game-detail:nth-child(4) {
+		grid-area: cards;
 	}
 
 	.team-row {

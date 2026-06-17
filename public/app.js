@@ -75,9 +75,12 @@ const TRANSLATIONS = {
 		genericCouldNotSubmitPicks: "Could not submit your picks right now.",
 		genericCouldNotScorePicks: "Could not score the current picks.",
 		emptyGroups: "Load data to rank the groups.",
+		emptyLastGames: "No completed games are available yet.",
 		emptyThirdPlace: "Third-place ranking will appear here.",
 		emptyPlayoffs: "Projected playoff slots will appear here.",
 		emptyFixtures: "Fixtures will appear here.",
+		lastGamesNoScorers: "Scorers not available",
+		lastGamesNoCards: "Cards not available",
 		countdownLoading: "Loading match time...",
 		countdownNoFixture: "The first match time is not available yet.",
 		countdownStarted: "The first match has started.",
@@ -406,6 +409,7 @@ const elements = {
 	homeTeamPaneMy: document.getElementById("home-team-pane-my"),
 	groupsGridLive: document.getElementById("groups-grid-live"),
 	groupsGridMy: document.getElementById("groups-grid-my"),
+	lastGamesFeed: document.getElementById("last-games-feed"),
 	thirdPlaceHeadLive: document.getElementById("third-place-head-live"),
 	thirdPlaceHeadMy: document.getElementById("third-place-head-my"),
 	thirdPlaceListLive: document.getElementById("third-place-list-live"),
@@ -1687,6 +1691,7 @@ function renderSectionTitleMarkup(title) {
 
 function renderInteractiveViews() {
 	renderHomeTeam();
+	renderLastGames();
 	renderGroups();
 	renderThirdPlace();
 	renderPlayoffBoard();
@@ -2618,6 +2623,146 @@ function renderFixtures() {
       ${renderCalendarMonth(activeMonth, false)}
     </div>
   `;
+}
+
+function renderLastGames() {
+	if (!elements.lastGamesFeed) {
+		return;
+	}
+
+	if (!state.worldCup) {
+		elements.lastGamesFeed.innerHTML = state.loading ? renderLastGamesSkeleton() : emptyState(t("emptyLastGames"));
+		return;
+	}
+
+	const fixtures = buildLastPlayedFixtures();
+
+	if (!fixtures.length) {
+		elements.lastGamesFeed.innerHTML = emptyState(t("emptyLastGames"));
+		return;
+	}
+
+	elements.lastGamesFeed.innerHTML = `
+		<div class="last-games-table" role="table" aria-label="Last 5 games played">
+			<div class="last-games-header" role="row">
+				<span role="columnheader">Teams</span>
+				<span role="columnheader">Score</span>
+				<span role="columnheader">Scorers</span>
+				<span role="columnheader">Cards</span>
+			</div>
+			${fixtures.map(renderLastGameRow).join("")}
+		</div>
+	`;
+}
+
+function buildLastPlayedFixtures() {
+	return [...getLiveFixtures()]
+		.filter((fixture) => isCompletedFixtureStatus(fixture?.status?.short))
+		.filter((fixture) => hasFixtureDisplayScore(fixture))
+		.filter((fixture) => !Number.isNaN(getFixtureDate(fixture).getTime()))
+		.sort((left, right) => getFixtureDate(right).getTime() - getFixtureDate(left).getTime())
+		.slice(0, 5);
+}
+
+function renderLastGameRow(fixture) {
+	return `
+		<article class="last-game-row" role="row">
+			<div class="last-game-teams" role="cell">
+				${renderLastGameTeam(fixture.teams?.home)}
+				<span class="last-game-versus">${escapeHtml(t("calendarVersus"))}</span>
+				${renderLastGameTeam(fixture.teams?.away)}
+				<span class="last-game-meta">${escapeHtml(formatLastGameMeta(fixture))}</span>
+			</div>
+			<div class="last-game-score" role="cell">${escapeHtml(formatFixtureScore(fixture))}</div>
+			<div class="last-game-detail" role="cell">${renderFixtureDetailList(getFixtureScorers(fixture), t("lastGamesNoScorers"))}</div>
+			<div class="last-game-detail" role="cell">${renderFixtureDetailList(getFixtureCards(fixture), t("lastGamesNoCards"))}</div>
+		</article>
+	`;
+}
+
+function renderLastGameTeam(team) {
+	if (!team) {
+		return `<span class="last-game-team">${escapeHtml(t("tbd"))}</span>`;
+	}
+
+	const tooltip = getTeamDisplayName(team);
+
+	return `
+		<span class="last-game-team team-tooltip" data-tooltip="${escapeHtml(tooltip)}" aria-label="${escapeHtml(tooltip)}">
+			${renderTeamLogoContent(team)}
+			${renderTeamCodeContent(team, "last-game-team-code")}
+		</span>
+	`;
+}
+
+function formatLastGameMeta(fixture) {
+	const date = getFixtureDate(fixture);
+	const dateLabel = Number.isNaN(date.getTime()) ? "" : formatDate(date);
+	const stageLabel = formatStageShortLabel(fixture.stage);
+	return [dateLabel, stageLabel].filter(Boolean).join(" / ");
+}
+
+function hasFixtureDisplayScore(fixture) {
+	return Number.isFinite(getResolvedFixtureScore(fixture, "home")) && Number.isFinite(getResolvedFixtureScore(fixture, "away"));
+}
+
+function formatFixtureScore(fixture) {
+	const homeGoals = getResolvedFixtureScore(fixture, "home");
+	const awayGoals = getResolvedFixtureScore(fixture, "away");
+
+	if (!Number.isFinite(homeGoals) || !Number.isFinite(awayGoals)) {
+		return "-";
+	}
+
+	return `${homeGoals}-${awayGoals}`;
+}
+
+function getFixtureScorers(fixture) {
+	return normalizeFixtureDetailItems(fixture?.details?.scorers);
+}
+
+function getFixtureCards(fixture) {
+	return normalizeFixtureDetailItems(fixture?.details?.cards);
+}
+
+function normalizeFixtureDetailItems(items) {
+	if (!Array.isArray(items)) {
+		return [];
+	}
+
+	return items
+		.map((item) => {
+			if (typeof item === "string") {
+				return { label: item.trim() };
+			}
+
+			return {
+				team: item?.team?.code || item?.team?.short || item?.team?.name || "",
+				label: String(item?.label || item?.player || item?.name || "").trim(),
+				minute: item?.minute ?? "",
+				type: item?.type || "",
+			};
+		})
+		.filter((item) => item.label);
+}
+
+function renderFixtureDetailList(items, emptyMessage) {
+	if (!items.length) {
+		return `<span class="last-game-empty-detail">${escapeHtml(emptyMessage)}</span>`;
+	}
+
+	return `
+		<ul class="last-game-detail-list">
+			${items.map(renderFixtureDetailItem).join("")}
+		</ul>
+	`;
+}
+
+function renderFixtureDetailItem(item) {
+	const prefix = item.team ? `${item.team}: ` : "";
+	const minute = item.minute !== "" && item.minute !== null && item.minute !== undefined ? ` ${item.minute}'` : "";
+	const type = item.type ? ` (${item.type})` : "";
+	return `<li>${escapeHtml(`${prefix}${item.label}${minute}${type}`)}</li>`;
 }
 
 function renderCalendarTimezoneControl() {
@@ -6855,6 +7000,35 @@ function renderFixturesSkeleton() {
 				`,
 				).join("")}
 			</div>
+		</div>
+	`;
+}
+
+function renderLastGamesSkeleton() {
+	return `
+		<div class="last-games-table last-games-skeleton skeleton-card" aria-hidden="true">
+			<div class="last-games-header">
+				<span class="skeleton-line skeleton-line-medium"></span>
+				<span class="skeleton-line skeleton-line-short"></span>
+				<span class="skeleton-line skeleton-line-medium"></span>
+				<span class="skeleton-line skeleton-line-medium"></span>
+			</div>
+			${Array.from(
+				{ length: 5 },
+				(_entry, index) => `
+				<div class="last-game-row">
+					<div class="last-game-teams">
+						<span class="team-mark team-mark-placeholder">
+							<span class="team-logo-fallback team-logo-placeholder"></span>
+						</span>
+						<span class="skeleton-line ${index % 2 ? "skeleton-line-medium" : "skeleton-line-long"}"></span>
+					</div>
+					<span class="skeleton-line skeleton-line-short"></span>
+					<span class="skeleton-line skeleton-line-medium"></span>
+					<span class="skeleton-line skeleton-line-medium"></span>
+				</div>
+			`,
+			).join("")}
 		</div>
 	`;
 }
