@@ -1738,6 +1738,8 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 	display: grid;
 	gap: 0.5rem;
 	min-width: 0;
+	max-height: 360px;
+	overflow-y: auto;
 }
 
 .last-games-header,
