@@ -485,6 +485,18 @@ html[dir="rtl"] #overall-score-card.is-actions-hidden {
 	margin-top: 1.1rem;
 }
 
+.hero-action-status {
+	color: var(--muted);
+	font-size: 0.9rem;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	min-height: 1.35rem;
+}
+
+.hero-actions .button {
+	min-height: 2.5rem;
+}
+
 html[dir="rtl"] .hero-copy::after {
 	inset: auto auto -15% -5%;
 	transform: rotate(-16deg);

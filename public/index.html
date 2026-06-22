@@ -74,6 +74,10 @@
         <p class="eyebrow">World Cup 2026</p>
         <h1>Live tournament results</h1>
         <p class="panel-note">Group tables, playoff bracket, and calendar from the current tournament feed.</p>
+        <div class="hero-actions">
+          <button id="update-now-button" class="button primary" type="button">Update now</button>
+          <span id="update-now-status" class="hero-action-status" aria-live="polite"></span>
+        </div>
       </div>
     </header>
 
@@ -83,7 +87,7 @@
       <section class="section-block">
         <div class="section-heading">
           <p class="eyebrow">Recent</p>
-          <h2>Last 5 Games Played</h2>
+          <h2>Last 10 Games Played</h2>
           <p class="section-copy">Completed matches from the current tournament feed.</p>
         </div>
         <div id="last-games-feed" class="last-games-feed"></div>

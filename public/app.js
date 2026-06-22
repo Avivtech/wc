@@ -4,6 +4,7 @@ const APP_LOCALE = "en";
 const APP_INTL_LOCALE = "en-US";
 const DEV_PICKS_QUERY_PARAM = "devPicks";
 const DEV_RESULTS_QUERY_PARAM = "devResults";
+const RECENT_GAMES_LIMIT = 10;
 const HOME_TEAM_LOCK_FALLBACK_AT = new Date("2026-06-11T19:00:00.000Z");
 const DEV_GROUP_ORDER_PATTERNS = [
 	[1, 0, 2, 3],
@@ -114,6 +115,10 @@ const TRANSLATIONS = {
 		myPredictions: "My Predictions",
 		heroCtaPredict: "Predict",
 		heroCtaLive: "Live",
+		updateNow: "Update now",
+		updateNowRefreshing: "Updating...",
+		updateNowUpdated: "Updated {date}",
+		updateNowFailed: "Could not update right now.",
 		predictionsHeadline: "My Predictions",
 		stageGroup: "Group Stage",
 		stageRound32: "Round of 32",
@@ -351,6 +356,8 @@ const state = {
 	overallScore: null,
 	overallBonusPoints: null,
 	saveStatus: "",
+	updateNowPending: false,
+	updateNowStatus: "",
 	loading: true,
 };
 
@@ -429,6 +436,8 @@ const elements = {
 	playoffsSectionTitle: document.getElementById("playoffs-section-title"),
 	playoffsSectionCopy: document.getElementById("playoffs-section-copy"),
 	warningStrip: document.getElementById("warning-strip"),
+	updateNowButton: document.getElementById("update-now-button"),
+	updateNowStatus: document.getElementById("update-now-status"),
 	countdownStatus: document.getElementById("countdown-status"),
 	countdownDays: document.getElementById("countdown-days"),
 	countdownHours: document.getElementById("countdown-hours"),
@@ -544,6 +553,7 @@ function bindEvents() {
 	elements.signOutButton?.addEventListener("click", handleSignOut);
 	elements.overallScoreSubmitButton?.addEventListener("click", handleOverallSubmitClick);
 	elements.predictButton?.addEventListener("click", handlePredictClick);
+	elements.updateNowButton?.addEventListener("click", handleUpdateNowClick);
 	elements.displayNameInput?.addEventListener("input", handleAuthFieldInput);
 	elements.emailInput?.addEventListener("input", handleAuthFieldInput);
 	elements.passwordInput?.addEventListener("input", handleAuthFieldInput);
@@ -1515,6 +1525,92 @@ async function loadWorldCup(refresh = false) {
 	}
 }
 
+async function handleUpdateNowClick() {
+	if (state.updateNowPending) {
+		return;
+	}
+
+	state.updateNowPending = true;
+	state.updateNowStatus = t("updateNowRefreshing");
+	renderUpdateNowState();
+
+	const previousCalendarLoaded = state.calendarLoaded;
+	const previousCalendarMonthIndex = state.calendarMonthIndex;
+
+	try {
+		const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Jerusalem";
+		const data = await fetchWorldCupData(new URLSearchParams({ refresh: "true", timezone }));
+		const previousGroupOrder = getGroupTeamOrder(state.groups);
+		const previousThirdPlaceOrder = state.thirdPlaceRanking.map((team) => team.id);
+		const previousSelectedThirdTeamIds = [...state.selectedThirdTeamIds];
+		const previousHomeTeamId = state.homeTeamId;
+
+		state.worldCup = data;
+		state.groups = reconcilePredictionGroupsWithFreshWorldCup(data.groups || [], previousGroupOrder);
+		state.thirdPlaceRanking = deriveThirdPlaceRanking(state.groups, previousThirdPlaceOrder);
+		state.selectedThirdTeamIds = chooseThirdPlaceSelections(previousSelectedThirdTeamIds);
+		setHomeTeamId(findTournamentTeamById(previousHomeTeamId) ? previousHomeTeamId : "");
+		state.devLiveWorldCup = isUsingDevLiveResults() ? buildDevLiveWorldCup() : null;
+		state.calendarLoaded = previousCalendarLoaded;
+		state.calendarMonthIndex = previousCalendarMonthIndex;
+		state.updateNowStatus = t("updateNowUpdated", { date: formatDateTime(data?.source?.fetchedAt || new Date()) });
+	} catch (_error) {
+		state.updateNowStatus = t("updateNowFailed");
+	} finally {
+		state.updateNowPending = false;
+		render();
+		void loadSelectedHomeTeamData();
+	}
+}
+
+function renderUpdateNowState() {
+	if (elements.updateNowButton) {
+		elements.updateNowButton.textContent = state.updateNowPending ? t("updateNowRefreshing") : t("updateNow");
+		elements.updateNowButton.disabled = state.updateNowPending || state.loading;
+		elements.updateNowButton.setAttribute("aria-busy", state.updateNowPending ? "true" : "false");
+	}
+
+	if (elements.updateNowStatus) {
+		elements.updateNowStatus.textContent = state.updateNowStatus || "";
+	}
+}
+
+function getGroupTeamOrder(groups = []) {
+	return new Map(
+		(groups || []).map((group) => [
+			group.letter,
+			(group.teams || []).map((team) => getTeamIdKey(team.id)).filter(Boolean),
+		]),
+	);
+}
+
+function reconcilePredictionGroupsWithFreshWorldCup(freshGroups = [], previousGroupOrder = new Map()) {
+	return cloneGroups(freshGroups).map((group) => {
+		const preferredOrder = previousGroupOrder.get(group.letter) || [];
+		const orderMap = new Map(preferredOrder.map((teamId, index) => [teamId, index]));
+
+		group.teams = [...group.teams].sort((left, right) => {
+			const leftOrder = orderMap.has(getTeamIdKey(left.id)) ? orderMap.get(getTeamIdKey(left.id)) : Number.POSITIVE_INFINITY;
+			const rightOrder = orderMap.has(getTeamIdKey(right.id)) ? orderMap.get(getTeamIdKey(right.id)) : Number.POSITIVE_INFINITY;
+
+			if (leftOrder !== rightOrder) {
+				return leftOrder - rightOrder;
+			}
+
+			return (left.standing?.rank ?? Number.POSITIVE_INFINITY) - (right.standing?.rank ?? Number.POSITIVE_INFINITY);
+		});
+
+		group.teams.forEach((team, index) => {
+			team.standing = {
+				...(team.standing || {}),
+				rank: index + 1,
+			};
+		});
+
+		return group;
+	});
+}
+
 async function fetchWorldCupData(query) {
 	const queryString = query?.toString?.() || "";
 	const url = queryString ? `${API_ROUTES.worldCup}?${queryString}` : API_ROUTES.worldCup;
@@ -1559,6 +1655,7 @@ function render() {
 	hideFloatingTooltip();
 	document.body.dataset.viewMode = state.viewMode;
 	applyHomeTeamTheme();
+	renderUpdateNowState();
 	renderWarnings();
 	renderCountdown();
 	renderViewModeSwitch();
@@ -2643,7 +2740,7 @@ function renderLastGames() {
 	}
 
 	elements.lastGamesFeed.innerHTML = `
-		<div class="last-games-table" role="table" aria-label="Last 5 games played">
+		<div class="last-games-table" role="table" aria-label="Last 10 games played">
 			<div class="last-games-header" role="row">
 				<span role="columnheader">Teams</span>
 				<span role="columnheader">Score</span>
@@ -2661,7 +2758,7 @@ function buildLastPlayedFixtures() {
 		.filter((fixture) => hasFixtureDisplayScore(fixture))
 		.filter((fixture) => !Number.isNaN(getFixtureDate(fixture).getTime()))
 		.sort((left, right) => getFixtureDate(right).getTime() - getFixtureDate(left).getTime())
-		.slice(0, 5);
+		.slice(0, RECENT_GAMES_LIMIT);
 }
 
 function renderLastGameRow(fixture) {
