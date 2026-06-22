@@ -959,7 +959,7 @@ function mergeSportsDbFixtures(templateFixtures, sportsDbFixtures, teamLookup) {
             },
             goals: sportsDbFixture.goals,
             score: sportsDbFixture.score,
-            details: sportsDbFixture.details
+            details: mergeFixtureDetails(fixture.details, sportsDbFixture.details)
           }
         : {}),
       teams: {
@@ -968,6 +968,13 @@ function mergeSportsDbFixtures(templateFixtures, sportsDbFixtures, teamLookup) {
       }
     };
   });
+}
+
+function mergeFixtureDetails(fallbackDetails = {}, providerDetails = {}) {
+  return {
+    scorers: providerDetails?.scorers?.length ? providerDetails.scorers : fallbackDetails?.scorers ?? [],
+    cards: providerDetails?.cards?.length ? providerDetails.cards : fallbackDetails?.cards ?? []
+  };
 }
 
 function mergeTeamDetails(baseTeam, providerTeam) {
@@ -1675,6 +1682,9 @@ function normalizeOpenFootballFixture(match, index, teamsByName) {
   const away = getOpenFootballTeam(match.team2, teamsByName);
   const date = parseOpenFootballDate(match.date, match.time);
   const groupLetter = extractGroupLetter(match.group);
+  const fulltimeScore = normalizeOpenFootballScore(match?.score?.ft);
+  const halftimeScore = normalizeOpenFootballScore(match?.score?.ht);
+  const hasFulltimeScore = Number.isFinite(fulltimeScore.home) && Number.isFinite(fulltimeScore.away);
 
   return {
     id: `template-group-${index + 1}`,
@@ -1685,11 +1695,17 @@ function normalizeOpenFootballFixture(match, index, teamsByName) {
     stage: "Group Stage",
     round: match.group ?? match.round ?? "Group Stage",
     groupLetter,
-    status: {
-      long: "Not Started",
-      short: "NS",
-      elapsed: null
-    },
+    status: hasFulltimeScore
+      ? {
+          long: "Match Finished",
+          short: "FT",
+          elapsed: null
+        }
+      : {
+          long: "Not Started",
+          short: "NS",
+          elapsed: null
+        },
     venue: {
       id: null,
       name: match.ground ?? "TBD",
@@ -1703,16 +1719,70 @@ function normalizeOpenFootballFixture(match, index, teamsByName) {
       away
     },
     goals: {
-      home: null,
-      away: null
+      home: fulltimeScore.home,
+      away: fulltimeScore.away
     },
     score: {
-      halftime: { home: null, away: null },
-      fulltime: { home: null, away: null },
+      halftime: halftimeScore,
+      fulltime: fulltimeScore,
       extratime: { home: null, away: null },
       penalty: { home: null, away: null }
-    }
+    },
+    details: normalizeOpenFootballDetails(match, home, away)
   };
+}
+
+function normalizeOpenFootballScore(score) {
+  if (!Array.isArray(score)) {
+    return { home: null, away: null };
+  }
+
+  return {
+    home: toNumber(score[0]),
+    away: toNumber(score[1])
+  };
+}
+
+function normalizeOpenFootballDetails(match, homeTeam, awayTeam) {
+  return {
+    scorers: [
+      ...normalizeOpenFootballGoalDetails(match?.goals1, homeTeam),
+      ...normalizeOpenFootballGoalDetails(match?.goals2, awayTeam)
+    ],
+    cards: []
+  };
+}
+
+function normalizeOpenFootballGoalDetails(goals, team) {
+  if (!Array.isArray(goals)) {
+    return [];
+  }
+
+  return goals
+    .map((goal) => {
+      if (typeof goal === "string") {
+        return {
+          team: createDetailTeam(team),
+          label: goal,
+          minute: null,
+          type: ""
+        };
+      }
+
+      const label = firstDefined(goal?.name, goal?.player, goal?.label, null);
+
+      if (!label) {
+        return null;
+      }
+
+      return {
+        team: createDetailTeam(team),
+        label,
+        minute: firstDefined(goal?.minute, goal?.time, null),
+        type: goal?.penalty ? "Penalty" : goal?.ownGoal ? "Own goal" : ""
+      };
+    })
+    .filter(Boolean);
 }
 
 function buildOpenFootballGroups(matches, teamsByName, fixtures) {
