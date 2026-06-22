@@ -1808,8 +1808,8 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 .last-game-detail {
 	min-width: 0;
 	color: var(--text);
-	font-size: 0.88rem;
-	line-height: 1.35;
+	font-size: 0.75rem;
+	line-height: 1;
 }
 
 .last-game-detail-list {
