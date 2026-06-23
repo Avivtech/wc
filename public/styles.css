@@ -1745,7 +1745,7 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 .last-games-header,
 .last-game-row {
 	display: grid;
-	grid-template-columns: minmax(15rem, 1.2fr) minmax(5rem, 0.35fr) minmax(13rem, 1fr) minmax(12rem, 0.9fr);
+	grid-template-columns: minmax(5rem, 0.5fr) minmax(5rem, 0.5fr) minmax(13rem, 1fr) minmax(12rem, 0.9fr);
 	gap: 0.8rem;
 	align-items: center;
 }
@@ -1815,7 +1815,8 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 }
 
 .last-game-detail-list {
-	display: grid;
+	display: flex;
+	flex-wrap: wrap;
 	gap: 0.22rem;
 	margin: 0;
 	padding: 0;
