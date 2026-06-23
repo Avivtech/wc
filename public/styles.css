@@ -1824,6 +1824,7 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 	margin: 0;
 	padding: 0;
 	list-style: none;
+	height: 100%;
 }
 
 .last-games-skeleton {
