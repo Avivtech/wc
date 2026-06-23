@@ -1812,10 +1812,13 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 	color: var(--text);
 	font-size: 0.75rem;
 	line-height: 1;
+	height: 100%;
+	overflow: hidden;
 }
 
 .last-game-detail-list {
 	display: flex;
+	flex-direction: column;
 	flex-wrap: wrap;
 	gap: 0.22rem;
 	margin: 0;
