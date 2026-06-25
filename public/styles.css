@@ -1195,6 +1195,7 @@ body.dialog-open {
 	padding: 1.5rem;
 }
 
+.groups-grid,
 .venues-grid,
 .stats-grid {
 	display: grid;
