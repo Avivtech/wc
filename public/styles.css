@@ -1195,7 +1195,6 @@ body.dialog-open {
 	padding: 1.5rem;
 }
 
-.groups-grid,
 .venues-grid,
 .stats-grid {
 	display: grid;
@@ -2733,7 +2732,6 @@ html[dir="rtl"] #groups-grid-my .team-cell-copy strong {
 }
 
 @media (max-width: 1920px) {
-	.groups-grid,
 	.home-team-grid,
 	.venues-grid,
 	.stats-grid {

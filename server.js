@@ -38,6 +38,7 @@ app.get("/api/world-cup", async (req, res) => {
       : "Asia/Jerusalem";
 
     const data = await getWorldCupData({ refresh, timezone });
+    res.set("Cache-Control", "no-store");
     res.json(data);
   } catch (error) {
     logServerError("Failed to load World Cup data.", error);
