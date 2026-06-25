@@ -2906,7 +2906,7 @@ function buildCalendarFixtures() {
 			id: `template-${match.match}`,
 			calendarKey: `template-${match.match}`,
 			date: match.date,
-			timestamp: null,
+			timestamp: match.timestamp ?? null,
 			stage: match.stage,
 			venue: { name: match.venue },
 			status: { short: "TBD" },
