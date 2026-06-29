@@ -114,7 +114,7 @@ async function fetchLiveWorldCupBase({ apiKey, timezone }) {
   const dailyFixturesResult = await fetchSportsDbDailyFixtures({
     apiKey,
     leagueId,
-    templateFixtures: scheduleTemplate.fixtures
+    templateFixtures: [...scheduleTemplate.fixtures, ...KNOCKOUT_TEMPLATE]
   });
   const sportsDbTeamLookup = new Map(LOCAL_COUNTRY_TEAM_LOOKUP);
   const sportsDbFixtureRows = mergeApiRowsById([
@@ -2718,7 +2718,7 @@ function classifyStage(round) {
     return "Round of 32";
   }
 
-  if (label.includes("round of 16") || label.includes("8th")) {
+  if (label.includes("round of 16") || label.includes("16th") || label.includes("8th")) {
     return "Round of 16";
   }
 
