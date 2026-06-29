@@ -5104,17 +5104,25 @@ function getLivePlayoffData(options = {}) {
 
 	const knockoutTemplate = getLiveWorldCup()?.playoffBoard?.knockoutTemplate || state.worldCup?.playoffBoard?.knockoutTemplate || [];
 	const liveFixtureMap = buildLiveKnockoutFixtureMap(knockoutTemplate, getLiveFixtures());
-	const liveWinnerSelections = buildLiveWinnerSelections(liveFixtureMap);
+	const liveGroups = getLiveGroups();
+	const liveThirdPlaceRanking = getLiveThirdPlaceRanking();
+	const liveSelectedThirdTeamIds = getLiveSelectedThirdTeamIds();
+	const sharedArgs = { groups: liveGroups, thirdPlaceRanking: liveThirdPlaceRanking, selectedThirdTeamIds: liveSelectedThirdTeamIds, scorePredictions: {}, liveFixtureMap, syncWinnerSelections: false };
+
+	// First pass: project teams from group standings without any winner selections.
+	// This gives us the correct team IDs for each match slot so winner advancement
+	// uses projected team IDs rather than stale/wrong IDs from the SportsDB fixture.
+	const { projectedMatches: firstPassMatches } = getProjectedPlayoffData({
+		...sharedArgs,
+		winnerSelections: {},
+		syncRenderedMatches: false,
+	});
+	const liveWinnerSelections = buildLiveWinnerSelections(liveFixtureMap, firstPassMatches);
 
 	return getProjectedPlayoffData({
 		...options,
-		groups: getLiveGroups(),
-		thirdPlaceRanking: getLiveThirdPlaceRanking(),
-		selectedThirdTeamIds: getLiveSelectedThirdTeamIds(),
+		...sharedArgs,
 		winnerSelections: liveWinnerSelections,
-		scorePredictions: {},
-		liveFixtureMap,
-		syncWinnerSelections: false,
 	});
 }
 
@@ -5203,6 +5211,12 @@ function createLiveFixtureSide(team, fallbackSide) {
 		return fallbackSide;
 	}
 
+	// If the projected side already has a resolved team from group standings,
+	// keep it — the fixture may have stale/placeholder team data.
+	if (fallbackSide?.type === "team" && fallbackSide.team?.id) {
+		return fallbackSide;
+	}
+
 	const teamKey = getTeamIdKey(team.id);
 	const fallbackGroupSlot = fallbackSide?.type === "team" && fallbackSide.team && getTeamIdKey(fallbackSide.team.id) === teamKey ? fallbackSide.groupSlot || fallbackSide.team.groupLetter || "" : team.groupLetter || "";
 
@@ -5243,12 +5257,33 @@ function buildLiveKnockoutFixtureMap(knockoutTemplate, fixtures) {
 	return fixtureMap;
 }
 
-function buildLiveWinnerSelections(liveFixtureMap) {
+function buildLiveWinnerSelections(liveFixtureMap, projectedMatches = null) {
+	const projectedMatchMap = projectedMatches ? new Map(projectedMatches.map((m) => [m.match, m])) : null;
 	return Object.fromEntries(
 		Array.from(liveFixtureMap.entries())
-			.map(([matchId, fixture]) => [String(matchId), getFixtureWinnerTeamId(fixture)])
-			.filter(([, teamId]) => teamId),
+			.flatMap(([matchId, fixture]) => {
+				if (projectedMatchMap) {
+					const projectedMatch = projectedMatchMap.get(matchId);
+					if (!projectedMatch) return [];
+					const winnerSide = getFixtureWinnerSide(fixture);
+					if (!winnerSide) return [];
+					const winnerTeam = projectedMatch[winnerSide]?.team;
+					return winnerTeam?.id ? [[String(matchId), getTeamIdKey(winnerTeam.id)]] : [];
+				}
+				const teamId = getFixtureWinnerTeamId(fixture);
+				return teamId ? [[String(matchId), teamId]] : [];
+			})
 	);
+}
+
+function getFixtureWinnerSide(fixture) {
+	if (fixture?.teams?.home?.winner === true) return "home";
+	if (fixture?.teams?.away?.winner === true) return "away";
+	if (!isCompletedFixtureStatus(fixture?.status?.short)) return null;
+	const homeScore = getResolvedFixtureScore(fixture, "home");
+	const awayScore = getResolvedFixtureScore(fixture, "away");
+	if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore) || homeScore === awayScore) return null;
+	return homeScore > awayScore ? "home" : "away";
 }
 
 function getFixtureWinnerTeamId(fixture) {
