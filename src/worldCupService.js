@@ -945,7 +945,7 @@ function mergeSportsDbFixtures(templateFixtures, sportsDbFixtures, teamLookup) {
     sportsDbFixtures.map((fixture) => [createFixtureMatchKey(fixture), fixture])
   );
 
-  return templateFixtures.map((fixture) => {
+  const mergedGroupFixtures = templateFixtures.map((fixture) => {
     const sportsDbFixture = sportsDbFixtureByMatch.get(createFixtureMatchKey(fixture));
     const home = resolveSportsDbTeam(fixture.teams.home, teamLookup);
     const away = resolveSportsDbTeam(fixture.teams.away, teamLookup);
@@ -973,6 +973,13 @@ function mergeSportsDbFixtures(templateFixtures, sportsDbFixtures, teamLookup) {
       }
     };
   });
+
+  const groupMatchKeys = new Set(mergedGroupFixtures.map(createFixtureMatchKey));
+  const knockoutFixtures = sportsDbFixtures.filter(
+    (fixture) => fixture.stage !== "Group Stage" && !groupMatchKeys.has(createFixtureMatchKey(fixture))
+  );
+
+  return [...mergedGroupFixtures, ...knockoutFixtures];
 }
 
 function mergeFixtureDetails(fallbackDetails = {}, providerDetails = {}) {
