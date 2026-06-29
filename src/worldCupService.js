@@ -975,9 +975,14 @@ function mergeSportsDbFixtures(templateFixtures, sportsDbFixtures, teamLookup) {
   });
 
   const groupMatchKeys = new Set(mergedGroupFixtures.map(createFixtureMatchKey));
-  const knockoutFixtures = sportsDbFixtures.filter(
-    (fixture) => fixture.stage !== "Group Stage" && !groupMatchKeys.has(createFixtureMatchKey(fixture))
-  );
+  const knockoutDateStageMap = new Map(KNOCKOUT_TEMPLATE.map((m) => [m.date, m.stage]));
+  const knockoutFixtures = sportsDbFixtures
+    .filter((fixture) => fixture.stage !== "Group Stage" && !groupMatchKeys.has(createFixtureMatchKey(fixture)))
+    .map((fixture) => {
+      const fixtureDate = String(fixture.date || "").slice(0, 10);
+      const templateStage = knockoutDateStageMap.get(fixtureDate);
+      return templateStage ? { ...fixture, stage: templateStage } : fixture;
+    });
 
   return [...mergedGroupFixtures, ...knockoutFixtures];
 }
