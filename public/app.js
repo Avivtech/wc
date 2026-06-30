@@ -530,6 +530,14 @@ const API_ROUTES = {
 	worldCup: "/api/world-cup",
 };
 
+// Upper bound for a single API request before the client aborts and shows an error instead of
+// waiting on the loading skeleton indefinitely. Generous enough to cover a slow cold start.
+const REQUEST_TIMEOUT_MS = 30_000;
+
+// After serving cold-start preview data, the server keeps loading real data in the background.
+// Re-fetch shortly after so the warmed cache transparently replaces the preview.
+const LOADING_PREVIEW_REFRESH_MS = 6_000;
+
 boot();
 
 async function boot() {
@@ -1500,6 +1508,8 @@ async function loadWorldCup(refresh = false) {
 		if (isUsingDevPicks()) {
 			applyDevPicksSeed();
 		}
+
+		scheduleLoadingPreviewRefresh(data);
 	} catch (error) {
 		state.worldCup = null;
 		setHomeTeamId("");
@@ -1523,6 +1533,28 @@ async function loadWorldCup(refresh = false) {
 		render();
 		void loadSelectedHomeTeamData();
 	}
+}
+
+let loadingPreviewRefreshTimer = null;
+
+// The server returns preview data tagged "loading" while a cold-start live fetch is still
+// running in the background. Schedule a single background re-fetch so the real data replaces the
+// preview without the user having to reload. A subsequent payload that is no longer "loading"
+// clears the timer, so this stops on its own once live data (or a non-loading fallback) arrives.
+function scheduleLoadingPreviewRefresh(data) {
+	if (loadingPreviewRefreshTimer) {
+		window.clearTimeout(loadingPreviewRefreshTimer);
+		loadingPreviewRefreshTimer = null;
+	}
+
+	if (data?.source?.fallbackMode !== "loading") {
+		return;
+	}
+
+	loadingPreviewRefreshTimer = window.setTimeout(() => {
+		loadingPreviewRefreshTimer = null;
+		void loadWorldCup(false);
+	}, LOADING_PREVIEW_REFRESH_MS);
 }
 
 async function handleUpdateNowClick() {
@@ -1628,9 +1660,23 @@ async function fetchTeamData(teamId) {
 	return data?.team || null;
 }
 
-async function fetchJson(input, { fallbackMessage = "Request failed." } = {}) {
-	const response = await fetch(input);
-	const data = await readJsonResponse(response);
+async function fetchJson(input, { fallbackMessage = "Request failed.", timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
+	let response;
+	let data;
+
+	// The browser's fetch has no default timeout, so a stalled response would otherwise leave
+	// the UI on its loading skeleton forever. Abort after a bounded wait and surface an error
+	// instead, so callers can show a failure state and the user can retry.
+	try {
+		response = await fetch(input, { signal: AbortSignal.timeout(timeoutMs) });
+		data = await readJsonResponse(response);
+	} catch (error) {
+		if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+			throw new Error(fallbackMessage);
+		}
+
+		throw error;
+	}
 
 	if (!response.ok) {
 		throw new Error(getResponseErrorMessage(data, fallbackMessage));
