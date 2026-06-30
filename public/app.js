@@ -5214,10 +5214,15 @@ function createLiveFixtureSide(team, fallbackSide) {
 		return fallbackSide;
 	}
 
-	// If the projected side already has a resolved team from group standings,
-	// keep it — the fixture may have stale/placeholder team data.
+	// If the projected side has a resolved team that matches the fixture team,
+	// keep the projection — it has richer metadata (groupSlot, groupLetter, etc.)
+	// and guards against stale/placeholder names in the fixture.
+	// If the teams disagree, trust the live fixture: the projection may have the
+	// wrong thirdEligible assignment while the fixture reflects reality.
 	if (fallbackSide?.type === "team" && fallbackSide.team?.id) {
-		return fallbackSide;
+		if (getTeamIdKey(fallbackSide.team.id) === getTeamIdKey(team.id)) {
+			return fallbackSide;
+		}
 	}
 
 	const teamKey = getTeamIdKey(team.id);
@@ -5268,6 +5273,27 @@ function buildLiveKnockoutFixtureMap(knockoutTemplate, fixtures, projectedMatche
 				}
 			}
 
+			// Partial team-name match: one side is thirdEligible whose projected team may be wrong
+			// (buildThirdPlaceAssignments may assign a different team than FIFA's actual seeding).
+			// Match by the non-thirdEligible side only, which is reliably derived from group standings.
+			if (!bestCandidate && projectedMatchMap) {
+				const homeIsThird = templateMatch.homeSource?.type === "thirdEligible";
+				const awayIsThird = templateMatch.awaySource?.type === "thirdEligible";
+				if (homeIsThird !== awayIsThird) {
+					const projectedMatch = projectedMatchMap.get(templateMatch.match);
+					const knownSide = homeIsThird ? "away" : "home";
+					const knownTeamName = projectedMatch?.[knownSide]?.team?.name;
+					if (knownTeamName) {
+						const knownNorm = normalizeVenueMatchValue(knownTeamName);
+						bestCandidate = allCandidates.find(({ fixture }) => {
+							const fHome = normalizeVenueMatchValue(fixture.teams?.home?.name || "");
+							const fAway = normalizeVenueMatchValue(fixture.teams?.away?.name || "");
+							return fHome === knownNorm || fAway === knownNorm;
+						}) ?? null;
+					}
+				}
+			}
+
 			// Fall back to same-day matching when teams aren't yet known (unresolved thirdEligible, future rounds).
 			if (!bestCandidate) {
 				const templateDateKey = getCalendarDateKey(getFixtureDate(templateMatch));
@@ -5302,7 +5328,14 @@ function buildLiveWinnerSelections(liveFixtureMap, projectedMatches = null) {
 					if (!projectedMatch) return [];
 					const winnerSide = getFixtureWinnerSide(fixture);
 					if (!winnerSide) return [];
-					const winnerTeam = projectedMatch[winnerSide]?.team;
+					const projectedTeam = projectedMatch[winnerSide]?.team;
+					const fixtureTeam = fixture.teams?.[winnerSide];
+					// Use the projected team if it matches the fixture team (richer metadata),
+					// otherwise trust the live fixture (projected thirdEligible may be wrong).
+					const winnerTeam =
+						projectedTeam?.id && fixtureTeam?.id && getTeamIdKey(projectedTeam.id) === getTeamIdKey(fixtureTeam.id)
+							? projectedTeam
+							: (fixtureTeam || projectedTeam);
 					return winnerTeam?.id ? [[String(matchId), getTeamIdKey(winnerTeam.id)]] : [];
 				}
 				const teamId = getFixtureWinnerTeamId(fixture);
