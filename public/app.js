@@ -5103,25 +5103,28 @@ function getLivePlayoffData(options = {}) {
 	}
 
 	const knockoutTemplate = getLiveWorldCup()?.playoffBoard?.knockoutTemplate || state.worldCup?.playoffBoard?.knockoutTemplate || [];
-	const liveFixtureMap = buildLiveKnockoutFixtureMap(knockoutTemplate, getLiveFixtures());
 	const liveGroups = getLiveGroups();
 	const liveThirdPlaceRanking = getLiveThirdPlaceRanking();
 	const liveSelectedThirdTeamIds = getLiveSelectedThirdTeamIds();
-	const sharedArgs = { groups: liveGroups, thirdPlaceRanking: liveThirdPlaceRanking, selectedThirdTeamIds: liveSelectedThirdTeamIds, scorePredictions: {}, liveFixtureMap, syncWinnerSelections: false };
+	const baseArgs = { groups: liveGroups, thirdPlaceRanking: liveThirdPlaceRanking, selectedThirdTeamIds: liveSelectedThirdTeamIds, scorePredictions: {}, syncWinnerSelections: false };
 
-	// First pass: project teams from group standings without any winner selections.
-	// This gives us the correct team IDs for each match slot so winner advancement
-	// uses projected team IDs rather than stale/wrong IDs from the SportsDB fixture.
+	// First pass: project teams with no live fixture overlay to get clean group-standings
+	// projections. We use the resulting team names to match live fixtures by team name,
+	// which is more reliable than date/venue since template venue names don't match SportsDB.
 	const { projectedMatches: firstPassMatches } = getProjectedPlayoffData({
-		...sharedArgs,
+		...baseArgs,
 		winnerSelections: {},
+		liveFixtureMap: new Map(),
 		syncRenderedMatches: false,
 	});
+
+	const liveFixtureMap = buildLiveKnockoutFixtureMap(knockoutTemplate, getLiveFixtures(), firstPassMatches);
 	const liveWinnerSelections = buildLiveWinnerSelections(liveFixtureMap, firstPassMatches);
 
 	return getProjectedPlayoffData({
 		...options,
-		...sharedArgs,
+		...baseArgs,
+		liveFixtureMap,
 		winnerSelections: liveWinnerSelections,
 	});
 }
@@ -5228,10 +5231,13 @@ function createLiveFixtureSide(team, fallbackSide) {
 	};
 }
 
-function buildLiveKnockoutFixtureMap(knockoutTemplate, fixtures) {
+function buildLiveKnockoutFixtureMap(knockoutTemplate, fixtures, projectedMatches = null) {
 	const templateStages = new Set(knockoutTemplate.map((match) => match.stage));
 	const liveKnockoutFixtures = fixtures.filter((fixture) => templateStages.has(fixture.stage));
 	const fixtureMap = new Map();
+	const projectedMatchMap = projectedMatches
+		? new Map(projectedMatches.map((m) => [m.match, m]))
+		: null;
 
 	for (const stage of templateStages) {
 		const stageTemplates = knockoutTemplate.filter((match) => match.stage === stage).sort((left, right) => getFixtureDate(left).getTime() - getFixtureDate(right).getTime() || left.match - right.match);
@@ -5242,14 +5248,43 @@ function buildLiveKnockoutFixtureMap(knockoutTemplate, fixtures) {
 				break;
 			}
 
-			const templateDateKey = getCalendarDateKey(getFixtureDate(templateMatch));
-			const sameDayCandidates = remainingFixtures.map((fixture, index) => ({ fixture, index })).filter(({ fixture }) => getCalendarDateKey(getFixtureDate(fixture)) === templateDateKey);
-			const exactVenueCandidate = sameDayCandidates.find(({ fixture }) => normalizeVenueMatchValue(fixture.venue?.name) === normalizeVenueMatchValue(templateMatch.venue));
-			const fixtureIndex = exactVenueCandidate ? exactVenueCandidate.index : sameDayCandidates.length === 1 ? sameDayCandidates[0].index : 0;
-			const [matchedFixture] = remainingFixtures.splice(fixtureIndex, 1);
+			const allCandidates = remainingFixtures.map((fixture, index) => ({ fixture, index }));
+			let bestCandidate = null;
 
-			if (matchedFixture) {
-				fixtureMap.set(templateMatch.match, matchedFixture);
+			// Prefer team-name matching when projected teams are known.
+			// Template venue names don't match SportsDB stadium names, so venue matching is unreliable.
+			if (projectedMatchMap) {
+				const projectedMatch = projectedMatchMap.get(templateMatch.match);
+				const homeTeamName = projectedMatch?.home?.team?.name;
+				const awayTeamName = projectedMatch?.away?.team?.name;
+				if (homeTeamName && awayTeamName) {
+					const homeNorm = normalizeVenueMatchValue(homeTeamName);
+					const awayNorm = normalizeVenueMatchValue(awayTeamName);
+					bestCandidate = allCandidates.find(({ fixture }) => {
+						const fHome = normalizeVenueMatchValue(fixture.teams?.home?.name || "");
+						const fAway = normalizeVenueMatchValue(fixture.teams?.away?.name || "");
+						return (fHome === homeNorm && fAway === awayNorm) || (fHome === awayNorm && fAway === homeNorm);
+					}) ?? null;
+				}
+			}
+
+			// Fall back to same-day matching when teams aren't yet known (unresolved thirdEligible, future rounds).
+			if (!bestCandidate) {
+				const templateDateKey = getCalendarDateKey(getFixtureDate(templateMatch));
+				const sameDayCandidates = allCandidates.filter(({ fixture }) => getCalendarDateKey(getFixtureDate(fixture)) === templateDateKey);
+				const exactVenueCandidate = sameDayCandidates.find(({ fixture }) => normalizeVenueMatchValue(fixture.venue?.name) === normalizeVenueMatchValue(templateMatch.venue));
+				if (exactVenueCandidate) {
+					bestCandidate = exactVenueCandidate;
+				} else if (sameDayCandidates.length === 1) {
+					bestCandidate = sameDayCandidates[0];
+				}
+			}
+
+			if (bestCandidate) {
+				const [matchedFixture] = remainingFixtures.splice(bestCandidate.index, 1);
+				if (matchedFixture) {
+					fixtureMap.set(templateMatch.match, matchedFixture);
+				}
 			}
 		}
 	}
