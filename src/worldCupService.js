@@ -127,18 +127,20 @@ async function fetchLiveWorldCupBase({ apiKey, timezone }) {
 
   const venueLookup = new Map();
 
-  const normalizedFixtures = mergeRahiminiFixtures(
-    mergeSportsDbFixtures(scheduleTemplate.fixtures, sportsDbFixtures, sportsDbTeamLookup),
-    rahiminiFixtures
-  );
+  const baseFixtures = mergeSportsDbFixtures(scheduleTemplate.fixtures, sportsDbFixtures, sportsDbTeamLookup);
   const groups = mergeSportsDbGroups({
     templateGroups: scheduleTemplate.groups,
     teamLookup: sportsDbTeamLookup,
     standingsRows: extractApiRows(standingsResult),
-    fixtures: normalizedFixtures
+    fixtures: baseFixtures
   });
+  const knockoutStubs = projectKnockoutFixtures(groups, baseFixtures, rahiminiFixtures);
+  const normalizedFixtures = mergeRahiminiFixtures(
+    [...baseFixtures, ...knockoutStubs],
+    rahiminiFixtures
+  );
 
-  if (sportsDbFixtures.length < normalizedFixtures.length) {
+  if (sportsDbFixtures.length < baseFixtures.length) {
     fallbackWarnings.push(
       `TheSportsDB returned ${sportsDbFixtures.length} World Cup 2026 event(s), so the remaining calendar fixtures are filled from the public World Cup 2026 schedule template.`
     );
@@ -2469,6 +2471,93 @@ function buildThirdPlaceRanking(groups) {
     .map((group) => group.teams[2])
     .filter(Boolean)
     .sort(compareTeamsForThirdPlace);
+}
+
+function projectKnockoutFixtures(groups, existingFixtures, rahiminiFixtures) {
+  const thirdPlaceRanking = buildThirdPlaceRanking(groups);
+  const advancingThirdPlaces = thirdPlaceRanking.slice(0, 8);
+  const groupIndex = new Map(groups.map((g) => [g.letter, g]));
+
+  const existingKnockoutKeys = new Set(
+    existingFixtures
+      .filter((f) => f.stage !== "Group Stage")
+      .map(createFixtureMatchKey)
+  );
+
+  const rahiminiByKey = new Map(rahiminiFixtures.map((f) => [f.matchKey, f]));
+  const stubs = [];
+
+  for (const match of KNOCKOUT_TEMPLATE) {
+    const homeCandidates = getKnockoutTemplateCandidates(match.homeSource, groupIndex, advancingThirdPlaces);
+    const awayCandidates = getKnockoutTemplateCandidates(match.awaySource, groupIndex, advancingThirdPlaces);
+
+    if (!homeCandidates.length || !awayCandidates.length) continue;
+
+    let home = null;
+    let away = null;
+
+    outerLoop:
+    for (const h of homeCandidates) {
+      for (const a of awayCandidates) {
+        const key = [normalizeTeamMatchKey(h.name), normalizeTeamMatchKey(a.name)].sort().join(":");
+        if (rahiminiByKey.has(key)) {
+          home = h;
+          away = a;
+          break outerLoop;
+        }
+      }
+    }
+
+    if (!home && homeCandidates.length === 1) home = homeCandidates[0];
+    if (!away && awayCandidates.length === 1) away = awayCandidates[0];
+
+    if (!home || !away) continue;
+
+    const matchKey = [normalizeTeamMatchKey(home.name), normalizeTeamMatchKey(away.name)].sort().join(":");
+    if (existingKnockoutKeys.has(matchKey)) continue;
+
+    stubs.push({
+      id: `ko-stub-${match.match}`,
+      date: match.date ? `${match.date}T00:00:00.000Z` : new Date(match.timestamp * 1000).toISOString(),
+      timestamp: match.timestamp,
+      timezone: "UTC",
+      referee: null,
+      stage: match.stage,
+      round: match.stage,
+      groupLetter: null,
+      status: { long: "Not Started", short: "NS", elapsed: null },
+      venue: {
+        id: null,
+        name: match.venue,
+        city: null,
+        country: null,
+        capacity: null,
+        image: null
+      },
+      teams: { home, away },
+      goals: { home: null, away: null },
+      score: {
+        halftime: { home: null, away: null },
+        fulltime: { home: null, away: null },
+        extratime: { home: null, away: null },
+        penalty: { home: null, away: null }
+      },
+      details: { scorers: [], cards: [] }
+    });
+  }
+
+  return stubs;
+}
+
+function getKnockoutTemplateCandidates(source, groupIndex, advancingThirdPlaces) {
+  if (source.type === "groupPlacement") {
+    const team = groupIndex.get(source.group)?.teams?.[source.placement - 1] ?? null;
+    return team ? [team] : [];
+  }
+  if (source.type === "thirdEligible") {
+    return advancingThirdPlaces.filter((t) => source.groups.includes(t.groupLetter));
+  }
+  return [];
 }
 
 function compareTeamsForGroup(left, right) {
