@@ -2612,9 +2612,20 @@ function projectKnockoutFixtures(groups, existingFixtures, rahiminiFixtures) {
   return stubs;
 }
 
+function getTeamByGroupPlacement(group, placement) {
+  if (!group?.teams?.length) {
+    return null;
+  }
+
+  // Group team arrays aren't guaranteed to be sorted by standing (e.g. the live
+  // fetch path builds knockout stubs before the final standings sort runs), so
+  // resolve by the team's actual rank rather than its array position.
+  return group.teams.find((team) => (team.standing?.rank ?? null) === placement) ?? null;
+}
+
 function getKnockoutTemplateCandidates(source, groupIndex, advancingThirdPlaces) {
   if (source.type === "groupPlacement") {
-    const team = groupIndex.get(source.group)?.teams?.[source.placement - 1] ?? null;
+    const team = getTeamByGroupPlacement(groupIndex.get(source.group), source.placement);
     return team ? [team] : [];
   }
   if (source.type === "thirdEligible") {
@@ -2701,7 +2712,7 @@ function buildPlayoffBoard(groups, thirdPlaceRanking) {
 
 function resolveTemplateSource(source, groupIndex, advancingThirdPlaces) {
   if (source.type === "groupPlacement") {
-    const team = groupIndex.get(source.group)?.teams?.[source.placement - 1] ?? null;
+    const team = getTeamByGroupPlacement(groupIndex.get(source.group), source.placement);
     return {
       type: "team",
       label: team ? `${team.groupLetter}${source.placement} • ${team.name}` : `${source.group}${source.placement}`,

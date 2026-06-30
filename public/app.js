@@ -5224,7 +5224,7 @@ function resolveProjectedSide(source, projectionContext, thirdPlaceSlotKey = "")
 
 	if (source.type === "groupPlacement") {
 		const group = groups.find((entry) => entry.letter === source.group);
-		const team = group?.teams?.[source.placement - 1] || null;
+		const team = group?.teams?.find((entry) => (entry.standing?.rank ?? null) === source.placement) || null;
 
 		return {
 			type: "team",
