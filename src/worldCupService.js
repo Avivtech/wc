@@ -1,8 +1,15 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 
 import { buildDemoWorldCupBase } from "./data/demoWorldCup.js";
 import { KNOCKOUT_TEMPLATE } from "./data/knockoutTemplate.js";
+import { fetchWithTimeout, withRetry, mapWithConcurrency } from "./lib/fetch.js";
+import {
+  normalizeLookupKey, normalizeTeamMatchKey, toNumber, firstDefined, firstNumber,
+  createFixtureMatchKey, createDetailTeam, extractGroupLetter
+} from "./lib/utils.js";
+import { CACHE_TTL_MS, readCache, writeCache, getMemoryCache, setMemoryCache } from "./lib/cache.js";
+import { fetchRahiminiWorldCup2026, mergeRahiminiFixtures } from "./clients/rahimini.js";
+import { TEAM_NAME_TO_FIFA_CODE, FIFA_MENS_RANKING_URL, collectUniqueTeams, fetchFifaRankings, resolveFifaCountryCode } from "./clients/fifa.js";
 
 const require = createRequire(import.meta.url);
 const COUNTRY_METADATA = require("./data/countries.json");
@@ -12,42 +19,14 @@ const DOCUMENTATION_URL = "https://www.thesportsdb.com/documentation";
 const FIFA_SCHEDULE_URL =
   "https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/articles/match-schedule-fixtures-results-teams-stadiums";
 const OPENFOOTBALL_2026_URL = "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json";
-const RAHIMINI_GAMES_URL = "https://worldcup26.ir/get/games";
 const WORLD_CUP_SEASON = 2026;
 const SPORTSDB_DEFAULT_API_KEY = "123";
 const SPORTSDB_WORLD_CUP_LEAGUE_ID = "4429";
 const SPORTSDB_WORLD_CUP_LEAGUE_NAME = "FIFA World Cup";
 const FLAG_ICON_BASE_URL = "https://cdn.jsdelivr.net/npm/flag-icons@7.3.2/flags/4x3";
-const CACHE_TTL_MS = 15 * 60 * 1000;
 const HOST_COUNTRIES = ["Canada", "Mexico", "United States"];
-const CACHE_FILE = new URL("../data/cache/world-cup-2026.json", import.meta.url);
-const FIFA_MENS_RANKING_URL = "https://inside.fifa.com/fifa-world-ranking/men";
 const MAX_FIFA_RANK = 211;
 const EXTERNAL_FETCH_CONCURRENCY = 6;
-const AMBIGUOUS_API_CODES = new Set(["AUS", "IRA", "SOU"]);
-const FIFA_CODE_FIXUPS = {
-  BOS: "BIH",
-  CAP: "CPV",
-  CON: "COD",
-  IVO: "CIV",
-  JAP: "JPN",
-  MOR: "MAR",
-  NET: "NED",
-  SAU: "KSA",
-  SPA: "ESP",
-  SWI: "SUI",
-  ZEA: "NZL"
-};
-const TEAM_NAME_TO_FIFA_CODE = new Map(
-  COUNTRY_METADATA.flatMap((country) => [
-    [normalizeLookupKey(country.name), country.abbreviation],
-    [normalizeTeamMatchKey(country.name), country.abbreviation],
-    ...(country.aliases ?? []).flatMap((alias) => [
-      [normalizeLookupKey(alias), country.abbreviation],
-      [normalizeTeamMatchKey(alias), country.abbreviation]
-    ])
-  ])
-);
 const LOCAL_COUNTRY_TEAM_LOOKUP = buildCountryTeamLookup(COUNTRY_METADATA);
 
 let inflightRequest = null;
@@ -57,8 +36,19 @@ export async function getWorldCupData({ refresh = false, timezone = "Asia/Jerusa
     return inflightRequest;
   }
 
+  // Fast path: serve from memory without touching disk
+  const mc = getMemoryCache();
+  if (!refresh && mc && Date.now() - mc.cachedAt < CACHE_TTL_MS) {
+    return mc.payload;
+  }
+
   inflightRequest = (async () => {
-    const cache = await readCache();
+    // Cold-start or memory eviction: fall back to disk once
+    const cache = getMemoryCache() ?? await readCache();
+
+    if (!getMemoryCache() && cache) {
+      setMemoryCache(cache); // warm memory from disk on cold start
+    }
 
     if (!refresh && cache && Date.now() - cache.cachedAt < CACHE_TTL_MS) {
       return cache.payload;
@@ -69,13 +59,16 @@ export async function getWorldCupData({ refresh = false, timezone = "Asia/Jerusa
     try {
       const liveBase = await fetchLiveWorldCupBase({ apiKey, timezone });
       const payload = finalizeWorldCupData(liveBase);
-      await writeCache(payload);
+      setMemoryCache({ cachedAt: Date.now(), payload });
+      writeCache(payload).catch((err) => {
+        console.error("Cache write failed:", err instanceof Error ? err.message : err);
+      });
       return payload;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
 
       if (cache?.payload) {
-        return {
+        const stalePayload = {
           ...cache.payload,
           source: {
             ...cache.payload.source,
@@ -87,6 +80,8 @@ export async function getWorldCupData({ refresh = false, timezone = "Asia/Jerusa
             fallbackMode: "cache"
           }
         };
+        setMemoryCache({ cachedAt: cache.cachedAt, payload: stalePayload });
+        return stalePayload;
       }
 
       return finalizeWorldCupData(buildDemoWorldCupBase(message));
@@ -257,28 +252,30 @@ async function apiRequest(endpoint, params, apiKey) {
     }
   });
 
-  const response = await fetch(url, {
-    headers: {
-      Accept: "application/json"
+  return withRetry(async () => {
+    const response = await fetchWithTimeout(url, {
+      headers: {
+        Accept: "application/json"
+      }
+    });
+
+    if (response.status === 204) {
+      return { response: [] };
     }
+
+    if (!response.ok) {
+      throw new Error(`TheSportsDB ${endpoint} request failed with status ${response.status}.`);
+    }
+
+    const data = await response.json();
+    const errors = formatApiErrors(data?.errors);
+
+    if (errors || data?.message) {
+      throw new Error(`TheSportsDB ${endpoint} returned errors: ${errors || data.message}`);
+    }
+
+    return data;
   });
-
-  if (response.status === 204) {
-    return { response: [] };
-  }
-
-  if (!response.ok) {
-    throw new Error(`TheSportsDB ${endpoint} request failed with status ${response.status}.`);
-  }
-
-  const data = await response.json();
-  const errors = formatApiErrors(data?.errors);
-
-  if (errors || data?.message) {
-    throw new Error(`TheSportsDB ${endpoint} returned errors: ${errors || data.message}`);
-  }
-
-  return data;
 }
 
 async function optionalApiRequest(endpoint, params, apiKey) {
@@ -411,27 +408,6 @@ function extractFirstArray(value, depth = 0, visited = new Set()) {
   }
 
   return null;
-}
-
-async function mapWithConcurrency(items, limit, mapper) {
-  if (!items.length) {
-    return [];
-  }
-
-  const results = new Array(items.length);
-  let cursor = 0;
-
-  async function worker() {
-    while (cursor < items.length) {
-      const index = cursor;
-      cursor += 1;
-      results[index] = await mapper(items[index], index);
-    }
-  }
-
-  const workerCount = Math.max(1, Math.min(limit, items.length));
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
-  return results;
 }
 
 function formatApiErrors(errors) {
@@ -927,19 +903,6 @@ function normalizeFixtureEventDetail(event) {
   };
 }
 
-function createDetailTeam(team) {
-  if (!team) {
-    return null;
-  }
-
-  return {
-    id: team.id ?? null,
-    name: team.name ?? null,
-    code: team.code ?? team.abbreviation ?? team.short ?? null,
-    short: team.short ?? team.abbreviation ?? team.code ?? null
-  };
-}
-
 function mergeSportsDbFixtures(templateFixtures, sportsDbFixtures, teamLookup) {
   const sportsDbFixtureByMatch = new Map(
     sportsDbFixtures.map((fixture) => [createFixtureMatchKey(fixture), fixture])
@@ -1020,12 +983,6 @@ function resolveSportsDbTeam(team, teamLookup) {
     teamLookup.get(normalizeLookupKey(team?.name)) ??
     teamLookup.get(team?.id) ??
     team;
-}
-
-function createFixtureMatchKey(fixture) {
-  const home = normalizeTeamMatchKey(fixture?.teams?.home?.name);
-  const away = normalizeTeamMatchKey(fixture?.teams?.away?.name);
-  return [home, away].sort().join(":");
 }
 
 function normalizeApiFootballFixture(fixture, teamLookup, venueLookup) {
@@ -1647,7 +1604,7 @@ function buildRoundsFromFixtures(fixtures) {
 }
 
 async function fetchOpenFootballWorldCup2026() {
-  const response = await fetch(OPENFOOTBALL_2026_URL, {
+  const response = await fetchWithTimeout(OPENFOOTBALL_2026_URL, {
     headers: {
       Accept: "application/json"
     }
@@ -1667,90 +1624,6 @@ async function fetchOpenFootballWorldCup2026() {
     groups: buildOpenFootballGroups(groupMatches, teamsByName, fixtures),
     fixtures
   };
-}
-
-async function fetchRahiminiWorldCup2026() {
-  const token = String(process.env.WC_IR_TOKEN || "").trim();
-  const headers = { Accept: "application/json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  const response = await fetch(RAHIMINI_GAMES_URL, { headers });
-  if (!response.ok) {
-    throw new Error(`worldcup26.ir games request failed with status ${response.status}`);
-  }
-  const data = await response.json();
-  return (Array.isArray(data?.games) ? data.games : []).map(normalizeRahiminiFixture);
-}
-
-function normalizeRahiminiFixture(game) {
-  const homeScore = toNumber(game.home_score);
-  const awayScore = toNumber(game.away_score);
-  const isFinished = game.finished === "TRUE";
-  const isLive = !isFinished && game.time_elapsed === "live";
-
-  return {
-    matchKey: [normalizeTeamMatchKey(game.home_team_name_en), normalizeTeamMatchKey(game.away_team_name_en)].sort().join(":"),
-    goals: {
-      home: Number.isFinite(homeScore) ? homeScore : null,
-      away: Number.isFinite(awayScore) ? awayScore : null
-    },
-    score: {
-      halftime: { home: null, away: null },
-      fulltime: {
-        home: isFinished && Number.isFinite(homeScore) ? homeScore : null,
-        away: isFinished && Number.isFinite(awayScore) ? awayScore : null
-      },
-      extratime: { home: null, away: null },
-      penalty: { home: null, away: null }
-    },
-    status: isFinished
-      ? { long: "Match Finished", short: "FT", elapsed: null }
-      : isLive
-        ? { long: "In Progress", short: "LIVE", elapsed: null }
-        : { long: "Not Started", short: "NS", elapsed: null },
-    details: {
-      scorers: parseRahiminiScorers(game.home_scorers, game.home_team_name_en, game.away_scorers, game.away_team_name_en),
-      cards: []
-    }
-  };
-}
-
-function parseRahiminiScorers(homeRaw, homeTeam, awayRaw, awayTeam) {
-  const parse = (raw, teamName) => {
-    if (!raw || raw === "null") return [];
-    return [...String(raw).matchAll(/"([^"]+)"/g)].map((m) => {
-      const text = m[1];
-      const match = text.match(/^(.+?)\s+(\d+)(?:\+\d+)?'\s*(\(p\))?$/);
-      return {
-        team: teamName,
-        player: match ? match[1] : text,
-        minute: match ? Number(match[2]) : null,
-        type: match?.[3] ? "penalty" : "goal"
-      };
-    });
-  };
-  return [...parse(homeRaw, homeTeam), ...parse(awayRaw, awayTeam)];
-}
-
-function mergeRahiminiFixtures(fixtures, rahiminiFixtures) {
-  if (!rahiminiFixtures.length) return fixtures;
-  const byMatchKey = new Map(rahiminiFixtures.map((f) => [f.matchKey, f]));
-
-  return fixtures.map((fixture) => {
-    const rahimini = byMatchKey.get(createFixtureMatchKey(fixture));
-    if (!rahimini || fixture.status?.short !== "NS") return fixture;
-
-    return {
-      ...fixture,
-      goals: rahimini.goals,
-      score: { ...fixture.score, fulltime: rahimini.score.fulltime },
-      status: rahimini.status,
-      details: {
-        ...fixture.details,
-        scorers: rahimini.details.scorers.length ? rahimini.details.scorers : (fixture.details?.scorers ?? [])
-      }
-    };
-  });
 }
 
 function buildOpenFootballTeamLookup(matches) {
@@ -2047,195 +1920,6 @@ function statisticsToRecord(statistics = []) {
   }
 
   return record;
-}
-
-function collectUniqueTeams(groups) {
-  const teams = new Map();
-
-  for (const group of groups) {
-    for (const team of group.teams ?? []) {
-      teams.set(team.id, team);
-    }
-  }
-
-  return [...teams.values()];
-}
-
-async function fetchFifaRankings(teams) {
-  const schedule = await fetchLatestFifaRankingSchedule();
-  const response = await fetch(
-    `https://api.fifa.com/api/v3/fifarankings/rankings/rankingsbyschedule?rankingScheduleId=${encodeURIComponent(
-      schedule.id
-    )}&language=en`,
-    {
-      headers: {
-        Accept: "application/json"
-      }
-    }
-  );
-
-  if (!response.ok) {
-    return {
-      lookup: new Map(),
-      warnings: [`FIFA rankings request failed with status ${response.status}.`],
-      meta: {
-        source: FIFA_MENS_RANKING_URL,
-        rankingScheduleId: schedule.id,
-        lastUpdateDate: schedule.iso ?? null,
-        teamsRequested: teams.length,
-        teamsMapped: 0,
-        teamsRanked: 0
-      }
-    };
-  }
-
-  const data = await response.json();
-  const rows = Array.isArray(data?.Results) ? data.Results : [];
-  const rankingsByCountry = new Map(
-    rows
-      .filter((entry) => entry?.IdCountry && Number.isFinite(Number(entry?.Rank)))
-      .map((entry) => [
-        String(entry.IdCountry).toUpperCase(),
-        {
-          countryCode: String(entry.IdCountry).toUpperCase(),
-          rank: Number(entry.Rank),
-          totalPoints: toNumber(entry.TotalPoints),
-          previousRank: toNumber(entry.PrevRank),
-          previousPoints: toNumber(entry.PrevPoints),
-          rankingMovement: toNumber(entry.RankingMovement),
-          ratedMatches: toNumber(entry.RatedMatches),
-          confederation: entry.ConfederationName ?? null
-        }
-      ])
-  );
-  const lookup = new Map();
-  const warnings = [];
-  const unmappedTeams = [];
-  const missingRankings = [];
-
-  for (const team of teams) {
-    const fifaCode = resolveFifaCountryCode(team);
-
-    if (!fifaCode) {
-      unmappedTeams.push(team.name);
-      continue;
-    }
-
-    const ranking = rankingsByCountry.get(fifaCode);
-
-    if (!ranking) {
-      missingRankings.push(team.name);
-      continue;
-    }
-
-    lookup.set(team.id, ranking);
-  }
-
-  if (unmappedTeams.length) {
-    warnings.push(
-      `FIFA ranking codes could not be resolved for ${unmappedTeams.length} team(s): ${unmappedTeams.join(
-        ", "
-      )}.`
-    );
-  }
-
-  if (missingRankings.length) {
-    warnings.push(
-      `Official FIFA rankings were not found in the latest schedule for ${missingRankings.length} team(s): ${missingRankings.join(
-        ", "
-      )}.`
-    );
-  }
-
-  return {
-    lookup,
-    warnings,
-    meta: {
-      source: FIFA_MENS_RANKING_URL,
-      rankingScheduleId: schedule.id,
-      lastUpdateDate: schedule.iso ?? null,
-      matchWindowEndDate: schedule.matchWindowEndDate ?? null,
-      teamsRequested: teams.length,
-      teamsMapped: teams.length - unmappedTeams.length,
-      teamsRanked: lookup.size
-    }
-  };
-}
-
-async function fetchLatestFifaRankingSchedule() {
-  const response = await fetch(FIFA_MENS_RANKING_URL);
-
-  if (!response.ok) {
-    throw new Error(`FIFA rankings page request failed with status ${response.status}.`);
-  }
-
-  const html = await response.text();
-  const match = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
-
-  if (!match) {
-    throw new Error("Could not parse the FIFA rankings page metadata.");
-  }
-
-  const data = JSON.parse(match[1]);
-  const schedule = data?.props?.pageProps?.pageData?.ranking?.dates?.[0]?.dates?.[0];
-
-  if (!schedule?.id) {
-    throw new Error("Could not find the latest FIFA ranking schedule id.");
-  }
-
-  return schedule;
-}
-
-function resolveFifaCountryCode(team) {
-  const normalizedName = normalizeLookupKey(team?.name);
-  const normalizedCountry = normalizeLookupKey(team?.country);
-  const byName =
-    TEAM_NAME_TO_FIFA_CODE.get(normalizedName) ?? TEAM_NAME_TO_FIFA_CODE.get(normalizedCountry);
-
-  if (byName) {
-    return byName;
-  }
-
-  const rawCode = String(team?.code || "").trim().toUpperCase();
-
-  if (!rawCode || AMBIGUOUS_API_CODES.has(rawCode)) {
-    return null;
-  }
-
-  return FIFA_CODE_FIXUPS[rawCode] ?? rawCode;
-}
-
-function normalizeLookupKey(value) {
-  return String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/&/g, " and ")
-    .replace(/[^a-z0-9]+/gi, " ")
-    .trim()
-    .toLowerCase();
-}
-
-function normalizeTeamMatchKey(value) {
-  const key = normalizeLookupKey(value);
-  const aliases = {
-    "bosnia herzegovina": "bosnia and herzegovina",
-    "bosnia and herzegovina": "bosnia and herzegovina",
-    "cape verde": "cabo verde",
-    "cabo verde": "cabo verde",
-    "congo dr": "dr congo",
-    "dr congo": "dr congo",
-    "cote d ivoire": "ivory coast",
-    "cote divoire": "ivory coast",
-    "curacao": "curacao",
-    "iran": "ir iran",
-    "ir iran": "ir iran",
-    "korea republic": "south korea",
-    "south korea": "south korea",
-    "usa": "united states",
-    "united states": "united states"
-  };
-
-  return aliases[key] ?? key;
 }
 
 async function fetchTeamStrengthSignals({ fixtures, apiKey }) {
@@ -2651,31 +2335,6 @@ function invertPercent(value) {
   return percent == null ? null : clampNumber(100 - percent, 0, 100);
 }
 
-function toNumber(value) {
-  if (value == null || value === "") {
-    return null;
-  }
-
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-function firstDefined(...values) {
-  return values.find((value) => value !== undefined && value !== null && value !== "");
-}
-
-function firstNumber(...values) {
-  for (const value of values) {
-    const number = toNumber(value);
-
-    if (Number.isFinite(number)) {
-      return number;
-    }
-  }
-
-  return null;
-}
-
 function ratioToPercent(part, total) {
   const numerator = toNumber(part);
   const denominator = toNumber(total);
@@ -2705,11 +2364,6 @@ function scaleGoalsAgainstAverage(value) {
   }
 
   return clampNumber(100 - average * 40, 0, 100);
-}
-
-function extractGroupLetter(value) {
-  const match = String(value || "").match(/group\s+([a-l])/i);
-  return match ? match[1].toUpperCase() : null;
 }
 
 function classifyStage(round) {
@@ -2983,27 +2637,4 @@ function buildSummary(groups, fixtures, venues, stages) {
         }
       : null
   };
-}
-
-async function readCache() {
-  try {
-    const cacheText = await readFile(CACHE_FILE, "utf8");
-    const cache = JSON.parse(cacheText);
-    const fileStat = await stat(CACHE_FILE);
-    return {
-      cachedAt: fileStat.mtimeMs,
-      payload: cache
-    };
-  } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
-      return null;
-    }
-
-    throw error;
-  }
-}
-
-async function writeCache(payload) {
-  await mkdir(new URL("../data/cache/", import.meta.url), { recursive: true });
-  await writeFile(CACHE_FILE, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }

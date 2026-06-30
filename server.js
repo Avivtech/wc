@@ -1,4 +1,5 @@
 import "dotenv/config";
+import compression from "compression";
 import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +12,7 @@ const publicDir = path.join(__dirname, "public");
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
+const CACHE_TTL_MS = 15 * 60 * 1000;
 const WORLD_CUP_REFRESH_TIMEZONE = "GMT+3";
 const WORLD_CUP_REFRESH_TIMEZONE_OFFSET_MS = 3 * 60 * 60_000;
 const WORLD_CUP_DAILY_REFRESH_TIMES = [
@@ -23,6 +25,7 @@ const WORLD_CUP_DAILY_REFRESH_TIMES = [
 ];
 const MAX_REFRESH_TIMER_DELAY_MS = 2_147_000_000;
 
+app.use(compression());
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(publicDir));
 
@@ -43,6 +46,28 @@ app.get("/api/world-cup", async (req, res) => {
   } catch (error) {
     logServerError("Failed to load World Cup data.", error);
     res.status(500).json({ error: "Could not load the tournament right now." });
+  }
+});
+
+app.get("/api/health", async (_req, res) => {
+  try {
+    const data = await getWorldCupData();
+    const fetchedAt = data?.source?.fetchedAt ?? null;
+    const ageMs = fetchedAt ? Date.now() - new Date(fetchedAt).getTime() : null;
+    const stale = ageMs === null || ageMs > CACHE_TTL_MS;
+    res.json({
+      status: stale ? "degraded" : "ok",
+      cache: {
+        fetchedAt,
+        ageSeconds: ageMs !== null ? Math.floor(ageMs / 1000) : null,
+        stale
+      }
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: "error",
+      error: error instanceof Error ? error.message : "Unknown"
+    });
   }
 });
 
