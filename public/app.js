@@ -2918,21 +2918,44 @@ function buildCalendarFixtures() {
 }
 
 function hasLiveFixtureEquivalent(match, liveFixtures) {
-	const sameStageDayFixtures = liveFixtures.filter((fixture) => {
-		const sameStage = fixture.stage === match.stage;
-		const sameDay = getCalendarDateKey(getFixtureDate(fixture)) === getCalendarDateKey(getFixtureDate(match));
-		return sameStage && sameDay;
-	});
+	const sameStageFixtures = liveFixtures.filter((fixture) => fixture.stage === match.stage);
 
-	if (!sameStageDayFixtures.length) {
+	if (!sameStageFixtures.length) {
 		return false;
 	}
 
-	if (sameStageDayFixtures.length === 1) {
-		return true;
+	// A team plays exactly one match per knockout stage, so a live fixture that shares a
+	// resolved team with the projected match is that same game. This is the reliable signal:
+	// suppressing purely because some unrelated fixture happens to fall on the same day would
+	// hide projected matches whose own live fixture has not been published yet.
+	const projectedTeamKeys = getProjectedMatchTeamKeys(match);
+
+	if (projectedTeamKeys.length) {
+		const sharesTeam = sameStageFixtures.some((fixture) =>
+			[fixture.teams?.home?.name, fixture.teams?.away?.name]
+				.map(normalizeVenueMatchValue)
+				.some((key) => key && projectedTeamKeys.includes(key)),
+		);
+
+		if (sharesTeam) {
+			return true;
+		}
 	}
 
-	return sameStageDayFixtures.some((fixture) => normalizeVenueMatchValue(fixture.venue?.name) === normalizeVenueMatchValue(match.venue));
+	// Teams not yet known (future rounds / unresolved third-place slots), or no team match:
+	// fall back to the same day and venue, never to the day alone.
+	const sameDayFixtures = sameStageFixtures.filter(
+		(fixture) => getCalendarDateKey(getFixtureDate(fixture)) === getCalendarDateKey(getFixtureDate(match)),
+	);
+
+	return sameDayFixtures.some((fixture) => normalizeVenueMatchValue(fixture.venue?.name) === normalizeVenueMatchValue(match.venue));
+}
+
+function getProjectedMatchTeamKeys(match) {
+	return [match.home, match.away]
+		.map((side) => (side?.type === "team" ? side.team?.name : null))
+		.map((name) => normalizeVenueMatchValue(name))
+		.filter(Boolean);
 }
 
 function getCalendarDateKey(date) {
