@@ -31,27 +31,89 @@ const LOCAL_COUNTRY_TEAM_LOOKUP = buildCountryTeamLookup(COUNTRY_METADATA);
 
 let inflightRequest = null;
 
+// Bound how long a cold-start request (no cache to fall back to) will block on the upstream
+// fan-out before returning preview data while the live fetch finishes in the background.
+const COLD_START_SOFT_DEADLINE_MS = 8_000;
+const COLD_START_DEADLINE = Symbol("cold-start-deadline");
+
 export async function getWorldCupData({ refresh = false, timezone = "Asia/Jerusalem" } = {}) {
-  if (inflightRequest && !refresh) {
-    return inflightRequest;
+  // Fast path: serve a fresh in-memory payload without touching disk or the network.
+  const memoryCache = getMemoryCache();
+  if (!refresh && memoryCache && Date.now() - memoryCache.cachedAt < CACHE_TTL_MS) {
+    return memoryCache.payload;
   }
 
-  // Fast path: serve from memory without touching disk
-  const mc = getMemoryCache();
-  if (!refresh && mc && Date.now() - mc.cachedAt < CACHE_TTL_MS) {
-    return mc.payload;
+  // Warm memory from disk on cold start, and reuse a still-fresh on-disk payload.
+  const cached = memoryCache ?? (await readCacheSafely());
+  if (cached && !getMemoryCache()) {
+    setMemoryCache(cached);
+  }
+  if (!refresh && cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
+    return cached.payload;
   }
 
-  inflightRequest = (async () => {
-    // Cold-start or memory eviction: fall back to disk once
-    const cache = getMemoryCache() ?? await readCache();
+  // Cache is missing or stale: a live fetch is needed. Coalesce concurrent callers — including
+  // forced refreshes — onto a single in-flight fetch so cold starts and bursts of traffic don't
+  // trigger a thundering herd of upstream calls.
+  if (!inflightRequest) {
+    inflightRequest = fetchAndCacheLiveData({ timezone });
+  }
+  const pending = inflightRequest;
 
-    if (!getMemoryCache() && cache) {
-      setMemoryCache(cache); // warm memory from disk on cold start
+  // A forced refresh waits for the fresh result.
+  if (refresh) {
+    return pending;
+  }
+
+  // Stale cache available: serve it immediately and let the refresh finish in the background.
+  if (cached?.payload) {
+    pending.catch(() => {});
+    return cached.payload;
+  }
+
+  // Truly cold cache: bound the response with a soft deadline, returning preview data (and
+  // letting the fetch finish in the background) if the upstream fan-out is slow.
+  return raceLiveFetchAgainstDeadline(pending);
+}
+
+async function readCacheSafely() {
+  try {
+    return await readCache();
+  } catch (error) {
+    console.error("Cache read failed:", error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+async function raceLiveFetchAgainstDeadline(pending) {
+  let timer;
+  const deadline = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(COLD_START_DEADLINE), COLD_START_SOFT_DEADLINE_MS);
+    if (typeof timer?.unref === "function") {
+      timer.unref();
     }
+  });
 
-    if (!refresh && cache && Date.now() - cache.cachedAt < CACHE_TTL_MS) {
-      return cache.payload;
+  const result = await Promise.race([pending.catch(() => COLD_START_DEADLINE), deadline]);
+  clearTimeout(timer);
+
+  if (result !== COLD_START_DEADLINE) {
+    return result;
+  }
+
+  // The live fetch is still running; keep it going in the background and hand back preview data
+  // the client can transparently replace once the cache warms.
+  pending.catch(() => {});
+  const preview = finalizeWorldCupData(buildDemoWorldCupBase("Live tournament data is still loading."));
+  preview.source.fallbackMode = "loading";
+  return preview;
+}
+
+async function fetchAndCacheLiveData({ timezone }) {
+  try {
+    const cache = getMemoryCache() ?? (await readCacheSafely());
+    if (cache && !getMemoryCache()) {
+      setMemoryCache(cache); // warm memory from disk on cold start
     }
 
     const apiKey = String(process.env.SPORTSDB_API_KEY || SPORTSDB_DEFAULT_API_KEY).trim();
@@ -84,13 +146,13 @@ export async function getWorldCupData({ refresh = false, timezone = "Asia/Jerusa
         return stalePayload;
       }
 
+      // No cache to fall back to: return demo data without caching it, so the next request
+      // retries the live fetch instead of being pinned to demo for the cache TTL.
       return finalizeWorldCupData(buildDemoWorldCupBase(message));
-    } finally {
-      inflightRequest = null;
     }
-  })();
-
-  return inflightRequest;
+  } finally {
+    inflightRequest = null;
+  }
 }
 
 async function fetchLiveWorldCupBase({ apiKey, timezone }) {
