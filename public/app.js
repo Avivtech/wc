@@ -5297,7 +5297,10 @@ function buildLiveKnockoutFixtureMap(knockoutTemplate, fixtures, projectedMatche
 			// Fall back to same-day matching when teams aren't yet known (unresolved thirdEligible, future rounds).
 			if (!bestCandidate) {
 				const templateDateKey = getCalendarDateKey(getFixtureDate(templateMatch));
-				const sameDayCandidates = allCandidates.filter(({ fixture }) => getCalendarDateKey(getFixtureDate(fixture)) === templateDateKey);
+				const constrainedTeamNames = getProjectedMatchConstraintTeamNames(templateMatch, projectedMatchMap);
+				const sameDayCandidates = allCandidates
+					.filter(({ fixture }) => getCalendarDateKey(getFixtureDate(fixture)) === templateDateKey)
+					.filter(({ fixture }) => !constrainedTeamNames.length || fixtureIncludesTeamNames(fixture, constrainedTeamNames));
 				const exactVenueCandidate = sameDayCandidates.find(({ fixture }) => normalizeVenueMatchValue(fixture.venue?.name) === normalizeVenueMatchValue(templateMatch.venue));
 				if (exactVenueCandidate) {
 					bestCandidate = exactVenueCandidate;
@@ -5316,6 +5319,32 @@ function buildLiveKnockoutFixtureMap(knockoutTemplate, fixtures, projectedMatche
 	}
 
 	return fixtureMap;
+}
+
+function getProjectedMatchConstraintTeamNames(templateMatch, projectedMatchMap) {
+	if (!projectedMatchMap) {
+		return [];
+	}
+
+	const projectedMatch = projectedMatchMap.get(templateMatch.match);
+
+	if (!projectedMatch) {
+		return [];
+	}
+
+	return ["home", "away"]
+		.filter((side) => templateMatch[`${side}Source`]?.type === "groupPlacement")
+		.map((side) => projectedMatch[side]?.team?.name)
+		.filter(Boolean);
+}
+
+function fixtureIncludesTeamNames(fixture, teamNames) {
+	const fixtureTeams = [
+		normalizeVenueMatchValue(fixture.teams?.home?.name || ""),
+		normalizeVenueMatchValue(fixture.teams?.away?.name || ""),
+	];
+
+	return teamNames.every((teamName) => fixtureTeams.includes(normalizeVenueMatchValue(teamName)));
 }
 
 function buildLiveWinnerSelections(liveFixtureMap, projectedMatches = null) {

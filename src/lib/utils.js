@@ -16,6 +16,7 @@ export function normalizeTeamMatchKey(value) {
     "cape verde": "cabo verde",
     "cabo verde": "cabo verde",
     "congo dr": "dr congo",
+    "democratic republic of the congo": "dr congo",
     "dr congo": "dr congo",
     "cote d ivoire": "ivory coast",
     "cote divoire": "ivory coast",

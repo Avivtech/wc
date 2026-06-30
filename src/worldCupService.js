@@ -137,7 +137,8 @@ async function fetchLiveWorldCupBase({ apiKey, timezone }) {
   const knockoutStubs = projectKnockoutFixtures(groups, baseFixtures, rahiminiFixtures);
   const normalizedFixtures = mergeRahiminiFixtures(
     [...baseFixtures, ...knockoutStubs],
-    rahiminiFixtures
+    rahiminiFixtures,
+    { teamLookup: sportsDbTeamLookup }
   );
 
   if (sportsDbFixtures.length < baseFixtures.length) {
