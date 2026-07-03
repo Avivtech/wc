@@ -2194,7 +2194,7 @@ function renderHomeTeamMatchRow(fixture, team) {
 
 	return `
 		<div class="home-team-lineup-match">
-			<span class="home-team-lineup-time">${escapeHtml(formatDate(getFixtureDate(fixture)))} · ${escapeHtml(formatFixtureTime(fixture))}</span>
+			<span class="home-team-lineup-time">${escapeHtml(formatDate(getFixtureDate(fixture), state.calendarTimeZone))} · ${escapeHtml(formatFixtureTime(fixture))}</span>
 			<span class="home-team-lineup-opponent">
 				${opponent ? renderTeamLogo(opponent) : ""}
 				<strong>${escapeHtml(opponent ? getTeamDisplayName(opponent) : t("tbd"))}</strong>
@@ -2840,7 +2840,7 @@ function renderLastGameTeam(team) {
 
 function formatLastGameMeta(fixture) {
 	const date = getFixtureDate(fixture);
-	const dateLabel = Number.isNaN(date.getTime()) ? "" : formatDate(date);
+	const dateLabel = Number.isNaN(date.getTime()) ? "" : formatDate(date, state.calendarTimeZone);
 	const stageLabel = formatStageShortLabel(fixture.stage);
 	return [dateLabel, stageLabel].filter(Boolean).join(" / ");
 }
@@ -5774,7 +5774,7 @@ function renderBracketMatch(match, mode, extraClass = "", liveWinnerTeamIdsByMat
 	return `
     <article class="bracket-match ${escapeHtml(extraClass)}" data-match-id="${match.match}">
       <div class="bracket-match-meta">
-        <span class="bracket-match-date">${escapeHtml(formatDate(match.date))}</span>
+        <span class="bracket-match-date">${escapeHtml(formatDate(getFixtureDate(match), state.calendarTimeZone))}</span>
       </div>
       <div class="bracket-sides">
         ${renderBracketSide(match, match.home, match.homeSource, mode, liveWinnerTeamIdsByMatch)}
@@ -7067,7 +7067,7 @@ function animateMovedRows(previousRects, root, selector = ".group-table-row[data
 	});
 }
 
-function formatDate(value) {
+function formatDate(value, timeZone) {
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) {
 		return t("tbd");
@@ -7076,6 +7076,7 @@ function formatDate(value) {
 	const includeYear = date.getFullYear() !== 2026;
 
 	return new Intl.DateTimeFormat(APP_INTL_LOCALE, {
+		...(timeZone ? { timeZone } : {}),
 		month: "short",
 		day: "numeric",
 		...(includeYear ? { year: "numeric" } : {}),

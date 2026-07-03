@@ -2531,7 +2531,7 @@ function finalizeWorldCupData(base) {
 
 function buildThirdPlaceRanking(groups) {
   return groups
-    .map((group) => group.teams[2])
+    .map((group) => getTeamByGroupPlacement(group, 3))
     .filter(Boolean)
     .sort(compareTeamsForThirdPlace);
 }
@@ -2581,7 +2581,7 @@ function projectKnockoutFixtures(groups, existingFixtures, rahiminiFixtures) {
 
     stubs.push({
       id: `ko-stub-${match.match}`,
-      date: match.date ? `${match.date}T00:00:00.000Z` : new Date(match.timestamp * 1000).toISOString(),
+      date: new Date(match.timestamp * 1000).toISOString(),
       timestamp: match.timestamp,
       timezone: "UTC",
       referee: null,
