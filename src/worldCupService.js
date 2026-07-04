@@ -155,19 +155,34 @@ async function fetchAndCacheLiveData({ timezone }) {
   }
 }
 
+async function fetchRahiminiWorldCup2026Safely() {
+  try {
+    const fixtures = await fetchRahiminiWorldCup2026();
+    return { fixtures, warnings: [] };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("worldcup26.ir live scores fetch failed:", message);
+    return {
+      fixtures: [],
+      warnings: [`Live knockout scores from worldcup26.ir are unavailable: ${message}`]
+    };
+  }
+}
+
 async function fetchLiveWorldCupBase({ apiKey, timezone }) {
   const leagueEntry = await findWorldCupLeague(apiKey);
   const leagueId = leagueEntry.league.id;
   const seasonCoverage = leagueEntry.season.coverage ?? createSportsDbCoverage();
 
-  const [standingsResult, fixturesResult, scheduleTemplate, rahiminiFixtures] = await Promise.all([
+  const [standingsResult, fixturesResult, scheduleTemplate, rahiminiResult] = await Promise.all([
     optionalApiRequest("lookuptable.php", { l: leagueId, s: String(WORLD_CUP_SEASON) }, apiKey),
     optionalApiRequest("eventsseason.php", { id: leagueId, s: String(WORLD_CUP_SEASON) }, apiKey),
     fetchOpenFootballWorldCup2026(),
-    fetchRahiminiWorldCup2026().catch(() => [])
+    fetchRahiminiWorldCup2026Safely()
   ]);
+  const rahiminiFixtures = rahiminiResult.fixtures;
 
-  const fallbackWarnings = [];
+  const fallbackWarnings = [...rahiminiResult.warnings];
   const dailyFixturesResult = await fetchSportsDbDailyFixtures({
     apiKey,
     leagueId,
