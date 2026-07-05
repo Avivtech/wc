@@ -211,7 +211,7 @@ async function fetchLiveWorldCupBase({ apiKey, timezone }) {
     standingsRows: extractApiRows(standingsResult),
     fixtures: baseFixtures
   });
-  const knockoutStubs = projectKnockoutFixtures(groups, baseFixtures, rahiminiFixtures);
+  const knockoutStubs = projectKnockoutFixtures(groups, baseFixtures);
   const normalizedFixtures = mergeRahiminiFixtures(
     [...baseFixtures, ...knockoutStubs],
     rahiminiFixtures,
@@ -2551,10 +2551,11 @@ function buildThirdPlaceRanking(groups) {
     .sort(compareTeamsForThirdPlace);
 }
 
-function projectKnockoutFixtures(groups, existingFixtures, rahiminiFixtures) {
+function projectKnockoutFixtures(groups, existingFixtures) {
   const thirdPlaceRanking = buildThirdPlaceRanking(groups);
   const advancingThirdPlaces = thirdPlaceRanking.slice(0, 8);
   const groupIndex = new Map(groups.map((g) => [g.letter, g]));
+  const thirdPlaceAssignments = buildThirdPlaceAssignments(KNOCKOUT_TEMPLATE, advancingThirdPlaces);
 
   const existingKnockoutKeys = new Set(
     existingFixtures
@@ -2562,32 +2563,11 @@ function projectKnockoutFixtures(groups, existingFixtures, rahiminiFixtures) {
       .map(createFixtureMatchKey)
   );
 
-  const rahiminiByKey = new Map(rahiminiFixtures.map((f) => [f.matchKey, f]));
   const stubs = [];
 
   for (const match of KNOCKOUT_TEMPLATE) {
-    const homeCandidates = getKnockoutTemplateCandidates(match.homeSource, groupIndex, advancingThirdPlaces);
-    const awayCandidates = getKnockoutTemplateCandidates(match.awaySource, groupIndex, advancingThirdPlaces);
-
-    if (!homeCandidates.length || !awayCandidates.length) continue;
-
-    let home = null;
-    let away = null;
-
-    outerLoop:
-    for (const h of homeCandidates) {
-      for (const a of awayCandidates) {
-        const key = [normalizeTeamMatchKey(h.name), normalizeTeamMatchKey(a.name)].sort().join(":");
-        if (rahiminiByKey.has(key)) {
-          home = h;
-          away = a;
-          break outerLoop;
-        }
-      }
-    }
-
-    if (!home && homeCandidates.length === 1) home = homeCandidates[0];
-    if (!away && awayCandidates.length === 1) away = awayCandidates[0];
+    const home = resolveKnockoutTemplateTeam(match.homeSource, match.match, "home", groupIndex, thirdPlaceAssignments);
+    const away = resolveKnockoutTemplateTeam(match.awaySource, match.match, "away", groupIndex, thirdPlaceAssignments);
 
     if (!home || !away) continue;
 
@@ -2638,15 +2618,85 @@ function getTeamByGroupPlacement(group, placement) {
   return group.teams.find((team) => (team.standing?.rank ?? null) === placement) ?? null;
 }
 
-function getKnockoutTemplateCandidates(source, groupIndex, advancingThirdPlaces) {
+function resolveKnockoutTemplateTeam(source, matchId, side, groupIndex, thirdPlaceAssignments) {
   if (source.type === "groupPlacement") {
-    const team = getTeamByGroupPlacement(groupIndex.get(source.group), source.placement);
-    return team ? [team] : [];
+    return getTeamByGroupPlacement(groupIndex.get(source.group), source.placement);
   }
   if (source.type === "thirdEligible") {
-    return advancingThirdPlaces.filter((t) => source.groups.includes(t.groupLetter));
+    return thirdPlaceAssignments.get(createThirdPlaceSlotKey(matchId, side)) ?? null;
   }
-  return [];
+  return null;
+}
+
+function createThirdPlaceSlotKey(matchId, side) {
+  return `${matchId}:${side}`;
+}
+
+// Assigns each advancing third-place team to exactly one "best third place" slot in the
+// knockout template. Mirrors the frontend's buildThirdPlaceAssignments (public/app.js) so the
+// backend-generated knockout stubs and the client's own projection always agree on who plays
+// whom -- a slot's eligible-groups list often admits more than one advancing team, so this
+// can't be resolved by simple filtering; it needs an actual assignment (most-constrained-team
+// first, backtracking on conflicts) to land on a single, non-duplicated pairing.
+function buildThirdPlaceAssignments(knockoutTemplate, selectedTeams) {
+  const slots = knockoutTemplate
+    .flatMap((match) => [
+      { key: createThirdPlaceSlotKey(match.match, "home"), source: match.homeSource },
+      { key: createThirdPlaceSlotKey(match.match, "away"), source: match.awaySource }
+    ])
+    .filter((slot) => slot.source?.type === "thirdEligible")
+    .map((slot, index) => ({ ...slot, index, groups: slot.source.groups }));
+
+  if (!selectedTeams.length || !slots.length) {
+    return new Map();
+  }
+
+  const teamOrder = new Map(selectedTeams.map((team, index) => [team.id, index]));
+  const teamEntries = selectedTeams
+    .map((team) => ({
+      team,
+      slots: slots.filter((slot) => slot.groups.includes(team.groupLetter)).sort((left, right) => left.index - right.index)
+    }))
+    .sort((left, right) => {
+      const slotDelta = left.slots.length - right.slots.length;
+
+      if (slotDelta !== 0) {
+        return slotDelta;
+      }
+
+      return (teamOrder.get(left.team.id) ?? 0) - (teamOrder.get(right.team.id) ?? 0);
+    });
+
+  const assignments = new Map();
+  const usedSlotKeys = new Set();
+
+  function assignTeam(index) {
+    if (index >= teamEntries.length) {
+      return true;
+    }
+
+    const entry = teamEntries[index];
+
+    for (const slot of entry.slots) {
+      if (usedSlotKeys.has(slot.key)) {
+        continue;
+      }
+
+      usedSlotKeys.add(slot.key);
+      assignments.set(slot.key, entry.team);
+
+      if (assignTeam(index + 1)) {
+        return true;
+      }
+
+      assignments.delete(slot.key);
+      usedSlotKeys.delete(slot.key);
+    }
+
+    return false;
+  }
+
+  return assignTeam(0) ? assignments : new Map();
 }
 
 function compareTeamsForGroup(left, right) {
@@ -2713,19 +2763,20 @@ function compareTeamsForThirdPlace(left, right) {
 function buildPlayoffBoard(groups, thirdPlaceRanking) {
   const advancingThirdPlaces = thirdPlaceRanking.slice(0, 8);
   const groupIndex = new Map(groups.map((group) => [group.letter, group]));
+  const thirdPlaceAssignments = buildThirdPlaceAssignments(KNOCKOUT_TEMPLATE, advancingThirdPlaces);
 
   return {
     automaticQualifiers: groups.flatMap((group) => group.teams.slice(0, 2)),
     advancingThirdPlaces,
     knockoutTemplate: KNOCKOUT_TEMPLATE.map((match) => ({
       ...match,
-      home: resolveTemplateSource(match.homeSource, groupIndex, advancingThirdPlaces),
-      away: resolveTemplateSource(match.awaySource, groupIndex, advancingThirdPlaces)
+      home: resolveTemplateSource(match.homeSource, match.match, "home", groupIndex, thirdPlaceAssignments),
+      away: resolveTemplateSource(match.awaySource, match.match, "away", groupIndex, thirdPlaceAssignments)
     }))
   };
 }
 
-function resolveTemplateSource(source, groupIndex, advancingThirdPlaces) {
+function resolveTemplateSource(source, matchId, side, groupIndex, thirdPlaceAssignments) {
   if (source.type === "groupPlacement") {
     const team = getTeamByGroupPlacement(groupIndex.get(source.group), source.placement);
     return {
@@ -2736,11 +2787,11 @@ function resolveTemplateSource(source, groupIndex, advancingThirdPlaces) {
   }
 
   if (source.type === "thirdEligible") {
-    const candidates = advancingThirdPlaces.filter((team) => source.groups.includes(team.groupLetter));
+    const team = thirdPlaceAssignments.get(createThirdPlaceSlotKey(matchId, side)) ?? null;
     return {
-      type: "thirdEligible",
-      label: `Best 3rd from ${source.groups.join("/")}`,
-      candidates
+      type: "team",
+      label: team ? `${team.groupLetter}3 • ${team.name}` : `Best 3rd from ${source.groups.join("/")}`,
+      team
     };
   }
 
